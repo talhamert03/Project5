@@ -517,6 +517,8 @@ export class World implements PointerSink {
 
   endLine(): void {
     this.drawing = false;
+    // eğitimde çizgi bitince zaman akmaya devam eder (ıskalarsa adım yeniden kurulur)
+    if (this.phase === 'tutorial') this.tutFrozen = false;
     audio.setDrawing(false, 0);
     const l = this.lines.end(this.stats.lineLife);
     if (l && l.n >= 2) {
