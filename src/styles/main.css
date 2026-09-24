@@ -892,19 +892,23 @@ svg {
   color: var(--ember);
 }
 
+.play-wrap {
+  position: relative;
+  width: 100%;
+  animation: playIdle 3.2s ease-in-out infinite;
+}
+
 .btn-play.big {
   height: 78px;
   border-radius: 26px;
   font-size: 28px;
-  overflow: visible;
-  animation: playIdle 3.2s ease-in-out infinite;
 }
 
 .btn-play.big > svg {
   font-size: 26px;
 }
 
-.btn-play .ring {
+.play-wrap .ring {
   position: absolute;
   inset: -6px;
   border-radius: 30px;

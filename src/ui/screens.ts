@@ -114,10 +114,10 @@ export function menuHTML(d: MenuData): string {
 
       <div class="home-play enter" style="--d:2">
         ${meta.length ? `<div class="play-meta">${meta.join('')}</div>` : ''}
-        <button class="btn-play big" data-a="play">
+        <div class="play-wrap">
           <span class="ring"></span>
-          ${icon('play')}<span class="play-text">${t('menu.play')}</span>
-        </button>
+          <button class="btn-play big" data-a="play">${icon('play')}<span class="play-text">${t('menu.play')}</span></button>
+        </div>
       </div>
     </section>`;
 }
