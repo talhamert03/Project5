@@ -3,8 +3,11 @@ import type { RunResult } from '../game/world';
 import { PENS, type Pen } from '../game/pens';
 import { UPGRADE_BY_ID } from '../game/upgrades';
 import { getLang, t } from '../i18n';
+import { ATMOSPHERES, atmosphereIndexForWave, firstWaveOf } from '../render/atmospheres';
 import {
   type DailyInfo,
+  GIFT_REWARDS,
+  type GiftState,
   RANKS,
   type RankProgress,
   type Settlement,
@@ -54,34 +57,158 @@ export function bootHTML(): string {
 export interface MenuData {
   save: SaveData;
   daily: DailyInfo;
-  missionsReady: number;
+  gift: GiftState;
+  worldName: string;
+  worldIndex: number;
 }
 
+/** Mobil oyun ana ekranı: üst profil çubuğu, yan hızlı butonlar, büyük OYNA */
 export function menuHTML(d: MenuData): string {
   const s = d.save;
   const p = rankProgress(s.best);
-  const streak = s.streak.count > 0 ? ` · ${icon('flame')}${s.streak.count}` : '';
+  const unlocked = Math.min(ATMOSPHERES.length, s.maxAtm + 1);
+  const meta: string[] = [];
+  if (s.streak.count > 0) meta.push(`<span class="meta-chip streak">${icon('flame')}${t('menu.streakDays', { n: s.streak.count })}</span>`);
+  if (s.bestWave > 0) meta.push(`<span class="meta-chip">${icon('lines')}${t('menu.bestWave', { n: s.bestWave })}</span>`);
   return `
-    <section class="screen menu" id="menu">
-      <header class="menu-top enter" style="--d:0">
-        <div class="chip coin">${icon('coin')}<span class="coin-count" id="m-coins">${fmt(s.coins)}</span></div>
-        <div class="right">
-          <button class="icon-btn" data-a="panel" data-p="records" aria-label="${t('menu.records')}">${icon('trophy')}</button>
-          <button class="icon-btn" data-a="panel" data-p="settings" aria-label="${t('menu.settings')}">${icon('gear')}</button>
+    <section class="screen home" id="menu">
+      <header class="topbar enter" style="--d:0">
+        <button class="profile" data-a="panel" data-p="records" style="--rc:${p.rank.color}">
+          ${seal(p.idx, 42)}
+          <span class="profile-info">
+            <b>${rankLabel(p.idx)}</b>
+            <span class="xp"><i style="--w:${(p.frac * 100).toFixed(1)}%"></i></span>
+          </span>
+        </button>
+        <div class="top-right">
+          <button class="currency" data-a="tab" data-p="workshop">${icon('coin')}<b class="coin-count" id="m-coins">${fmt(s.coins)}</b><span class="plus">+</span></button>
+          <button class="icon-btn sm" data-a="panel" data-p="settings" aria-label="${t('menu.settings')}">${icon('gear')}</button>
         </div>
       </header>
-      <div class="brand enter" style="--d:1">
+
+      <div class="brand home-brand enter" style="--d:1">
         <h1 class="logo"><span>${t('app.title1')}</span><span>${t('app.title2')}</span>${LOGO_STROKE}</h1>
+        <div class="world-chip" style="--ac:${ATMOSPHERES[d.worldIndex].accent}">${icon('planet')}${d.worldName}</div>
       </div>
-      <div class="menu-bottom">
-        <div class="enter" style="--d:2">${rankCard(p, s.best)}</div>
-        <button class="btn-play enter" style="--d:3" data-a="play">${icon('play')}${t('menu.play')}</button>
-        <div class="menu-grid enter" style="--d:4">
-          <button class="tile daily" data-a="panel" data-p="daily" style="--tc:var(--gold)">${icon('calendar')}${t('menu.daily')}<small>${t('mod.' + d.daily.mod.id)}${streak.replace(/<svg/, '<svg style="font-size:11px;vertical-align:-1px;color:var(--ember)"')}</small></button>
-          <button class="tile" data-a="panel" data-p="missions" style="--tc:var(--rose)">${icon('target')}${t('menu.missions')}${d.missionsReady > 0 ? `<span class="badge">${d.missionsReady}</span>` : ''}</button>
-          <button class="tile" data-a="panel" data-p="workshop" style="--tc:var(--violet)">${icon('hammer')}${t('menu.workshop')}</button>
-          <button class="tile" data-a="panel" data-p="pens" style="--tc:var(--ink)">${icon('pen')}${t('menu.pens')}</button>
+
+      <div class="home-mid">
+        <div class="side left">
+          <button class="fab gift ${d.gift.ready ? 'ready' : ''}" data-a="gift" style="--ac:var(--gold)">
+            <span class="fab-ic">${icon('gift')}${d.gift.ready ? '<i class="dot">!</i>' : ''}</span>
+            <span class="fab-label">${t('menu.gift')}</span>
+          </button>
+          <button class="fab" data-a="panel" data-p="daily" style="--ac:var(--ember)">
+            <span class="fab-ic">${icon('calendar')}</span>
+            <span class="fab-label">${t('menu.daily')}</span>
+            <small class="fab-sub">${t('mod.' + d.daily.mod.id)}</small>
+          </button>
         </div>
+        <div class="side right">
+          <button class="fab" data-a="panel" data-p="worlds" style="--ac:${ATMOSPHERES[Math.min(unlocked, ATMOSPHERES.length) - 1].accent}">
+            <span class="fab-ic">${icon('planet')}</span>
+            <span class="fab-label">${t('menu.worlds')}</span>
+            <small class="fab-sub">${unlocked}/${ATMOSPHERES.length}</small>
+          </button>
+        </div>
+      </div>
+
+      <div class="home-play enter" style="--d:2">
+        ${meta.length ? `<div class="play-meta">${meta.join('')}</div>` : ''}
+        <button class="btn-play big" data-a="play">
+          <span class="ring"></span>
+          ${icon('play')}<span class="play-text">${t('menu.play')}</span>
+        </button>
+      </div>
+    </section>`;
+}
+
+export type TabName = 'pens' | 'workshop' | 'home' | 'missions' | 'records';
+
+/** Alt sekme çubuğu (menüde her zaman görünür) */
+export function tabbarHTML(active: TabName, missionsBadge: number, canBuy: boolean): string {
+  const tab = (id: TabName, ic: string, label: string, badge = ''): string =>
+    `<button class="tab ${active === id ? 'active' : ''} ${id === 'home' ? 'home-tab' : ''}" data-a="tab" data-p="${id}">
+      <span class="tab-ic">${icon(ic)}${badge}</span><span class="tab-label">${label}</span>
+    </button>`;
+  return `
+    <nav class="tabbar" aria-label="menu">
+      ${tab('pens', 'pen', t('menu.pens'))}
+      ${tab('workshop', 'hammer', t('menu.workshop'), canBuy ? '<i class="badge dot"></i>' : '')}
+      ${tab('home', 'home', t('menu.home'))}
+      ${tab('missions', 'target', t('menu.missions'), missionsBadge > 0 ? `<i class="badge">${missionsBadge}</i>` : '')}
+      ${tab('records', 'trophy', t('menu.records'))}
+    </nav>`;
+}
+
+/** Dünyalar galerisi: açılan atmosferler, menü arka planı seçimi */
+export function worldsHTML(save: SaveData, thumbs: string[], current: number): string {
+  const cards = ATMOSPHERES.map((a, i) => {
+    const unlocked = i <= save.maxAtm;
+    const selected = i === current;
+    const first = firstWaveOf(i);
+    const range = i === ATMOSPHERES.length - 1 ? t('worlds.wavesEnd', { a: first }) : t('worlds.waves', { a: first, b: first + 4 });
+    const status = selected
+      ? `<span class="w-status on">${icon('check')}${t('worlds.selected')}</span>`
+      : unlocked
+        ? `<span class="w-status">${t('worlds.select')}</span>`
+        : `<span class="w-status locked">${icon('lock')}${t('worlds.locked', { n: first })}</span>`;
+    return `
+      <button class="world ${unlocked ? '' : 'locked'} ${selected ? 'selected' : ''}" data-a="world" data-i="${i}" style="--ac:${a.accent};--d:${i}">
+        <span class="w-thumb">${thumbs[i] ? `<img src="${thumbs[i]}" alt="">` : ''}${unlocked ? '' : `<span class="w-lock">${icon('lock')}</span>`}</span>
+        <span class="w-info">
+          <b>${t('atm.' + a.id)}</b>
+          <small>${range}</small>
+          <em>${t('atm.' + a.id + '.d')}</em>
+        </span>
+        ${status}
+      </button>`;
+  }).join('');
+  return panel('worlds', t('worlds.title'), `<p class="lead">${t('worlds.desc')}</p><div class="worlds">${cards}</div>`, save.coins);
+}
+
+/** Günlük hediye penceresi (7 günlük takvim) */
+export function giftHTML(g: GiftState): string {
+  const days = GIFT_REWARDS.map((r, i) => {
+    const done = g.ready ? i < g.day : i <= g.day;
+    const today = g.ready && i === g.day;
+    return `
+      <div class="gday ${done ? 'done' : ''} ${today ? 'today' : ''} ${i === 6 ? 'big' : ''}" style="--d:${i}">
+        <small>${t('gift.day', { n: i + 1 })}</small>
+        <span class="g-ic">${done ? icon('check') : icon(i === 6 ? 'gift' : 'coin')}</span>
+        <b>${fmt(r)}</b>
+      </div>`;
+  }).join('');
+  return `
+    <section class="screen modal" id="gift-modal">
+      <div class="modal-card gift-card">
+        <button class="icon-btn sm modal-x" data-a="closeModal" aria-label="${t('common.close')}">${icon('close')}</button>
+        <div class="gift-hero ${g.ready ? 'ready' : ''}">${icon('gift')}</div>
+        <h2>${t('gift.title')}</h2>
+        <p>${t('gift.desc')}</p>
+        <div class="gift-grid">${days}</div>
+        ${
+          g.ready
+            ? `<button class="btn-play gold" data-a="claimGift">${icon('coin')}${t('gift.claim', { n: fmt(GIFT_REWARDS[g.day]) })}</button>`
+            : `<button class="btn-ghost wide" data-a="closeModal">${t('gift.tomorrow')}</button>`
+        }
+      </div>
+    </section>`;
+}
+
+/** Şehir düşerken: altınla devam et */
+export function reviveHTML(cost: number, bank: number, seconds: number): string {
+  return `
+    <section class="screen modal revive" id="revive-modal">
+      <div class="modal-card revive-card">
+        <div class="revive-timer" style="--dur:${seconds}s">
+          <svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="28"/><circle class="fg" cx="32" cy="32" r="28"/></svg>
+          <span>${icon('house')}</span>
+        </div>
+        <h2>${t('revive.title')}</h2>
+        <p>${t('revive.desc')}</p>
+        <button class="btn-play gold" data-a="revive">${icon('coin')}${fmt(cost)} · ${t('revive.go')}</button>
+        <button class="btn-ghost wide" data-a="giveup">${t('revive.no')}</button>
+        <small class="bank">${t('revive.bank', { n: fmt(bank) })}</small>
       </div>
     </section>`;
 }
@@ -161,6 +288,11 @@ export function overHTML(r: RunResult, st: Settlement, best: number, dailyBest: 
     <section class="screen over" id="over">
       <div class="over-inner">
       <div class="over-title">${t('over.title')}</div>
+      ${(() => {
+        const wi = atmosphereIndexForWave(Math.max(1, r.wave));
+        const a = ATMOSPHERES[wi];
+        return `<div class="world-chip" style="--ac:${a.accent}">${icon('planet')}${t('banner.chapter', { n: wi + 1 })} · ${t('atm.' + a.id)}</div>`;
+      })()}
       <div class="over-score">
         <span class="label">${t('over.score')}</span>
         <b id="o-score">0</b>

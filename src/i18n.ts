@@ -26,6 +26,7 @@ const tr: Dict = {
   'w.armor': 'ZIRH!',
   'w.repair': 'ONARILDI',
   'w.inkEmpty': 'MÜREKKEP BİTTİ',
+  'w.nearMiss': 'SON ANDA!',
 };
 
 const en: Dict = {
@@ -51,6 +52,7 @@ const en: Dict = {
   'w.armor': 'ARMOR!',
   'w.repair': 'REPAIRED',
   'w.inkEmpty': 'OUT OF INK',
+  'w.nearMiss': 'CLOSE CALL!',
 };
 
 const dicts: Record<'tr' | 'en', Dict> = { tr, en };

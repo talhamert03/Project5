@@ -18,7 +18,24 @@ Sektirdiğin meteoru başka bir meteora çarptırırsan ikisi de patlar. Zincirl
 | Meteorlar | Normal, hızlı (buz), zırhlı (ilk çarpmada çizgiyi kırar), bölünen, altın (altın kazandırır). |
 | Kızıl Dev | Her 5 dalgada bir boss. Minyonlarını ona geri sektirerek yenersin. |
 | Güçler | Her dalga sonunda 3 karttan biri: 19 güç, 4 nadirlik (Ayna, Zincir Şimşek, Kara Delik, Anka Kuşu...). |
-| Şehir | Beş mahalle, her biri iki can. Mahalleler yıkıldıkça uzak silüetin ışıkları söner. |
+| Şehir | Beş mahalle, her biri iki can. Mahalleler yıkıldıkça uzak silüetin (apartmanlar ve Boğaz Köprüsü) ışıkları söner. |
+| Son anda | Şehre çok yakınken yapılan sektirme "SON ANDA!" bonusu kazandırır. |
+| Devam et | Şehir düşünce bir kez altınla üç mahalleyi yeniden kurup kaldığın yerden sürdürebilirsin. |
+
+### Dünyalar (atmosferler)
+
+Her 5 dalgada sahne tamburu 360° sağa döner ve arkasındaki yeni dünya ortaya çıkar. Her dünyanın kendi gökyüzü, gök cismi, ortam efekti, müzik tonu ve küçük bir oynanış farkı var:
+
+| Bölüm | Dünya | Dalgalar | Farkı |
+|---|---|---|---|
+| 1 | Gece | 1–5 | Hilal, ebru bulutsusu |
+| 2 | Alacakaranlık | 6–10 | Batan güneş, uçuşan lale yaprakları, meteorları sürükleyen rüzgâr |
+| 3 | Kuzey Işıkları | 11–15 | Kuzey ışığı perdeleri, kar; buz meteorları çoğalır |
+| 4 | Kızıl Kıyamet | 16–20 | Kan ayı, şimşekler, yükselen korlar; zırhlı ve bölünen meteorlar artar |
+| 5 | Kozmos | 21–25 | Halkalı gezegen, yıldız tozu; ağır meteorlar |
+| 6 | Ebru Rüyası | 26+ | Rengârenk ebru, iki ay; son dünya |
+
+Açılan dünyalar menüdeki **Dünyalar** galerisinde görünür ve menü arka planı yapılabilir.
 
 ### Rekabet ve bağlılık sistemleri
 
@@ -29,6 +46,8 @@ Sektirdiğin meteoru başka bir meteora çarptırırsan ikisi de patlar. Zincirl
 - **Atölye:** Altınla alınan kalıcı geliştirmeler.
 - **Kalemler:** Mürekkep renkleri; Ateş, Buz ve Gökkuşağı yalnızca rütbeyle açılır.
 - **Rekorlar:** En iyi 10 oyun ve istatistikler. Oyun sırasında rekor kırılınca kutlama yapılır.
+- **Günlük hediye:** 7 günlük takvim; arka arkaya gelen günlerde ödül büyür, 7. gün büyük hediye.
+- **Mobil oyun menüsü:** Profil (rütbe) kartı, altın kasası, yan hızlı butonlar, alt sekme çubuğu, mürekkep fırçası geçişleri.
 
 ## Teknik yapı
 
@@ -40,8 +59,8 @@ Harici oyun motoru yok. Mobilde 60+ FPS için Canvas 2D üzerine yazılmış haf
 - **Giriş:** `getCoalescedEvents` ile 120-240 Hz dokunmatik örnekleri kaybolmaz; düşük gecikmeli canvas (`desynchronized`).
 - **Uyarlanabilir kalite:** Kare hızı düşerse çözünürlük ve parçacık bütçesi kendiliğinden azalır.
 - **Ses:** Hiç ses dosyası yok. Bütün efektler ve Hicaz makamındaki üretken müzik WebAudio ile anlık sentezlenir. Çizim sırasında müzik boğuklaşır.
-- **Görseller:** Ebru desenli bulutsu, İstanbul silüeti, cumbalı evler ve ikonlar kodla üretilir.
-- **Paket:** Tek HTML dosyası (~410 KB, fontlar dahil). Oyun tamamen internetsiz çalışır.
+- **Görseller:** HD ebru damarları (dönel akış alanını izleyen, piksel çözünürlüğünde çizilen vektörel çizgiler), apartman ve köprü silüeti, cumbalı evler ve ikonlar kodla üretilir. Sıradaki dünya, güç kartları ekranı açıkken önceden hazırlanır; geçişte takılma olmaz.
+- **Paket:** Tek HTML dosyası (~430 KB, fontlar dahil). Oyun tamamen internetsiz çalışır.
 
 ```
 src/
@@ -53,7 +72,7 @@ src/
   app.ts     durum makinesi: açılış → menü → oyun → güç seçimi → oyun sonu
 android/     Capacitor Android projesi
 store/       Play Store ikonu, tanıtım görseli, ekran görüntüleri, mağaza metinleri
-scripts/     font alt kümesi, ikon üretici, artifact dönüştürücü
+scripts/     font alt kümesi, ikon üretici, imza anahtarı oluşturucu, artifact dönüştürücü
 ```
 
 ## Geliştirme
@@ -87,7 +106,13 @@ npm run android:open # Android Studio'da aç, cihazda çalıştır
 
 ### Yayın imzası
 
-Bir kez yükleme anahtarı oluştur (dosyayı ve şifreleri güvenli sakla, kaybedersen güncelleme yayınlayamazsın):
+Bir kez yükleme anahtarı oluştur (dosyayı ve şifreyi güvenli sakla, kaybedersen güncelleme yayınlayamazsın). Hazır betik anahtarı üretir, `android/keystore.properties` dosyasını yazar ve GitHub'a eklenecek gizli değerleri yazdırır (JDK gerekir):
+
+```bash
+./scripts/create-keystore.sh
+```
+
+Elle yapmak istersen:
 
 ```bash
 keytool -genkey -v -keystore upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
@@ -122,7 +147,7 @@ keytool -genkey -v -keystore upload.jks -keyalg RSA -keysize 2048 -validity 1000
 - **Küresel skor tablosu:** Google Play Games Services liderlik tablosu (rekabet için en güçlü adım)
 - **Bulut kaydı:** Play Games ile ilerlemenin cihazlar arası taşınması
 - **Gelir:** Ödüllü reklam (oyun sonunda "2 kat altın") ve kozmetik kalem paketleri
-- **İçerik:** Yeni boss türleri, mevsimlik günlük kurallar, başarımlar
+- **İçerik:** Her dünyaya özel boss, mevsimlik günlük kurallar, başarımlar
 
 ## Lisanslar
 

@@ -77,6 +77,11 @@ export class AudioEngine {
   private musicPlaying = false;
   private melodyDeg = 7;
   private melodySeed = 1;
+  /** atmosfere göre ton kaydırma (yarım ses) ve tempo */
+  private root = 0;
+  private bpm = 104;
+  private nextRoot = 0;
+  private nextBpm = 104;
 
   get ready(): boolean {
     return !!this.ctx && this.ctx.state === 'running';
@@ -446,7 +451,32 @@ export class AudioEngine {
     }
   }
 
+  /** Sahne tamburu dönerken yükselen rüzgâr */
+  sceneTurn(): void {
+    if (!this.ctx || !this.sfxOn) return;
+    this.noiseBurst({ type: 'bandpass', freq: 250, freqEnd: 4200, q: 1.1, dur: 1.9, vol: 0.2, attack: 1.2 });
+    this.tone({ type: 'sawtooth', freq: 110, freqEnd: 440, dur: 1.9, vol: 0.05, attack: 1.3, lp: 1600 });
+  }
+
+  /** Yeni dünya açıldı: geniş, parlak akor */
+  newWorld(): void {
+    if (!this.ctx || !this.sfxOn) return;
+    const t = this.ctx.currentTime;
+    const base = 50 + this.nextRoot;
+    [0, 7, 12, 16, 19, 24].forEach((s, i) => {
+      this.tone({ type: 'triangle', freq: mtof(base + s), dur: 1.8, vol: 0.07, when: t + i * 0.05, reverb: 0.8 });
+    });
+    this.noiseBurst({ type: 'highpass', freq: 5000, dur: 1.2, vol: 0.06, attack: 0.05 });
+    this.tone({ type: 'sine', freq: mtof(base - 12), dur: 1.4, vol: 0.25 });
+  }
+
   // ───────────────────────── MÜZİK ─────────────────────────
+
+  /** Atmosfer müziği: bir sonraki ölçüden itibaren yeni ton ve tempo */
+  setScene(root: number, bpm: number): void {
+    this.nextRoot = root;
+    this.nextBpm = bpm;
+  }
 
   /** 0: menü (sakin), 1-3: dalga yoğunluğu, 4: boss */
   setIntensity(level: number): void {
@@ -470,7 +500,7 @@ export class AudioEngine {
   private schedule(): void {
     const ctx = this.ctx;
     if (!ctx || ctx.state !== 'running') return;
-    const stepDur = 60 / 104 / 4;
+    const stepDur = 60 / this.bpm / 4;
     // sekme arka planda kaldıysa geride kalan notaları çalma
     if (this.nextTime < ctx.currentTime - 0.2) this.nextTime = ctx.currentTime + 0.05;
     while (this.nextTime < ctx.currentTime + 0.14) {
@@ -481,6 +511,8 @@ export class AudioEngine {
         this.step = 0;
         this.bar = (this.bar + 1) % 4;
         this.intensity = this.targetIntensity;
+        this.root = this.nextRoot;
+        this.bpm = this.nextBpm;
       }
     }
   }
@@ -493,8 +525,9 @@ export class AudioEngine {
   private playStep(step: number, t: number, sd: number): void {
     const dest = this.musicLP;
     const I = this.intensity;
-    const root = 50 + BAR_ROOTS[this.bar];
-    const chord = BAR_CHORDS[this.bar];
+    const R = this.root;
+    const root = 50 + R + BAR_ROOTS[this.bar];
+    const chord = BAR_CHORDS[this.bar].map((c) => c + R);
 
     // Pad: her ölçünün başında
     if (step === 0) {
@@ -545,7 +578,7 @@ export class AudioEngine {
       this.melodyDeg += Math.floor(this.rand() * 5) - 2;
       if (this.melodyDeg < 4) this.melodyDeg = 5;
       if (this.melodyDeg > 13) this.melodyDeg = 11;
-      const n = hicaz(this.melodyDeg, 62);
+      const n = hicaz(this.melodyDeg, 62 + R);
       this.tone({ type: 'triangle', freq: mtof(n), dur: sd * 3.5, vol: 0.05, when: t, dest, reverb: 0.55 });
       this.tone({ type: 'sine', freq: mtof(n + 12), dur: sd * 2, vol: 0.015, when: t, dest });
     }

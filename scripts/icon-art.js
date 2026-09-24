@@ -50,46 +50,68 @@
   }
 
   function skyline(g, W, H, baseY, sc) {
+    // Boğaz Köprüsü + apartmanlar (oyundaki uzak silüetle aynı dil)
     const s = Math.min(W, H) * sc;
     const B = H * baseY;
-    const cx = W * (0.5 + (W > H ? 0.22 : 0));
+    let seed = 21;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    // köprü
+    const deck = B - s * 0.2;
+    const xL = W * 0.18;
+    const xR = W * 0.82;
+    const top = deck - s * 0.26;
+    g.fillStyle = '#0d1242';
+    g.strokeStyle = '#0d1242';
+    for (const tx of [xL, xR]) {
+      g.fillRect(tx - s * 0.018, top, s * 0.012, B - top);
+      g.fillRect(tx + s * 0.006, top, s * 0.012, B - top);
+      g.fillRect(tx - s * 0.018, top + s * 0.02, s * 0.036, s * 0.01);
+    }
+    g.fillRect(0, deck, W, s * 0.012);
+    g.lineWidth = Math.max(1, s * 0.006);
+    g.beginPath();
+    for (let x = 0; x <= W; x += W / 60) {
+      let y;
+      if (x < xL) y = top + ((xL - x) / xL) * (deck - top);
+      else if (x > xR) y = top + ((x - xR) / (W - xR)) * (deck - top);
+      else y = top + (1 - Math.pow(2 * ((x - xL) / (xR - xL)) - 1, 2)) * (deck - top - s * 0.03);
+      if (x === 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
+    }
+    g.stroke();
+    // gerdanlık ışıkları
+    g.fillStyle = 'rgba(143,233,255,0.85)';
+    for (let x = W * 0.02; x < W; x += W / 34) {
+      let y;
+      if (x < xL) y = top + ((xL - x) / xL) * (deck - top);
+      else if (x > xR) y = top + ((x - xR) / (W - xR)) * (deck - top);
+      else y = top + (1 - Math.pow(2 * ((x - xL) / (xR - xL)) - 1, 2)) * (deck - top - s * 0.03);
+      g.beginPath();
+      g.arc(x, y, Math.max(0.8, s * 0.004), 0, TAU);
+      g.fill();
+    }
+    // apartmanlar
     g.fillStyle = '#070b2c';
     g.beginPath();
     g.moveTo(0, H);
     g.lineTo(0, B);
-    g.quadraticCurveTo(W * 0.5, B - s * 0.06, W, B);
+    g.quadraticCurveTo(W * 0.5, B - s * 0.04, W, B);
     g.lineTo(W, H);
     g.fill();
-    // cami
-    const dome = (x, y, r) => {
-      g.beginPath();
-      g.arc(x, y, r, Math.PI, 0);
-      g.fill();
-    };
-    g.fillRect(cx - s * 0.16, B - s * 0.1, s * 0.32, s * 0.12);
-    dome(cx, B - s * 0.1, s * 0.1);
-    dome(cx - s * 0.12, B - s * 0.1, s * 0.05);
-    dome(cx + s * 0.12, B - s * 0.1, s * 0.05);
-    for (const dx of [-0.2, 0.2]) {
-      const x = cx + dx * s;
-      g.fillRect(x - s * 0.008, B - s * 0.3, s * 0.016, s * 0.3);
-      g.beginPath();
-      g.moveTo(x - s * 0.012, B - s * 0.3);
-      g.lineTo(x, B - s * 0.36);
-      g.lineTo(x + s * 0.012, B - s * 0.3);
-      g.fill();
+    let x = -s * 0.02;
+    const wins = [];
+    while (x < W) {
+      const tall = rnd() < 0.15;
+      const w = s * (tall ? 0.06 : 0.04 + rnd() * 0.05);
+      const h = s * (tall ? 0.34 + rnd() * 0.06 : 0.1 + rnd() * 0.16);
+      g.fillStyle = '#070b2c';
+      g.fillRect(x, B - h, w, h + 2);
+      if (tall) g.fillRect(x + w * 0.46, B - h - s * 0.05, Math.max(1, s * 0.004), s * 0.05);
+      for (let r = 0; r < 6; r++) if (rnd() < 0.5) wins.push([x + w * (0.2 + rnd() * 0.6), B - h + s * 0.02 + r * s * 0.022]);
+      x += w + s * 0.004;
     }
-    // Galata
-    const gx = cx - s * 0.42;
-    g.fillRect(gx - s * 0.035, B - s * 0.24, s * 0.07, s * 0.26);
-    g.beginPath();
-    g.moveTo(gx - s * 0.045, B - s * 0.24);
-    g.lineTo(gx, B - s * 0.34);
-    g.lineTo(gx + s * 0.045, B - s * 0.24);
-    g.fill();
-    // pencere ışıkları
-    g.fillStyle = 'rgba(255,198,107,0.9)';
-    for (let i = 0; i < 7; i++) g.fillRect(cx - s * 0.13 + i * s * 0.04, B - s * 0.05, s * 0.012, s * 0.018);
+    g.fillStyle = 'rgba(255,198,107,0.85)';
+    for (const [wx, wy] of wins) if (wy < B - s * 0.01) g.fillRect(wx, wy, Math.max(1, s * 0.006), Math.max(1, s * 0.008));
   }
 
   function glowDot(g, x, y, r, color, a) {
@@ -302,7 +324,7 @@
     const g = canvas.getContext('2d');
     const W = canvas.width;
     const H = canvas.height;
-    bg(g, W, H, { skyline: true, skylineY: 0.9, skylineScale: 0.62, stars: 120 });
+    bg(g, W, H, { skyline: true, skylineY: 0.93, skylineScale: 0.44, stars: 120 });
     // hilal (ayrı katmanda kesilir)
     const mr = H * 0.07;
     const moon = document.createElement('canvas');

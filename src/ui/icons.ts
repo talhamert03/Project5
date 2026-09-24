@@ -47,6 +47,8 @@ export const ICONS: Record<string, string> = {
   hole: s('<circle cx="12" cy="12" r="2.8" fill="currentColor"/><path d="M12 5.2a6.8 6.8 0 016.8 6.8M18.8 12a6.8 6.8 0 01-6.8 6.8M12 18.8A6.8 6.8 0 015.2 12M5.2 12A6.8 6.8 0 0112 5.2"/><path d="M12 2.4a9.6 9.6 0 019.4 7.6M21.6 12a9.6 9.6 0 01-7.6 9.4"/>'),
   crown: s('<path d="M4 17.4l-.6-10 5.2 4 3.4-6 3.4 6 5.2-4-.6 10z" fill="currentColor" fill-opacity=".2"/><path d="M4 20.4h16"/>'),
   phoenix: s('<path d="M12 21.2c-4-2-6.2-5.6-6.2-9.2 2 1.6 3.6 1.6 4.6 0C9 9 9.6 6 12 2.8c2.4 3.2 3 6.2 1.6 9.2 1 1.6 2.6 1.6 4.6 0 0 3.6-2.2 7.2-6.2 9.2z" fill="currentColor" fill-opacity=".2"/>'),
+  planet: s('<circle cx="12" cy="12" r="5.6" fill="currentColor" fill-opacity=".22"/><path d="M3.2 15.6c-1.4 2.4 3.4 2.2 9.2-.9s9.4-6.9 8.4-8.9c-.6-1.2-3-1-6 .1"/>'),
+  gift: s('<rect x="3.6" y="8.4" width="16.8" height="4.4" rx="1.2" fill="currentColor" fill-opacity=".2"/><path d="M5 12.8v7.4h14v-7.4M12 8.4v11.8"/><path d="M12 8.4c-1.2-3.8-5.8-4.6-5.8-1.6 0 1.6 2.8 1.6 5.8 1.6zM12 8.4c1.2-3.8 5.8-4.6 5.8-1.6 0 1.6-2.8 1.6-5.8 1.6z"/>'),
   flameUp: s('<path d="M12 2.8c1.1 3.6 5.2 5.6 5.2 10.2a5.2 5.2 0 01-10.4 0c0-2.3 1-3.8 2.3-5 .2 1.7 1 2.7 2.1 3.1-.1-3 .2-5.6.8-8.3z" fill="currentColor" fill-opacity=".2"/>'),
 };
 

@@ -23,11 +23,14 @@ Her dalga sonunda 3 güçten birini seç: Ayna, Zincir Şimşek, Kara Delik, Ank
 ★ KIZIL DEV
 Her beş dalgada bir dev bir meteor gelir. Minyonlarını ona geri sektirerek yık.
 
+★ ALTI DÜNYA
+Her bölüm sonunda sahne tamburu döner, arkasından yeni bir dünya çıkar: Gece, Alacakaranlık, Kuzey Işıkları, Kızıl Kıyamet, Kozmos ve Ebru Rüyası. Her dünyanın kendi gökyüzü, müziği ve sürprizi var.
+
 ★ REKABET
-Çıraklıktan Efsane'ye uzanan hat sanatı rütbeleri. Her gün herkesin aynı meteorlarla oynadığı günlük meydan okuma, günlük seri bonusu, görevler ve rekor tablosu.
+Çıraklıktan Efsane'ye uzanan hat sanatı rütbeleri. Her gün herkesin aynı meteorlarla oynadığı günlük meydan okuma, 7 günlük hediye takvimi, günlük seri bonusu, görevler ve rekor tablosu.
 
 ★ İSTANBUL'UN GECESİ
-Ebru desenli bir gökyüzü, Galata Kulesi ve kubbelerle dolu bir silüet, cumbalı evler. Hicaz makamında üretken müzik ve her sekmede yükselen melodik sesler.
+Ebru desenli bir gökyüzü, Boğaz Köprüsü'nün ışıkları, apartmanlar ve cumbalı evler. Hicaz makamında üretken müzik ve her sekmede yükselen melodik sesler.
 
 ★ İNTERNETSİZ, REKLAMSIZ
 Oyun tamamen çevrimdışı çalışır. Hiçbir kişisel veri toplanmaz.
@@ -55,11 +58,14 @@ After each wave pick one of three powers: Mirror, Chain Lightning, Black Hole, P
 ★ THE RED GIANT
 Every fifth wave a giant meteor arrives. Bounce its minions back into it to bring it down.
 
+★ SIX WORLDS
+At the end of each chapter the stage turns and a new world appears behind it: Night, Dusk, Northern Lights, Crimson Doom, Cosmos and Ebru Dream. Each has its own sky, music and twist.
+
 ★ COMPETITION
-Calligraphy ranks from Apprentice to Legend. A daily challenge where everyone plays the same meteors, daily streak bonus, missions and records.
+Calligraphy ranks from Apprentice to Legend. A daily challenge where everyone plays the same meteors, a 7-day gift calendar, daily streak bonus, missions and records.
 
 ★ ISTANBUL AT NIGHT
-A marbled ebru sky, a skyline of Galata Tower and domes, wooden bay-window houses. Generative music in the Hicaz maqam, with melodic notes that climb with every bounce.
+A marbled ebru sky, the lights of the Bosphorus Bridge, apartment blocks and wooden bay-window houses. Generative music in the Hicaz maqam, with melodic notes that climb with every bounce.
 
 ★ OFFLINE, NO ADS
 Plays fully offline. No personal data is collected.
@@ -69,3 +75,9 @@ Plays fully offline. No personal data is collected.
 - Kategori: Oyun → Arcade
 - Etiketler: Arcade, Tek oyunculu, Çevrimdışı, Stilize
 - İletişim e-postası: (Play Console'da kendi adresini gir)
+
+## Sürüm notları (1.1.0)
+
+**TR:** Altı dünya ve dönen sahne geçişleri, HD ebru gökyüzü, yenilenen ana menü, günlük hediye, altınla devam, "Son anda" bonusu.
+
+**EN:** Six worlds with a turning-stage transition, HD ebru sky, redesigned home screen, daily gift, continue with gold, close-call bonus.

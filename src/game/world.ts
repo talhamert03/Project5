@@ -4,6 +4,7 @@ import type { PointerSink } from '../core/input';
 import { TAU, clamp, damp, easeInOutCubic, hsl } from '../core/math';
 import { Rng, fx } from '../core/rng';
 import { t } from '../i18n';
+import { ATMOSPHERES, type Atmosphere } from '../render/atmospheres';
 import type { Background } from '../render/background';
 import { C, METEOR_COLORS } from '../render/palette';
 import { Particles, Shape } from '../render/particles';
@@ -77,9 +78,23 @@ export type WorldEvent =
   | { type: 'gameOver'; result: RunResult }
   | { type: 'tutorial'; step: number }
   | { type: 'tutorialDone' }
-  | { type: 'phoenix' };
+  | { type: 'phoenix' }
+  | { type: 'atmosphere'; index: number }
+  | { type: 'revive'; cost: number }
+  | { type: 'nearMiss' };
 
-export type Phase = 'attract' | 'tutorial' | 'intro' | 'play' | 'cleared' | 'dying' | 'over';
+export type Phase = 'attract' | 'tutorial' | 'intro' | 'play' | 'cleared' | 'transition' | 'revive' | 'dying' | 'over';
+
+interface DrumTransition {
+  t: number;
+  dur: number;
+  to: number;
+  stage: 0 | 1;
+  back: Phase;
+  old: HTMLCanvasElement;
+  neu: HTMLCanvasElement;
+  lines: Float32Array;
+}
 
 export interface Hud {
   score: number;
@@ -237,6 +252,27 @@ export class World implements PointerSink {
     this.registerSprites();
   }
 
+  atmIndex = 0;
+  private trans: DrumTransition | null = null;
+  private snapA: HTMLCanvasElement | null = null;
+  private snapB: HTMLCanvasElement | null = null;
+  /** Oyun sonunda altınla devam: uygulama belirler (yeterli altın var mı) */
+  reviveCost: (() => number) | null = null;
+  private revived = false;
+
+  get atm(): Atmosphere {
+    return ATMOSPHERES[this.atmIndex];
+  }
+
+  /** Atmosferi anında uygula (gökyüzü, şehir tonu, müzik) */
+  applyAtmosphere(index: number): void {
+    this.atmIndex = Math.max(0, Math.min(ATMOSPHERES.length - 1, index));
+    const a = this.atm;
+    this.bg.setAtmosphere(a);
+    this.city.setAtmosphere(a.house.tint, a.house.glow);
+    audio.setScene(a.music.root, a.music.bpm);
+  }
+
   setPen(pen: Pen): void {
     this.pen = pen;
     this.sp.pen = this.parts.register('pen:' + pen.id, this.sprites.glow(pen.color));
@@ -372,6 +408,9 @@ export class World implements PointerSink {
     this.maxLineDeflect = 0;
     this.recordBroken = false;
     this.phoenixUsed = 0;
+    this.revived = false;
+    if (this.atmIndex !== 0) this.applyAtmosphere(0);
+    this.director.bias = this.atm.bias;
     this.hud.best = opts.best;
     this.hud.bossHp = -1;
 
@@ -555,6 +594,7 @@ export class World implements PointerSink {
       target = Math.min(target, this.slowOverride);
     }
     if (this.phase === 'dying') target = 0.3;
+    if (this.phase === 'revive') target = 0.04;
     this.timeScale = damp(this.timeScale, target, this.drawing ? 18 : 8, realDt);
     const sdt = dt * this.timeScale;
     audio.setSlowmo(clamp((1 - this.timeScale) * 1.4, 0, 1));
@@ -576,6 +616,9 @@ export class World implements PointerSink {
         break;
       case 'play':
         this.updateSpawns(sdt);
+        break;
+      case 'transition':
+        this.updateTransition(realDt);
         break;
       case 'dying':
         this.dyingT -= realDt;
@@ -720,6 +763,9 @@ export class World implements PointerSink {
       m.flash = Math.max(0, m.flash - dt);
       m.lineCd -= dt;
 
+      if (!m.friendly && m.kind !== MK.Boss && this.atm.wind !== 0 && this.phase !== 'attract') {
+        m.vx += this.atm.wind * this.speedScale * dt;
+      }
       if (m.kind === MK.Golden && !m.friendly) {
         m.vx = m.baseV + Math.sin(m.age * 2.4 + m.swayPh) * 90 * this.speedScale;
       }
@@ -952,6 +998,14 @@ export class World implements PointerSink {
       });
     }
 
+    if (wasHostile && this.phase !== 'attract' && this.phase !== 'tutorial' && py > this.groundY - 125) {
+      // şehre çok yakınken kurtarış
+      this.addScore(60, px, py, false);
+      this.fx.text(t('w.nearMiss'), px, py - 60, 30, C.gold, true, 1);
+      this.parts.burst(px, py, Math.round(14 * this.q), this.sp.goldHot, 120, 420, 0.6, 12, { drag: 3, shape: Shape.Streak });
+      this.hitstop = Math.max(this.hitstop, 0.04);
+      this.onEvent({ type: 'nearMiss' });
+    }
     if (wasHostile) {
       this.deflects++;
       l.deflects++;
@@ -1339,6 +1393,10 @@ export class World implements PointerSink {
     m.active = false;
     const x = m.x;
     const y = this.groundY + 10;
+    if (this.phase === 'revive' || this.phase === 'dying' || this.phase === 'over') {
+      this.explosionFx(x, y, C.ember, 1);
+      return;
+    }
     if (this.phase === 'attract' || m.tutorial || this.phase === 'tutorial') {
       this.explosionFx(x, y, METEOR_COLORS[KINDS[m.kind].key], 0.7);
       if (this.phase === 'tutorial') {
@@ -1422,11 +1480,51 @@ export class World implements PointerSink {
       return;
     }
     if (this.drawing) this.endLine();
+    const cost = !this.revived && this.opts && !this.opts.tutorial && this.reviveCost ? this.reviveCost() : 0;
+    if (cost > 0) {
+      this.phase = 'revive';
+      this.fx.shake(0.8);
+      audio.cityHit();
+      haptics.error();
+      this.onEvent({ type: 'revive', cost });
+      return;
+    }
+    this.fall();
+  }
+
+  private fall(): void {
     this.phase = 'dying';
     this.dyingT = 2.4;
     this.fx.shake(1);
     audio.gameOver();
     haptics.error();
+  }
+
+  /** Altınla devam: üç mahalle yeniden yükselir, sahnedeki düşmanlar patlar */
+  revive(): void {
+    if (this.phase !== 'revive') return;
+    this.revived = true;
+    for (const i of [1, 2, 3]) {
+      const b = this.city.blocks[i];
+      b.hp = b.maxHp;
+      b.repairT = 0;
+    }
+    for (const m of this.meteors) if (m.active && !m.friendly && m.kind !== MK.Boss) this.queueExplosion(m.x, m.y, 10, 2, Math.random() * 0.4, m);
+    if (this.boss && this.boss.active) this.boss.vy = -260 * this.speedScale;
+    this.phase = 'play';
+    this.slowOverride = 0.25;
+    this.slowOverrideT = 1;
+    this.ink = this.stats.maxInk;
+    this.fx.flash(this.pen.color, 0.6);
+    this.parts.burst(360, this.view.H - 140, Math.round(70 * this.q), this.sp.penHot, 100, 650, 1.5, 24, { drag: 1.5, gravity: -80 });
+    this.bg.lights = this.city.alive / BLOCKS;
+    audio.repair();
+    haptics.success();
+  }
+
+  /** Devam etmeden vazgeç */
+  giveUp(): void {
+    if (this.phase === 'revive') this.fall();
   }
 
   result(): RunResult {
@@ -1744,6 +1842,175 @@ export class World implements PointerSink {
   // ───────────────────────── ÇİZİM ─────────────────────────
 
   render(): void {
+    const tr = this.trans;
+    if (tr) {
+      if (tr.stage === 0) this.captureTransition(tr);
+      this.renderDrum(tr);
+      return;
+    }
+    this.renderScene();
+  }
+
+  // ───────────────────────── ATMOSFER GEÇİŞİ (360° TAMBUR) ─────────────────────────
+
+  /** Sahne tamburu döner, arkasındaki yeni dünya ortaya çıkar */
+  beginTransition(to: number): boolean {
+    if (this.trans || to === this.atmIndex) return false;
+    if (this.phase !== 'cleared' && this.phase !== 'attract') return false;
+    if (this.drawing) this.endLine();
+    const v = this.view;
+    const mk = (c: HTMLCanvasElement | null): HTMLCanvasElement => {
+      const cv = c ?? document.createElement('canvas');
+      if (cv.width !== v.canvas.width || cv.height !== v.canvas.height) {
+        cv.width = v.canvas.width;
+        cv.height = v.canvas.height;
+      }
+      return cv;
+    };
+    this.snapA = mk(this.snapA);
+    this.snapB = mk(this.snapB);
+    const lines = new Float32Array(28 * 3);
+    for (let i = 0; i < 28; i++) {
+      lines[i * 3] = Math.random();
+      lines[i * 3 + 1] = Math.random();
+      lines[i * 3 + 2] = 0.4 + Math.random() * 0.8;
+    }
+    this.trans = { t: 0, dur: 2.1, to, stage: 0, back: this.phase, old: this.snapA, neu: this.snapB, lines };
+    this.phase = 'transition';
+    audio.sceneTurn();
+    haptics.medium();
+    return true;
+  }
+
+  get transitioning(): boolean {
+    return this.trans !== null;
+  }
+
+  private captureTransition(tr: DrumTransition): void {
+    const v = this.view;
+    // eski sahne: son kare
+    this.renderScene();
+    tr.old.getContext('2d')!.drawImage(v.canvas, 0, 0);
+    // yeni sahne: atmosferi uygula, sahneyi temiz çiz
+    for (const m of this.meteors) m.active = false;
+    this.lines.clear();
+    this.parts.clear();
+    this.fx.clear();
+    this.applyAtmosphere(tr.to);
+    this.renderScene();
+    tr.neu.getContext('2d')!.drawImage(v.canvas, 0, 0);
+    tr.stage = 1;
+  }
+
+  private updateTransition(realDt: number): void {
+    const tr = this.trans;
+    if (!tr) {
+      this.phase = 'cleared';
+      return;
+    }
+    if (tr.stage === 0) return;
+    tr.t += realDt;
+    // dönüşün ortasında yeni dünyanın müziği ve ışıltısı
+    if (tr.t >= tr.dur) {
+      this.trans = null;
+      this.phase = tr.back;
+      this.director.bias = this.atm.bias;
+      this.fx.flash(this.atm.accent, 0.35);
+      audio.newWorld();
+      haptics.success();
+      this.onEvent({ type: 'atmosphere', index: this.atmIndex });
+    }
+  }
+
+  private renderDrum(tr: DrumTransition): void {
+    const v = this.view;
+    const g = v.ctx;
+    const W = v.canvas.width;
+    const H = v.canvas.height;
+    const p = clamp(tr.t / tr.dur, 0, 1);
+    const e = easeInOutCubic(p);
+    const theta = e * Math.PI;
+    const zoom = 1 - 0.16 * Math.sin(Math.PI * p);
+    const R = (W / 2) * zoom;
+    const cx = W / 2;
+    const cy = H / 2;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
+    g.fillStyle = '#02030C';
+    g.fillRect(0, 0, W, H);
+    // tamburun arkası: yeni dünyanın renginde derin bir boşluk ve yıldızlar
+    const speed0 = Math.sin(Math.PI * p);
+    g.globalCompositeOperation = 'lighter';
+    g.globalAlpha = 0.5 * speed0;
+    g.drawImage(this.sprites.glow(this.atm.accent), -W * 0.3, H * 0.1, W * 1.6, H * 0.8);
+    g.globalAlpha = 0.8 * speed0;
+    const star = this.sprites.glow('#FFFFFF', true);
+    for (let i = 0; i < 28; i++) {
+      const sx = ((tr.lines[i * 3 + 2] * 7.13 + p * 0.25 * tr.lines[i * 3]) % 1) * W;
+      const sy = tr.lines[i * 3 + 1] * H;
+      const ss = 3 + tr.lines[i * 3] * 5;
+      g.drawImage(star, sx - ss / 2, sy - ss / 2, ss, ss);
+    }
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
+
+    const face = (img: HTMLCanvasElement, phi: number): void => {
+      const N = 72;
+      for (let j = 0; j < N; j++) {
+        const a0 = phi + (j / N - 0.5) * Math.PI;
+        const a1 = phi + ((j + 1) / N - 0.5) * Math.PI;
+        if (a1 <= -Math.PI / 2 || a0 >= Math.PI / 2) continue;
+        const c0 = Math.max(a0, -Math.PI / 2);
+        const c1 = Math.min(a1, Math.PI / 2);
+        const u0 = (c0 - phi) / Math.PI + 0.5;
+        const u1 = (c1 - phi) / Math.PI + 0.5;
+        const x0 = cx + R * Math.sin(c0);
+        const x1 = cx + R * Math.sin(c1);
+        const w = x1 - x0;
+        if (w < 0.3) continue;
+        const shade = Math.cos((c0 + c1) / 2);
+        const h = H * zoom * (0.84 + 0.16 * shade);
+        const y = cy - h / 2;
+        g.globalAlpha = 1;
+        g.drawImage(img, u0 * W, 0, Math.max(1, (u1 - u0) * W), H, x0, y, w + 0.8, h);
+        const dark = (1 - shade) * 0.9;
+        if (dark > 0.01) {
+          g.globalAlpha = dark;
+          g.fillStyle = '#000';
+          g.fillRect(x0, y, w + 0.8, h);
+        }
+      }
+      g.globalAlpha = 1;
+    };
+    face(tr.old, theta);
+    face(tr.neu, theta - Math.PI);
+
+    // dikiş ışığı ve hız çizgileri (yeni dünyanın rengiyle)
+    const speed = Math.sin(Math.PI * p);
+    const seamX = cx - R * Math.cos(theta);
+    g.globalCompositeOperation = 'lighter';
+    if (p > 0.03 && p < 0.97) {
+      const glow = this.sprites.glow(this.atm.accent);
+      g.globalAlpha = 0.9 * speed;
+      g.drawImage(glow, seamX - W * 0.18, cy - H * 0.55, W * 0.36, H * 1.1);
+      g.globalAlpha = speed;
+      g.fillStyle = '#FFFFFF';
+      g.fillRect(seamX - 1.5, cy - H * 0.46 * zoom, 3, H * 0.92 * zoom);
+    }
+    const streak = this.sprites.glow('#FFFFFF', true);
+    for (let i = 0; i < 28; i++) {
+      const ly = tr.lines[i * 3 + 1] * H;
+      const len = W * 0.25 * tr.lines[i * 3 + 2] * speed;
+      const lx = ((tr.lines[i * 3] + p * 2.2 * tr.lines[i * 3 + 2]) % 1.3) * W - len;
+      g.globalAlpha = 0.35 * speed;
+      g.drawImage(streak, lx, ly - 2, len, 4);
+    }
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
+  }
+
+  private renderScene(): void {
     const v = this.view;
     const g = v.ctx;
     const k = v.scale * v.dpr;
@@ -1761,6 +2028,7 @@ export class World implements PointerSink {
 
     this.bg.renderLive(g, this.q >= 0.7 ? 1 : 0);
     this.city.render(g);
+    this.bg.renderAmbient(g, k, tx, ty);
     this.city.renderDome(g, this.inkColor);
     this.renderWarnings(g);
     this.renderHoles(g);

@@ -50,6 +50,12 @@ export interface SaveData {
   tutorialDone: boolean;
   /** Oyuncunun ulaştığı en yüksek rütbe indeksi (rütbe atlama kutlaması için) */
   rankSeen: number;
+  /** ulaşılan en uzak atmosfer (dünya) indeksi */
+  maxAtm: number;
+  /** menü arka planında gösterilen dünya */
+  menuAtm: number;
+  /** günlük hediye: son alınan gün ve 7 günlük döngüdeki sıra */
+  gift: { last: string; day: number };
 }
 
 const KEY = 'murekkep-kalkani/save/v1';
@@ -84,6 +90,9 @@ export function defaultSave(): SaveData {
     },
     tutorialDone: false,
     rankSeen: 0,
+    maxAtm: 0,
+    menuAtm: 0,
+    gift: { last: '', day: 0 },
   };
 }
 
@@ -100,6 +109,7 @@ export function loadSave(): SaveData {
       settings: { ...def.settings, ...(parsed.settings ?? {}) },
       daily: { ...def.daily, ...(parsed.daily ?? {}) },
       streak: { ...def.streak, ...(parsed.streak ?? {}) },
+      gift: { ...def.gift, ...(parsed.gift ?? {}) },
       workshop: { ...(parsed.workshop ?? {}) },
       missionTiers: { ...(parsed.missionTiers ?? {}) },
       pens: Array.isArray(parsed.pens) && parsed.pens.length ? parsed.pens : def.pens,

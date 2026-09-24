@@ -32,6 +32,8 @@ export class Director {
   bossSpawned = false;
   escortT = 0;
   goldenBonus = 0;
+  /** atmosfer eğilimi: normal, hızlı, zırhlı, bölünen ağırlık çarpanları */
+  bias: [number, number, number, number] = [1, 1, 1, 1];
 
   constructor(
     seed: number,
@@ -62,6 +64,7 @@ export class Director {
       ww >= 3 ? Math.min(0.3, 0.1 + 0.012 * ww) : 0,
       ww >= 4 ? Math.min(0.28, 0.1 + 0.01 * ww) : 0,
     ];
+    for (let i = 0; i < 4; i++) weights[i] *= this.bias[i];
     return r.weighted(weights) as MK;
   }
 

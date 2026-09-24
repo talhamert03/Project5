@@ -143,13 +143,41 @@ export class City {
     return best;
   }
 
+  private tint = '#FFFFFF';
+  private glowCol = '#FFB45A';
+
+  /** Atmosfer ışığı: evler çarpma (multiply) tonuyla yeniden boyanır */
+  setAtmosphere(tint: string, glow: string): void {
+    if (tint === this.tint && glow === this.glowCol) return;
+    this.tint = tint;
+    this.glowCol = glow;
+    this.build();
+  }
+
   private build(): void {
     const k = this.view.scale * this.view.dpr;
     for (const b of this.blocks) {
-      b.sprHealthy = this.drawBlock(b, k, 0);
-      b.sprDamaged = this.drawBlock(b, k, 1);
-      b.sprRubble = this.drawBlock(b, k, 2);
+      b.sprHealthy = this.toned(this.drawBlock(b, k, 0));
+      b.sprDamaged = this.toned(this.drawBlock(b, k, 1));
+      b.sprRubble = this.toned(this.drawBlock(b, k, 2));
     }
+  }
+
+  private toned(c: Canvas): Canvas {
+    if (this.tint === '#FFFFFF') return c;
+    const copy = makeCanvas(c.width, c.height);
+    ctx2d(copy).drawImage(c, 0, 0);
+    const g = ctx2d(c);
+    g.save();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'multiply';
+    g.fillStyle = this.tint;
+    g.fillRect(0, 0, c.width, c.height);
+    // saydam alanları geri al
+    g.globalCompositeOperation = 'destination-in';
+    g.drawImage(copy, 0, 0);
+    g.restore();
+    return c;
   }
 
   /** state: 0 sağlam, 1 hasarlı, 2 enkaz */
@@ -402,7 +430,7 @@ export class City {
         const pulse = 0.08 + 0.03 * Math.sin(this.t * 1.7 + b.i * 2);
         g.globalAlpha = (b.hp >= b.maxHp ? 1 : 0.5) * pulse;
         const s = BLOCK_W * 2.2;
-        g.drawImage(this.sprites.glow('#FFB45A'), x - s / 2, H - 150 - s / 2, s, s);
+        g.drawImage(this.sprites.glow(this.glowCol), x - s / 2, H - 150 - s / 2, s, s);
       }
       if (b.flash > 0) {
         g.globalAlpha = b.flash;

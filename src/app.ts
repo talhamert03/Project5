@@ -7,33 +7,51 @@ import { PENS, PEN_BY_ID, type Pen } from './game/pens';
 import { Rarity } from './game/upgrades';
 import { type RunOptions, type RunResult, World, type WorldEvent } from './game/world';
 import { setLang, t } from './i18n';
-import { dailyInfo, ensureMissions, metaBonus, rankIndex, rankProgress, settleRun, WORKSHOP } from './meta/progression';
+import {
+  WORKSHOP,
+  claimGift,
+  dailyInfo,
+  ensureMissions,
+  giftState,
+  metaBonus,
+  rankIndex,
+  rankProgress,
+  reviveCost,
+  settleRun,
+} from './meta/progression';
 import { canFullscreen, exitApp, initNative, keepAwake, toggleFullscreen } from './platform';
+import { ATMOSPHERES, atmosphereIndexForWave } from './render/atmospheres';
 import { Background } from './render/background';
 import { Sprites } from './render/sprites';
 import { View } from './render/view';
 import { fmt } from './ui/format';
 import { HudView } from './ui/hud';
+import { icon } from './ui/icons';
 import {
+  type TabName,
   bannerHTML,
   bootHTML,
   dailyHTML,
+  giftHTML,
   menuHTML,
   missionsHTML,
   overHTML,
   pauseHTML,
   pensHTML,
   recordsHTML,
+  reviveHTML,
   settingsHTML,
+  tabbarHTML,
   toastHTML,
   upgradeHTML,
   workshopHTML,
+  worldsHTML,
 } from './ui/screens';
 
-export const VERSION = '1.0.0';
+export const VERSION = '1.1.0';
 
-type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'over';
-type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings';
+type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'revive' | 'over';
+type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds';
 
 interface Timer {
   t: number;
@@ -41,6 +59,8 @@ interface Timer {
 }
 
 const QUALITY_LEVEL: Record<Quality, number> = { high: 1, balanced: 0.75, saver: 0.45 };
+const TAB_PANELS: PanelName[] = ['pens', 'workshop', 'missions', 'records'];
+const REVIVE_SECONDS = 7;
 
 /**
  * Uygulama denetleyicisi: durum makinesi (açılış → menü → oyun → güç seçimi → oyun sonu),
@@ -59,7 +79,9 @@ export class App {
   private ui: HTMLElement;
   private screenEl: HTMLElement;
   private panelEl: HTMLElement;
+  private tabbarEl: HTMLElement;
   private bannerEl: HTMLElement;
+  private modalEl: HTMLElement;
   private toastEl: HTMLElement;
 
   state: State = 'boot';
@@ -73,6 +95,10 @@ export class App {
   private fpsT = 0;
   private lowFpsT = 0;
   private bannerT = 0;
+  private wiping = false;
+  private giftShown = false;
+  private thumbs: string[] = [];
+  private pendingRevive = 0;
   private countUps: Array<{ el: HTMLElement; from: number; to: number; t: number; dur: number; tick: boolean }> = [];
 
   constructor() {
@@ -89,6 +115,10 @@ export class App {
     this.world = new World(this.view, this.sprites, this.bg, this.currentPen());
     this.world.setQuality(QUALITY_LEVEL[this.save.settings.quality]);
     this.world.onEvent = (e) => this.onWorld(e);
+    this.world.reviveCost = () => {
+      const c = reviveCost(this.world.wave);
+      return this.save.coins >= c ? c : 0;
+    };
     this.input = new Input(canvas, this.view);
     this.input.sink = this.world;
 
@@ -96,16 +126,24 @@ export class App {
     this.hud.onLayout = () => this.measureHud();
     this.screenEl = this.layer('screen-layer');
     this.panelEl = this.layer('panel-layer');
+    this.tabbarEl = this.layer('tabbar-layer');
     this.bannerEl = this.layer('banner-layer');
+    this.modalEl = this.layer('modal-layer');
     this.toastEl = this.layer('toasts');
 
     audio.setMusic(this.save.settings.music);
     audio.setSfx(this.save.settings.sfx);
     haptics.enabled = this.save.settings.haptics;
     this.applyPenColor();
+    // menü arka planı: oyuncunun seçtiği (açık) dünya
+    this.save.menuAtm = Math.min(this.save.menuAtm, this.save.maxAtm);
+    if (this.save.menuAtm > 0) this.world.applyAtmosphere(this.save.menuAtm);
 
     this.ui.addEventListener('click', (e) => this.onClick(e));
-    document.addEventListener('pointerdown', () => this.unlockAudio(), { capture: true });
+    // Tarayıcılar sesi dokunmatikte parmak kalkınca (pointerup/touchend) izin verir
+    for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) {
+      document.addEventListener(ev, () => this.unlockAudio(), { capture: true });
+    }
     document.addEventListener('visibilitychange', () => this.onVisibility());
     window.addEventListener('blur', () => {
       if (this.state === 'game') this.pause();
@@ -169,28 +207,99 @@ export class App {
     this.screenEl.innerHTML = html;
   }
 
+  /** Mürekkep fırçası geçişi: ekran kapanınca fn çalışır */
+  private wipe(fn: () => void): void {
+    if (this.wiping) return;
+    this.wiping = true;
+    const el = document.createElement('div');
+    el.className = 'wipe';
+    el.innerHTML = '<i></i><i></i><i></i>';
+    this.ui.appendChild(el);
+    audio.whoosh();
+    window.setTimeout(() => fn(), 470);
+    window.setTimeout(() => {
+      el.remove();
+      this.wiping = false;
+    }, 1080);
+  }
+
+  private setTabs(on: boolean): void {
+    this.ui.classList.toggle('tabs-on', on);
+    if (!on) this.tabbarEl.innerHTML = '';
+  }
+
+  private renderTabs(): void {
+    const active: TabName = this.panel && (TAB_PANELS as string[]).includes(this.panel) ? (this.panel as TabName) : 'home';
+    const canBuy = WORKSHOP.some((w) => (this.save.workshop[w.id] ?? 0) < w.max && this.save.coins >= w.cost(this.save.workshop[w.id] ?? 0));
+    const had = this.tabbarEl.firstElementChild !== null;
+    this.tabbarEl.innerHTML = tabbarHTML(active, this.newMissions, canBuy);
+    if (had) (this.tabbarEl.firstElementChild as HTMLElement).style.animation = 'none';
+  }
+
   toMenu(): void {
-    this.state = 'menu';
-    this.timers = [];
-    this.picking = false;
-    this.hud.show(false);
-    this.bannerEl.innerHTML = '';
-    void keepAwake(false);
-    audio.resume();
-    audio.setIntensity(0);
-    if (this.world.phase !== 'attract') this.world.startAttract();
-    this.renderMenu();
+    const enter = (): void => {
+      this.state = 'menu';
+      this.timers = [];
+      this.picking = false;
+      this.hud.show(false);
+      this.bannerEl.innerHTML = '';
+      this.modalEl.innerHTML = '';
+      void keepAwake(false);
+      audio.resume();
+      audio.setIntensity(0);
+      if (this.world.phase !== 'attract') this.world.startAttract();
+      if (this.world.atmIndex !== this.save.menuAtm) this.world.applyAtmosphere(this.save.menuAtm);
+      this.setTabs(true);
+      this.renderMenu();
+      this.renderTabs();
+      this.prepareThumbs();
+      // günlük hediye: oturumda ilk menüye girişte kendiliğinden aç
+      if (!this.giftShown && giftState(this.save).ready) {
+        this.giftShown = true;
+        window.setTimeout(() => {
+          if (this.state === 'menu' && !this.panel) this.openGift();
+        }, 700);
+      }
+    };
+    if (this.state === 'boot') enter();
+    else this.wipe(enter);
   }
 
   private renderMenu(): void {
-    this.setScreen(menuHTML({ save: this.save, daily: dailyInfo(), missionsReady: this.newMissions }));
+    const idx = this.world.atmIndex;
+    this.setScreen(
+      menuHTML({
+        save: this.save,
+        daily: dailyInfo(),
+        gift: giftState(this.save),
+        worldName: t('atm.' + ATMOSPHERES[idx].id),
+        worldIndex: idx,
+      }),
+    );
+  }
+
+  /** Dünya önizlemelerini boşta, tek tek hazırla (menü akıcı kalsın) */
+  private prepareThumbs(): void {
+    const next = (i: number): void => {
+      if (i >= ATMOSPHERES.length || this.state !== 'menu') return;
+      if (!this.thumbs[i]) this.thumbs[i] = this.bg.thumb(ATMOSPHERES[i]);
+      window.setTimeout(() => next(i + 1), 250);
+    };
+    window.setTimeout(() => next(0), 900);
   }
 
   private openPanel(name: PanelName): void {
+    const wasTab = this.panel && (TAB_PANELS as string[]).includes(this.panel);
     this.panel = name;
     this.resetArmed = false;
     if (name === 'missions') this.newMissions = 0;
+    if (name === 'worlds') {
+      for (let i = 0; i < ATMOSPHERES.length; i++) if (!this.thumbs[i]) this.thumbs[i] = this.bg.thumb(ATMOSPHERES[i]);
+    }
     this.renderPanel();
+    // sekmeler arası geçişte yandan kayarak gelsin
+    if (wasTab && (TAB_PANELS as string[]).includes(name)) this.panelEl.querySelector('.panel')?.classList.add('slide');
+    if (this.state === 'menu') this.renderTabs();
   }
 
   private renderPanel(): void {
@@ -214,6 +323,9 @@ export class App {
         break;
       case 'settings':
         html = settingsHTML(s, VERSION, canFullscreen(), this.resetArmed);
+        break;
+      case 'worlds':
+        html = worldsHTML(s, this.thumbs, this.save.menuAtm);
         break;
       default:
         html = '';
@@ -240,7 +352,19 @@ export class App {
         if (!this.panel) this.panelEl.innerHTML = '';
       }, 240);
     }
-    if (this.state === 'menu') this.renderMenu();
+    if (this.state === 'menu') {
+      this.renderMenu();
+      this.renderTabs();
+    }
+  }
+
+  private onTab(name: TabName): void {
+    if (name === 'home') {
+      this.closePanel();
+      return;
+    }
+    if (this.panel === name) return;
+    this.openPanel(name);
   }
 
   private showBanner(big: string, small: string, boss: boolean, color?: string): void {
@@ -268,11 +392,86 @@ export class App {
     this.world.hudCoin = m.coin;
   }
 
+  // ───────────────────────── HEDİYE ─────────────────────────
+
+  private openGift(): void {
+    this.modalEl.innerHTML = giftHTML(giftState(this.save));
+  }
+
+  private closeModal(): void {
+    const m = this.modalEl.querySelector('.modal');
+    if (!m) return;
+    m.classList.add('out');
+    window.setTimeout(() => (this.modalEl.innerHTML = ''), 220);
+  }
+
+  private claimGift(btn: HTMLElement): void {
+    const reward = claimGift(this.save);
+    if (!reward) return;
+    this.commit();
+    audio.record();
+    haptics.success();
+    const from = (this.modalEl.querySelector('.gday.today') as HTMLElement | null) ?? btn;
+    this.flyCoins(from, reward);
+    this.modalEl.innerHTML = giftHTML(giftState(this.save));
+    this.modalEl.querySelector('.modal')?.setAttribute('style', 'animation:none');
+    this.modalEl.querySelector('.modal-card')?.setAttribute('style', 'animation:none');
+    window.setTimeout(() => this.closeModal(), 1500);
+    // ana ekrandaki hediye butonu artık hazır değil
+    const fab = this.screenEl.querySelector('.fab.gift');
+    fab?.classList.remove('ready');
+    fab?.querySelector('.dot')?.remove();
+  }
+
+  /** Altınlar kaynaktan üstteki kasaya uçar */
+  private flyCoins(from: HTMLElement, amount: number): void {
+    const target = this.screenEl.querySelector('.currency') as HTMLElement | null;
+    const counter = this.screenEl.querySelector('#m-coins') as HTMLElement | null;
+    const a = from.getBoundingClientRect();
+    const b = (target ?? from).getBoundingClientRect();
+    const n = 10;
+    const start = this.save.coins - amount;
+    for (let i = 0; i < n; i++) {
+      const c = document.createElement('div');
+      c.className = 'fly-coin';
+      c.innerHTML = icon('coin');
+      const x0 = a.left + a.width / 2 + (Math.random() - 0.5) * 60;
+      const y0 = a.top + a.height / 2 + (Math.random() - 0.5) * 30;
+      c.style.left = `${x0}px`;
+      c.style.top = `${y0}px`;
+      c.style.transitionDelay = `${i * 45}ms, ${600 + i * 45}ms`;
+      document.body.appendChild(c);
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          c.style.transform = `translate(${b.left + 22 - x0}px, ${b.top + b.height / 2 - y0}px) scale(0.6)`;
+          c.style.opacity = '0';
+        }),
+      );
+      window.setTimeout(() => {
+        audio.coin();
+        if (counter) {
+          counter.textContent = fmt(start + Math.round((amount * (i + 1)) / n));
+          counter.classList.remove('bump');
+          void counter.offsetWidth;
+          counter.classList.add('bump');
+        }
+      }, 760 + i * 45);
+      window.setTimeout(() => c.remove(), 1400 + i * 45);
+    }
+  }
+
   // ───────────────────────── OYUN AKIŞI ─────────────────────────
 
   play(daily: boolean): void {
+    if (this.wiping) return;
+    this.wipe(() => this.startRun(daily));
+  }
+
+  private startRun(daily: boolean): void {
     this.panel = null;
     this.panelEl.innerHTML = '';
+    this.modalEl.innerHTML = '';
+    this.setTabs(false);
     this.runDaily = daily;
     this.timers = [];
     this.picking = false;
@@ -310,6 +509,13 @@ export class App {
     const sub = start ? t('up.subStart') : t('up.sub', { n: this.world.wave + 1 });
     this.setScreen(upgradeHTML(ids, this.world.levels, sub, this.world.rerolls));
     audio.whoosh();
+    // kartlar ekranı kaplarken sıradaki dünyayı hazırla (geçişte takılma olmasın)
+    const nx = this.world.atmIndex + 1;
+    if (nx < ATMOSPHERES.length) {
+      window.setTimeout(() => {
+        if (this.state === 'upgrade') this.bg.prebuild(ATMOSPHERES[nx]);
+      }, 650);
+    }
   }
 
   private pick(id: string, el: HTMLElement): void {
@@ -342,7 +548,7 @@ export class App {
   }
 
   pause(): void {
-    if (this.state !== 'game') return;
+    if (this.state !== 'game' || this.world.transitioning) return;
     this.state = 'paused';
     this.input.cancel();
     this.setScreen(pauseHTML(this.save));
@@ -383,6 +589,36 @@ export class App {
   private quit(): void {
     this.settleSilently();
     this.toMenu();
+  }
+
+  // ── altınla devam
+  private offerRevive(cost: number): void {
+    this.state = 'revive';
+    this.pendingRevive = cost;
+    this.input.cancel();
+    this.setScreen(reviveHTML(cost, this.save.coins, REVIVE_SECONDS));
+    this.timers = [];
+    this.after(REVIVE_SECONDS, () => {
+      if (this.state === 'revive') this.giveUp();
+    });
+  }
+
+  private doRevive(): void {
+    if (this.state !== 'revive') return;
+    const cost = this.pendingRevive;
+    if (this.save.coins < cost) return;
+    this.save.coins -= cost;
+    this.commit();
+    this.setScreen('');
+    this.state = 'game';
+    this.world.revive();
+  }
+
+  private giveUp(): void {
+    if (this.state !== 'revive') return;
+    this.setScreen('');
+    this.state = 'game';
+    this.world.giveUp();
   }
 
   private gameOver(r: RunResult): void {
@@ -431,11 +667,53 @@ export class App {
         if (e.boss) this.showBanner(t('banner.boss'), t('banner.bossSub'), true, 'var(--crimson)');
         else this.showBanner(t('banner.wave', { n: e.wave }), e.wave === 1 ? t('banner.ready') : '', false);
         break;
-      case 'waveClear':
-        this.after(0.8, () => this.showBanner(t('banner.clear', { n: e.wave }), e.perfect ? t('banner.perfect') : t('banner.bonus', { n: fmt(e.bonus) }), false, e.perfect ? 'var(--gold)' : undefined));
-        this.after(2.1, () => {
+      case 'waveClear': {
+        this.after(0.8, () =>
+          this.showBanner(
+            t('banner.clear', { n: e.wave }),
+            e.perfect ? t('banner.perfect') : t('banner.bonus', { n: fmt(e.bonus) }),
+            false,
+            e.perfect ? 'var(--gold)' : undefined,
+          ),
+        );
+        const nextAtm = atmosphereIndexForWave(e.wave + 1);
+        if (nextAtm !== this.world.atmIndex) {
+          // bölüm sonu: sahne tamburu döner, yeni dünya açılır
+          this.after(2.2, () => {
+            if (this.state === 'game' && this.world.phase === 'cleared') {
+              this.bannerEl.innerHTML = '';
+              this.world.beginTransition(nextAtm);
+            }
+          });
+        } else {
+          this.after(2.1, () => {
+            if (this.state === 'game' && this.world.phase === 'cleared') this.showUpgrade(this.world.offer(), false);
+          });
+        }
+        break;
+      }
+      case 'atmosphere': {
+        if (this.state === 'menu') {
+          this.renderMenu();
+          break;
+        }
+        const a = ATMOSPHERES[e.index];
+        const name = t('atm.' + a.id);
+        let sub = t('banner.chapter', { n: e.index + 1 });
+        if (e.index > this.save.maxAtm) {
+          this.save.maxAtm = e.index;
+          this.commit();
+          sub += ' · ' + t('banner.newWorld');
+        }
+        this.showBanner(name, sub, false, a.accent);
+        this.bannerT = 1.8;
+        this.after(1.8, () => {
           if (this.state === 'game' && this.world.phase === 'cleared') this.showUpgrade(this.world.offer(), false);
         });
+        break;
+      }
+      case 'revive':
+        this.offerRevive(e.cost);
         break;
       case 'gameOver':
         this.gameOver(e.result);
@@ -462,7 +740,7 @@ export class App {
     const el = (ev.target as Element).closest('[data-a]') as HTMLElement | null;
     if (!el) return;
     const a = el.dataset.a!;
-    const quiet = a === 'pick' || a === 'pause';
+    const quiet = a === 'pick' || a === 'pause' || a === 'claimGift';
     if (!quiet) {
       audio.ui();
       haptics.light();
@@ -477,9 +755,31 @@ export class App {
       case 'panel':
         this.openPanel(el.dataset.p as PanelName);
         break;
+      case 'tab':
+        this.onTab(el.dataset.p as TabName);
+        break;
       case 'close':
         audio.back();
         this.closePanel();
+        break;
+      case 'gift':
+        this.openGift();
+        break;
+      case 'claimGift':
+        this.claimGift(el);
+        break;
+      case 'closeModal':
+        this.closeModal();
+        if (this.state === 'menu') this.renderMenu();
+        break;
+      case 'world':
+        this.pickWorld(Number(el.dataset.i));
+        break;
+      case 'revive':
+        this.doRevive();
+        break;
+      case 'giveup':
+        this.giveUp();
         break;
       case 'pause':
         audio.back();
@@ -543,6 +843,20 @@ export class App {
     }
   }
 
+  /** Dünyalar: açık bir dünyayı menü arka planı yap (tambur dönerek) */
+  private pickWorld(i: number): void {
+    if (i > this.save.maxAtm) {
+      audio.inkEmpty();
+      haptics.error();
+      return;
+    }
+    if (i === this.save.menuAtm) return;
+    this.save.menuAtm = i;
+    this.commit();
+    this.closePanel();
+    if (!this.world.beginTransition(i)) this.world.applyAtmosphere(i);
+  }
+
   private toggleSetting(k: string): void {
     const st = this.save.settings;
     if (k === 'music') {
@@ -576,6 +890,11 @@ export class App {
       st.lang = v as SaveData['settings']['lang'];
       setLang(st.lang);
       this.hud.build();
+      this.thumbs = [];
+      if (this.state === 'menu') {
+        this.renderMenu();
+        this.renderTabs();
+      }
     }
     this.commit();
     this.renderPanel();
@@ -598,6 +917,7 @@ export class App {
     audio.select();
     haptics.success();
     this.renderPanel();
+    this.renderTabs();
   }
 
   private buyPen(id: string): void {
@@ -616,6 +936,7 @@ export class App {
     audio.select();
     haptics.success();
     this.renderPanel();
+    this.renderTabs();
   }
 
   private equipPen(id: string): void {
@@ -645,11 +966,17 @@ export class App {
     this.commit();
     this.applyPenColor();
     this.resetArmed = false;
+    this.world.applyAtmosphere(0);
     this.toast('check', t('settings.resetDone'));
     this.renderPanel();
   }
 
   private onBack(): void {
+    if (this.modalEl.querySelector('.modal')) {
+      if (this.state === 'revive') this.giveUp();
+      else this.closeModal();
+      return;
+    }
     if (this.panel) {
       this.closePanel();
       return;
@@ -660,6 +987,9 @@ export class App {
         break;
       case 'paused':
         this.resume();
+        break;
+      case 'revive':
+        this.giveUp();
         break;
       case 'over':
         this.toMenu();
@@ -687,17 +1017,14 @@ export class App {
 
   private frame(dt: number): void {
     const s = this.state;
-    if (s !== 'paused' && s !== 'boot') {
-      this.world.update(dt);
-      this.world.render();
-    } else if (s === 'boot') {
+    if (s !== 'paused') {
       this.world.update(dt);
       this.world.render();
     }
 
-    if (s === 'game' || s === 'upgrade') this.hud.update(this.world.hud, dt);
+    if (s === 'game' || s === 'upgrade' || s === 'revive') this.hud.update(this.world.hud, dt);
 
-    if (s === 'game' || s === 'upgrade' || s === 'over') {
+    if (s === 'game' || s === 'upgrade' || s === 'over' || s === 'revive') {
       for (let i = this.timers.length - 1; i >= 0; i--) {
         const tm = this.timers[i];
         tm.t -= dt;
@@ -734,7 +1061,7 @@ export class App {
       this.fpsT = 0;
       if (this.save.settings.showFps) this.hud.setFps(`${Math.round(this.loop.fps)} FPS · ${this.loop.workMs.toFixed(1)}ms · ${this.world.parts.n}p`);
     }
-    if ((s === 'game' || s === 'menu') && !document.hidden) {
+    if ((s === 'game' || s === 'menu') && !document.hidden && !this.world.transitioning) {
       if (this.loop.fps < 48) this.lowFpsT += dt;
       else this.lowFpsT = Math.max(0, this.lowFpsT - dt * 0.5);
       if (this.lowFpsT > 3 && this.view.adaptive > 0.6) {

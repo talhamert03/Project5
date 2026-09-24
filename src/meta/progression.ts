@@ -255,3 +255,35 @@ export function settleRun(save: SaveData, r: RunResult, coinMult: number): Settl
   const rankAfter = rankIndex(save.best);
   return { coins, newBest, prevBest, rankBefore, rankAfter, missions, streakBonus, dailyBest };
 }
+
+// ───────────────────────── GÜNLÜK HEDİYE ─────────────────────────
+
+export const GIFT_REWARDS = [50, 80, 120, 160, 220, 300, 500];
+
+export interface GiftState {
+  /** bugün alınabilir mi */
+  ready: boolean;
+  /** 0..6: bugünkü (ya da sıradaki) günün indeksi */
+  day: number;
+}
+
+/** Arka arkaya gelen günlerde döngü ilerler, bir gün kaçarsa baştan başlar */
+export function giftState(save: SaveData): GiftState {
+  const today = todayKey();
+  if (save.gift.last === today) return { ready: false, day: (save.gift.day + 6) % 7 };
+  const gap = save.gift.last ? dayDiff(save.gift.last, today) : 99;
+  const day = gap === 1 ? save.gift.day % 7 : 0;
+  return { ready: true, day };
+}
+
+export function claimGift(save: SaveData): number {
+  const st = giftState(save);
+  if (!st.ready) return 0;
+  const reward = GIFT_REWARDS[st.day];
+  save.coins += reward;
+  save.gift = { last: todayKey(), day: (st.day + 1) % 7 };
+  return reward;
+}
+
+/** Devam etme bedeli: dalga ilerledikçe artar */
+export const reviveCost = (wave: number): number => 100 + wave * 20;
