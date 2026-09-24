@@ -1,0 +1,43 @@
+{
+  "name": "murekkep-kalkani",
+  "version": "1.0.0",
+  "description": "Mürekkep Kalkanı — çizerek meteorları sektirdiğin, İstanbul'u koruduğun mobil arcade oyunu.",
+  "scripts": {
+    "dev": "vite --host",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build",
+    "build:artifact": "npm run build && node scripts/make-artifact.mjs",
+    "preview": "vite preview --host",
+    "cap:sync": "npm run build && npx cap sync android",
+    "android:open": "npx cap open android"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/talhamert03/Project5.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/talhamert03/Project5/issues"
+  },
+  "homepage": "https://github.com/talhamert03/Project5#readme",
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
+    "playwright-core": "1.56",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.1",
+    "vite-plugin-singlefile": "^2.3.3"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
+    "@fontsource-variable/rubik": "^5.3.0",
+    "@fontsource-variable/unbounded": "^5.3.0"
+  },
+  "private": true,
+  "type": "module"
+}

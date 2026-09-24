@@ -1,0 +1,65 @@
+name: Android derlemesi
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      HAS_KEYSTORE: ${{ secrets.MK_KEYSTORE_BASE64 != '' }}
+      MK_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Bağımlılıklar
+        run: npm ci
+
+      - name: Tip denetimi + web derlemesi
+        run: npm run build
+
+      - name: Web dosyalarını Android projesine kopyala
+        run: npx cap sync android
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Test APK'sı (debug)
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: murekkep-kalkani-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+
+      - name: Play Store paketi (imzalı AAB)
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: android
+        env:
+          MK_KEYSTORE_BASE64: ${{ secrets.MK_KEYSTORE_BASE64 }}
+          MK_KEYSTORE_PASSWORD: ${{ secrets.MK_KEYSTORE_PASSWORD }}
+          MK_KEY_ALIAS: ${{ secrets.MK_KEY_ALIAS }}
+          MK_KEY_PASSWORD: ${{ secrets.MK_KEY_PASSWORD }}
+        run: |
+          echo "$MK_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          MK_KEYSTORE_PATH="$RUNNER_TEMP/upload.jks" ./gradlew bundleRelease --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_KEYSTORE == 'true'
+        with:
+          name: murekkep-kalkani-aab
+          path: android/app/build/outputs/bundle/release/*.aab

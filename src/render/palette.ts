@@ -1,0 +1,31 @@
+/** Oyunun renk kimliği: gece laciverti, ebru turkuazı, köz turuncusu, safran altını. */
+export const C = {
+  night: '#060A22',
+  lacivert: '#10194A',
+  deep: '#1A1150',
+  dusk: '#3A1846',
+  horizon: '#6B2A4F',
+  turkuaz: '#3EF0E0',
+  ember: '#FF6A3D',
+  crimson: '#FF3355',
+  gold: '#FFC857',
+  paper: '#F3EEDF',
+  rose: '#FF4F8B',
+  violet: '#A77BFF',
+  ice: '#8ADFFF',
+  lime: '#B9FF6B',
+  white: '#FFFFFF',
+  silhouette: '#0B1036',
+  window: '#FFC66B',
+} as const;
+
+/** Meteor türlerinin renkleri (gövde parıltısı, iz) */
+export const METEOR_COLORS = {
+  normal: '#FF6A3D',
+  fast: '#8ADFFF',
+  heavy: '#B45CFF',
+  splitter: '#FFB23D',
+  golden: '#FFD866',
+  shard: '#FF7F4F',
+  boss: '#FF3355',
+} as const;

@@ -1,0 +1,53 @@
+/** Elle çizilmiş 24px çizgi ikonlar (harici kütüphane yok). */
+const s = (d: string): string =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+
+export const ICONS: Record<string, string> = {
+  pause: s('<rect x="6.5" y="5" width="3.6" height="14" rx="1.2" fill="currentColor" stroke="none"/><rect x="13.9" y="5" width="3.6" height="14" rx="1.2" fill="currentColor" stroke="none"/>'),
+  play: s('<path d="M7.5 4.8v14.4L19 12z" fill="currentColor"/>'),
+  gear: s('<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8"/>'),
+  back: s('<path d="M14.5 5l-7 7 7 7"/>'),
+  close: s('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'),
+  coin: s('<circle cx="12" cy="12" r="8.6" fill="currentColor" fill-opacity=".18"/><circle cx="12" cy="12" r="4.6"/>'),
+  flame: s('<path d="M12 2.8c1.1 3.6 5.2 5.6 5.2 10.2a5.2 5.2 0 01-10.4 0c0-2.3 1-3.8 2.3-5 .2 1.7 1 2.7 2.1 3.1-.1-3 .2-5.6.8-8.3z" fill="currentColor" fill-opacity=".2"/>'),
+  trophy: s('<path d="M8 3.8h8v5.2a4 4 0 01-8 0z"/><path d="M8 5.8H5.2a3 3 0 002.9 4M16 5.8h2.8a3 3 0 01-2.9 4M12 13v3.6M8.5 20.2h7M9.8 16.6h4.4"/>'),
+  target: s('<circle cx="12" cy="12" r="8.6"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/>'),
+  hammer: s('<path d="M14.2 4.2l5.6 5.6-2.4 2.4-5.6-5.6z"/><path d="M12.4 7.8L4.6 15.6a2.2 2.2 0 003.1 3.1l7.8-7.8"/>'),
+  pen: s('<path d="M12 21.2L6.4 12.8 12 2.8l5.6 10z"/><path d="M12 13.4v7.8"/><circle cx="12" cy="11.6" r="1.3"/>'),
+  calendar: s('<rect x="4" y="5.4" width="16" height="14.8" rx="2.2"/><path d="M4 10h16M8.4 3.4v4M15.6 3.4v4"/><circle cx="12" cy="15" r="1.6" fill="currentColor"/>'),
+  sound: s('<path d="M4 9.4h3.4l4.6-4v13.2l-4.6-4H4z"/><path d="M15.6 9a4 4 0 010 6M18.2 6.4a7.6 7.6 0 010 11.2"/>'),
+  music: s('<path d="M9 18V6.2l10-2.2v12"/><circle cx="6.6" cy="18" r="2.5"/><circle cx="16.6" cy="16" r="2.5"/>'),
+  vibrate: s('<rect x="8" y="4" width="8" height="16" rx="2"/><path d="M4.6 8.6v6.8M19.4 8.6v6.8"/>'),
+  restart: s('<path d="M4.6 12a7.4 7.4 0 102.2-5.3"/><path d="M4.4 4.4v4.2h4.2"/>'),
+  home: s('<path d="M4 11.2l8-6.6 8 6.6"/><path d="M6.4 9.6v10.6h11.2V9.6"/>'),
+  reroll: s('<path d="M4.6 9.2a7.6 7.6 0 0113.6-2.6M19.4 14.8a7.6 7.6 0 01-13.6 2.6"/><path d="M18.6 3.4v3.6H15M5.4 20.6V17H9"/>'),
+  lock: s('<rect x="5.4" y="10.4" width="13.2" height="9.8" rx="2.2"/><path d="M8.4 10.4V8a3.6 3.6 0 017.2 0v2.4"/>'),
+  check: s('<path d="M5 12.6l4.5 4.5L19 7.4"/>'),
+  star: s('<path d="M12 3.4l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.3-4.1 5.9-.8z" fill="currentColor" fill-opacity=".2"/>'),
+  card: s('<rect x="6" y="3.4" width="12" height="17.2" rx="2.2"/><path d="M12 8.4l1.8 3.6-1.8 3.6-1.8-3.6z" fill="currentColor"/>'),
+  chart: s('<path d="M4.4 19.6h15.2M7 16v-4.2M11 16V8M15 16v-6M19 16V5"/>'),
+  info: s('<circle cx="12" cy="12" r="8.6"/><path d="M12 11v5.4M12 7.6v.4"/>'),
+  expand: s('<path d="M4.4 9V4.4H9M19.6 9V4.4H15M4.4 15v4.6H9M19.6 15v4.6H15"/>'),
+  // güç ikonları
+  drop: s('<path d="M12 3.4s6.2 6.6 6.2 10.8a6.2 6.2 0 01-12.4 0C5.8 10 12 3.4 12 3.4z" fill="currentColor" fill-opacity=".2"/>'),
+  well: s('<path d="M6.6 10.4h10.8l1.4 9.4H5.2z" fill="currentColor" fill-opacity=".2"/><path d="M9.4 10.4V7.6h5.2v2.8M12 7.6V3.4"/>'),
+  hourglass: s('<path d="M6.4 3.4h11.2M6.4 20.6h11.2M8 3.4c0 5 8 5 8 8.6s-8 3.6-8 8.6M16 3.4c0 5-8 5-8 8.6s8 3.6 8 8.6"/>'),
+  bounce: s('<path d="M3.4 18.4h17.2"/><path d="M4.6 15L10 6.2l5.4 8.8 4-5.6"/><circle cx="10" cy="4.6" r="1.6" fill="currentColor"/>'),
+  blast: s('<path d="M12 2.6l1.8 5 5-2-2.3 4.7 5 1.7-5 1.8 2.3 4.7-5-2-1.8 5-1.8-5-5 2 2.3-4.7-5-1.8 5-1.7-2.3-4.7 5 2z" fill="currentColor" fill-opacity=".2"/>'),
+  house: s('<path d="M4 20.4V10.2l8-6 8 6v10.2z"/><path d="M9.6 20.4v-5.8h4.8v5.8"/>'),
+  lines: s('<path d="M4 8.4c4-3.2 12-3.2 16 0M4 16.2c4-3.2 12-3.2 16 0"/>'),
+  leech: s('<path d="M12 3.4s5.2 5.6 5.2 9.2a5.2 5.2 0 01-10.4 0c0-3.6 5.2-9.2 5.2-9.2z"/><path d="M12 9.6v5.4M9.4 12.4L12 15l2.6-2.6"/>'),
+  clock: s('<circle cx="12" cy="12" r="8.6"/><path d="M12 7v5.4l3.6 2.2"/>'),
+  nib: s('<path d="M12 21.2L6.4 12.8 12 2.8l5.6 10z" fill="currentColor" fill-opacity=".25"/><path d="M12 13.4v7.8"/>'),
+  comet: s('<circle cx="16.2" cy="7.8" r="3.2" fill="currentColor" fill-opacity=".25"/><path d="M13.8 10.2L4 20M11.8 7.2L6 13M16.8 12.2L11 18"/>'),
+  dome: s('<path d="M3.4 19.2h17.2"/><path d="M4.6 19.2a7.4 8 0 0114.8 0"/><path d="M8.2 19.2a3.8 4.4 0 017.6 0"/>'),
+  mirror: s('<path d="M12 3v18"/><path d="M9 7.2L4.2 12 9 16.8M15 7.2l4.8 4.8-4.8 4.8"/>'),
+  bolt: s('<path d="M13.2 2.6L5 13.4h6l-1 8 8.2-10.8h-6z" fill="currentColor" fill-opacity=".2"/>'),
+  arrow: s('<path d="M3.6 12h15M13.4 6.4L19 12l-5.6 5.6"/><circle cx="8.6" cy="12" r="3" fill="currentColor" fill-opacity=".25"/>'),
+  hole: s('<circle cx="12" cy="12" r="2.8" fill="currentColor"/><path d="M12 5.2a6.8 6.8 0 016.8 6.8M18.8 12a6.8 6.8 0 01-6.8 6.8M12 18.8A6.8 6.8 0 015.2 12M5.2 12A6.8 6.8 0 0112 5.2"/><path d="M12 2.4a9.6 9.6 0 019.4 7.6M21.6 12a9.6 9.6 0 01-7.6 9.4"/>'),
+  crown: s('<path d="M4 17.4l-.6-10 5.2 4 3.4-6 3.4 6 5.2-4-.6 10z" fill="currentColor" fill-opacity=".2"/><path d="M4 20.4h16"/>'),
+  phoenix: s('<path d="M12 21.2c-4-2-6.2-5.6-6.2-9.2 2 1.6 3.6 1.6 4.6 0C9 9 9.6 6 12 2.8c2.4 3.2 3 6.2 1.6 9.2 1 1.6 2.6 1.6 4.6 0 0 3.6-2.2 7.2-6.2 9.2z" fill="currentColor" fill-opacity=".2"/>'),
+  flameUp: s('<path d="M12 2.8c1.1 3.6 5.2 5.6 5.2 10.2a5.2 5.2 0 01-10.4 0c0-2.3 1-3.8 2.3-5 .2 1.7 1 2.7 2.1 3.1-.1-3 .2-5.6.8-8.3z" fill="currentColor" fill-opacity=".2"/>'),
+};
+
+export const icon = (name: string): string => ICONS[name] ?? ICONS.star;
