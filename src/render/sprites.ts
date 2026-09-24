@@ -23,7 +23,9 @@ const GLOW_SIZE = 64;
  */
 export class Sprites {
   private glows = new Map<string, Canvas>();
+  private hotGlows = new Map<string, Canvas>();
   private meteors = new Map<string, Canvas[]>();
+  private armored = new Map<string, Canvas[]>();
   readonly smoke: Canvas;
   readonly sparkle: Canvas;
   readonly vignette: Canvas;
@@ -38,8 +40,9 @@ export class Sprites {
 
   /** Radyal parıltı; hot=true ise merkezi beyaz-sıcak */
   glow(color: string, hot = false): Canvas {
-    const key = color + (hot ? '*' : '');
-    let c = this.glows.get(key);
+    // sıcak yolda metin birleştirme yok: iki ayrı önbellek (karede yüzlerce çağrı)
+    const cache = hot ? this.hotGlows : this.glows;
+    let c = cache.get(color);
     if (c) return c;
     c = makeCanvas(GLOW_SIZE, GLOW_SIZE);
     const g = ctx2d(c);
@@ -58,7 +61,7 @@ export class Sprites {
     grad.addColorStop(1, `rgba(${r},${gg},${b},0)`);
     g.fillStyle = grad;
     g.fillRect(0, 0, GLOW_SIZE, GLOW_SIZE);
-    this.glows.set(key, c);
+    cache.set(color, c);
     return c;
   }
 
@@ -148,12 +151,12 @@ export class Sprites {
 
   /** Meteor gövdesi (türe göre 3 varyant). R = sprite yarıçapı piksel. */
   meteor(kind: keyof typeof METEOR_COLORS, variant: number, armor = false): Canvas {
-    const key = `${kind}:${armor ? 'a' : 'n'}`;
-    let list = this.meteors.get(key);
+    const cache = armor ? this.armored : this.meteors;
+    let list = cache.get(kind);
     if (!list) {
       list = [];
       for (let v = 0; v < 3; v++) list.push(drawMeteor(kind, v, armor));
-      this.meteors.set(key, list);
+      cache.set(kind, list);
     }
     return list[variant % list.length];
   }
