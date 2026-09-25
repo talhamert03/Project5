@@ -5,8 +5,8 @@ import { Loop } from './core/loop';
 import { type Quality, type SaveData, defaultSave, loadSave, writeSave } from './core/storage';
 import { PENS, PEN_BY_ID, type Pen } from './game/pens';
 import { Rarity } from './game/upgrades';
-import { type RunOptions, type RunResult, type SkillId, World, type WorldEvent } from './game/world';
-import { setLang, t } from './i18n';
+import { type RunOptions, type RunResult, type SkillId, type SkillLoadout, World, type WorldEvent } from './game/world';
+import { getLang, setLang, t } from './i18n';
 import {
   WORKSHOP,
   claimGift,
@@ -19,7 +19,9 @@ import {
   reviveCost,
   SKILLS,
   SKILL_BY_ID,
+  SKILL_MAX_LV,
   settleRun,
+  skillUpCost,
 } from './meta/progression';
 import {
   FREE_COINS,
@@ -68,7 +70,7 @@ import {
   worldsHTML,
 } from './ui/screens';
 
-export const VERSION = '1.2.2';
+export const VERSION = '1.3.0';
 
 type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'revive' | 'over';
 type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds' | 'shop' | 'skills';
@@ -126,6 +128,9 @@ export class App {
   private buying = false;
   /** menü paneli ne zamandır ekranı kaplıyor (sn) */
   private coverT = 0;
+  /** açılış ekranı sahneyi tamamen örterken çizim beklemede (ilk birkaç kare önbellekleri hazırlar) */
+  private splashHold = true;
+  private bootFrames = 0;
   private reviveCount = 0;
   private lastRunCoins = 0;
   private doubled = false;
@@ -221,17 +226,31 @@ export class App {
   }
 
   start(): void {
-    this.setScreen(bootHTML());
+    // açılış ekranı ayrı bir katmanda: menü altında hazırlanırken üstte sönerek açılır
+    const splash = document.createElement('section');
+    splash.className = 'splash';
+    splash.id = 'boot';
+    splash.innerHTML = bootHTML();
+    this.ui.appendChild(splash);
     this.world.startAttract();
     this.loop.start();
-    const boot = this.screenEl.querySelector('#boot') as HTMLElement | null;
+    const t0 = performance.now();
+    let done = false;
     const go = (): void => {
-      if (this.state !== 'boot') return;
-      boot?.classList.add('out');
-      window.setTimeout(() => this.toMenu(), 380);
+      if (done) return;
+      done = true;
+      this.splashHold = false;
+      this.toMenu();
+      splash.classList.add('out');
+      window.setTimeout(() => splash.remove(), 950);
     };
-    boot?.addEventListener('pointerdown', go, { once: true });
-    boot?.addEventListener('keydown', go, { once: true });
+    // sahne, açılış bitmeden biraz önce çizilmeye başlar (açılırken ilk kare hazır olsun)
+    window.setTimeout(() => (this.splashHold = false), 3000);
+    window.setTimeout(go, 3550);
+    // animasyonun ana kısmı görüldükten sonra dokunuş atlatır
+    splash.addEventListener('pointerdown', () => {
+      if (performance.now() - t0 > 1300) go();
+    });
     // reklam ve satın alma altyapısı tembel başlar (açılışta ve oyun sırasında yük yok)
     void initMonetization();
   }
@@ -553,11 +572,10 @@ export class App {
       tutorial: !this.save.tutorialDone && !daily,
       best: this.save.best,
       pen: this.currentPen(),
-      skill: ((SKILL_BY_ID.get(this.save.skill) ?? SKILLS[0]).id as SkillId),
+      skills: this.loadout(),
     };
     this.hud.reset(this.save.best);
-    const sk = SKILL_BY_ID.get(opts.skill) ?? SKILLS[0];
-    this.hud.setSkill(sk.icon, sk.color);
+    this.hud.setSkills(opts.skills);
     this.hud.showSkill(!opts.tutorial);
     this.world.startRun(opts);
     this.hud.setBossWave(false);
@@ -861,29 +879,43 @@ export class App {
     })();
   }
 
+  /** Açık yeteneklerin bu turdaki hali (seviyeye göre bekleme ve güç) */
+  private loadout(): SkillLoadout[] {
+    return SKILLS.filter((k) => this.save.skills.includes(k.id)).map((k) => {
+      const lv = Math.max(1, Math.min(SKILL_MAX_LV, this.save.skillLv[k.id] ?? 1));
+      return { id: k.id as SkillId, shape: k.shape, lv, cd: k.cd[lv - 1], power: k.power[lv - 1], color: k.color };
+    });
+  }
+
+  /** Yetenek ağacı: aç (seviye 1) ya da seviye atlat */
   private buySkill(id: string): void {
     const k = SKILL_BY_ID.get(id);
-    if (!k || this.save.skills.includes(id)) return;
-    if (this.save.coins < k.price) {
+    if (!k) return;
+    const owned = this.save.skills.includes(id);
+    const lv = owned ? Math.max(1, this.save.skillLv[id] ?? 1) : 0;
+    const cost = owned ? skillUpCost(k, lv) : k.price;
+    if (cost < 0) return;
+    if (this.save.coins < cost) {
       audio.inkEmpty();
       haptics.error();
       this.toast('coin', t('toast.needCoins'));
       return;
     }
-    this.save.coins -= k.price;
-    this.save.skills.push(id);
-    this.save.skill = id;
+    this.save.coins -= cost;
+    if (!owned) this.save.skills.push(id);
+    this.save.skillLv[id] = lv + 1;
     this.commit();
     audio.select();
     haptics.success();
+    const name = t('skill.' + id);
+    if (owned) this.toast('star', t('toast.skillUp', { name, n: lv + 1 }));
+    else this.toast('star', t('toast.skillNew', { name, shape: t('shape.' + k.shape).toLocaleLowerCase(this.locale()) }));
     this.renderPanel();
+    this.panelEl.querySelector(`[data-sk="${id}"]`)?.classList.add('lvup');
   }
 
-  private equipSkill(id: string): void {
-    if (!this.save.skills.includes(id)) return;
-    this.save.skill = id;
-    this.commit();
-    this.renderPanel();
+  private locale(): string {
+    return getLang() === 'tr' ? 'tr-TR' : 'en-US';
   }
 
   private doRevive(): void {
@@ -1013,6 +1045,19 @@ export class App {
       case 'tutorial':
         this.hud.hint(t('tut.' + e.step), e.step < 2 ? t('tut.skip') : undefined);
         break;
+      case 'skillReady': {
+        this.hud.bounceSkill(e.id);
+        // ilk kez: şeklin nasıl çizileceği ekranda gösterilir (her yetenek için bir kez)
+        if (e.first && !this.save.skillHints.includes(e.id)) {
+          this.save.skillHints.push(e.id);
+          this.commit();
+          this.world.showShapeHint(e.id);
+          const shape = t('shape.' + e.shape).toLocaleUpperCase(this.locale());
+          this.hud.hint(t('skill.readyHint', { name: t('skill.' + e.id), shape }));
+          this.after(3.2, () => this.hud.hint(null));
+        }
+        break;
+      }
       case 'tutorialDone':
         this.hud.showSkill(true);
         this.save.tutorialDone = true;
@@ -1030,7 +1075,7 @@ export class App {
     const el = (ev.target as Element).closest('[data-a]') as HTMLElement | null;
     if (!el) return;
     const a = el.dataset.a!;
-    const quiet = a === 'pick' || a === 'pause' || a === 'claimGift' || a === 'skill';
+    const quiet = a === 'pick' || a === 'pause' || a === 'claimGift' || a === 'skillHint';
     if (!quiet) {
       audio.ui();
       haptics.light();
@@ -1083,14 +1128,14 @@ export class App {
       case 'double':
         void this.doubleCoins(el);
         break;
-      case 'skill':
-        if (this.state === 'game') this.world.activateSkill();
+      case 'skillHint':
+        if (this.state === 'game') {
+          this.world.showShapeHint(el.dataset.id as SkillId);
+          haptics.light();
+        }
         break;
       case 'buySkill':
         this.buySkill(el.dataset.id!);
-        break;
-      case 'equipSkill':
-        this.equipSkill(el.dataset.id!);
         break;
       case 'closeModal':
         this.closeModal();
@@ -1345,7 +1390,8 @@ export class App {
     // menüde opak bir panel ekranı tamamen kapladıysa arkadaki sahne görünmez:
     // simülasyon ve çizim durur (GPU boşa çalışmaz), panel kapanınca kaldığı yerden sürer
     this.coverT = this.panel && s === 'menu' ? this.coverT + dt : 0;
-    const covered = this.coverT > 0.45 && !this.world.transitioning;
+    const covered =
+      (this.coverT > 0.45 && !this.world.transitioning) || (s === 'boot' && this.splashHold && this.bootFrames++ > 3);
     if (s !== 'paused' && !covered) {
       this.world.update(dt);
       this.world.render();

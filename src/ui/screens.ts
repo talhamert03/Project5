@@ -11,12 +11,15 @@ import {
   RANKS,
   type RankProgress,
   SKILLS,
+  SKILL_MAX_LV,
   type Settlement,
   WORKSHOP,
   rankProgress,
+  skillUpCost,
 } from '../meta/progression';
 import { FREE_COINS, FREE_COINS_PER_DAY, SHOP, priceOf } from '../monetize';
 import { fmt, fmtDuration, fmtTime, roman } from './format';
+import { shapeIcon } from './hud';
 import { icon } from './icons';
 
 export function rankLabel(idx: number): string {
@@ -47,13 +50,48 @@ export function rankCard(p: RankProgress, best: number, extraClass = '', rankUp 
 
 const LOGO_STROKE = `<svg class="logo-stroke" viewBox="0 0 300 22" preserveAspectRatio="none"><path d="M6 14 C 60 2, 110 20, 160 10 S 250 4, 294 12"/></svg>`;
 
+/**
+ * Açılış: bir meteor düşer, kendiliğinden çizilen mürekkep çizgisine çarpıp mürekkep rengine
+ * dönerek geri seker, logo belirir, yükleme çubuğu dolar. Yalnızca opaklık ve dönüşüm
+ * animasyonları (GPU'da birleştirilir); bitince ana menüye yumuşakça açılır.
+ */
 export function bootHTML(): string {
+  const sparks = [-160, -130, -100, -70, -40, -15, 200, 235]
+    .map((a, i) => `<span style="transform:rotate(${a}deg)"><i style="animation-delay:${1.12 + i * 0.012}s"></i></span>`)
+    .join('');
   return `
-    <section class="screen boot" id="boot">
-      <h1 class="logo"><span>${t('app.title1')}</span><span>${t('app.title2')}</span>${LOGO_STROKE}</h1>
-      <p class="tagline">${t('app.tagline')}</p>
-      <div class="boot-hint">${t('app.tap')}</div>
-    </section>`;
+      <div class="sp-sky"></div>
+      <div class="sp-glow"></div>
+      <div class="sp-flash"></div>
+      <div class="sp-stage">
+        <svg class="sp-ink" viewBox="0 0 320 60" preserveAspectRatio="none"><path d="M22 44 C 90 26, 180 22, 298 34"/></svg>
+        <i class="sp-ring"></i>
+        <div class="sp-sparks">${sparks}</div>
+        <i class="sp-met"><b class="hot"></b><b class="cool"></b></i>
+      </div>
+      <h1 class="logo sp-logo"><span>${t('app.title1')}</span><span>${t('app.title2')}</span></h1>
+      <p class="tagline sp-tag">${t('app.tagline')}</p>
+      <div class="sp-load"><i></i></div>
+      ${skylineSVG()}`;
+}
+
+/** Açılış ekranının altındaki şehir silüeti (sabit tohumla, her açılışta aynı) */
+function skylineSVG(): string {
+  let seed = 7;
+  const rnd = (): number => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  let x = 0;
+  let body = '';
+  let lights = '';
+  while (x < 400) {
+    const w = 18 + Math.floor(rnd() * 26);
+    const h = 26 + Math.floor(rnd() * 64);
+    body += `<rect x="${x}" y="${120 - h}" width="${w - 2}" height="${h}"/>`;
+    for (let wy = 120 - h + 6; wy < 114; wy += 9) {
+      for (let wx = x + 4; wx < x + w - 6; wx += 7) if (rnd() < 0.22) lights += `<rect x="${wx}" y="${wy}" width="3" height="4"/>`;
+    }
+    x += w;
+  }
+  return `<svg class="sp-city" viewBox="0 0 400 120" preserveAspectRatio="xMidYMax slice"><g class="b">${body}</g><g class="l">${lights}</g></svg>`;
 }
 
 export interface MenuData {
@@ -71,7 +109,12 @@ export function menuHTML(d: MenuData): string {
   const unlocked = Math.min(ATMOSPHERES.length, s.maxAtm + 1);
   const meta: string[] = [];
   if (s.streak.count > 0) meta.push(`<span class="meta-chip streak">${icon('flame')}${t('menu.streakDays', { n: s.streak.count })}</span>`);
-  if (s.bestWave > 0) meta.push(`<span class="meta-chip">${icon('lines')}${t('menu.bestWave', { n: s.bestWave })}</span>`);
+  const atm = ATMOSPHERES[d.worldIndex];
+  const owned = SKILLS.filter((k) => s.skills.includes(k.id));
+  const lockedN = SKILLS.length - owned.length;
+  const strip = owned
+    .map((k) => `<span class="ss" style="--sc:${k.color}">${shapeIcon(k.shape)}<em>${t('shape.' + k.shape)}</em></span>`)
+    .join('');
   return `
     <section class="screen home" id="menu">
       <header class="topbar enter" style="--d:0">
@@ -88,9 +131,9 @@ export function menuHTML(d: MenuData): string {
         </div>
       </header>
 
-      <div class="brand home-brand enter" style="--d:1">
+      <div class="brand home-brand enter" style="--d:1;--ac:${atm.accent}">
+        <i class="brand-rays"></i>
         <h1 class="logo"><span>${t('app.title1')}</span><span>${t('app.title2')}</span>${LOGO_STROKE}</h1>
-        <div class="world-chip" style="--ac:${ATMOSPHERES[d.worldIndex].accent}">${icon('planet')}${d.worldName}</div>
       </div>
 
       <div class="home-mid">
@@ -115,15 +158,31 @@ export function menuHTML(d: MenuData): string {
             <span class="fab-label">${t('menu.worlds')}</span>
             <small class="fab-sub">${unlocked}/${ATMOSPHERES.length}</small>
           </button>
-          <button class="fab" data-a="panel" data-p="skills" style="--ac:${(SKILLS.find((k) => k.id === s.skill) ?? SKILLS[0]).color}">
-            <span class="fab-ic">${icon((SKILLS.find((k) => k.id === s.skill) ?? SKILLS[0]).icon)}</span>
+          <button class="fab" data-a="panel" data-p="skills" style="--ac:#B57BFF">
+            <span class="fab-ic">${shapeIcon('triangle')}</span>
             <span class="fab-label">${t('menu.skills')}</span>
+            <small class="fab-sub">${owned.length}/${SKILLS.length}</small>
           </button>
         </div>
       </div>
 
       <div class="home-play enter" style="--d:2">
         ${meta.length ? `<div class="play-meta">${meta.join('')}</div>` : ''}
+        <button class="stage-card" data-a="panel" data-p="worlds" style="--ac:${atm.accent}">
+          <span class="stage-ic">${icon('planet')}</span>
+          <span class="stage-info">
+            <small>${t('banner.chapter', { n: d.worldIndex + 1 })} · ${unlocked}/${ATMOSPHERES.length}</small>
+            <b>${d.worldName}</b>
+            <span class="stage-bar"><i style="--w:${((unlocked / ATMOSPHERES.length) * 100).toFixed(1)}%"></i></span>
+          </span>
+          <span class="stage-best">${s.bestWave > 0 ? `<small>${t('hud.wave')}</small><b>${s.bestWave}</b>` : ''}</span>
+          <span class="stage-go">${icon('arrow')}</span>
+        </button>
+        <button class="skill-strip" data-a="panel" data-p="skills">
+          <span class="ss-title">${t('skills.draw')}</span>
+          ${strip}
+          ${lockedN > 0 ? `<span class="ss more">${icon('lock')}<em>+${lockedN}</em></span>` : ''}
+        </button>
         <div class="play-wrap">
           <span class="ring"></span>
           <button class="btn-play big" data-a="play">${icon('play')}<span class="play-text">${t('menu.play')}</span></button>
@@ -319,25 +378,42 @@ export function shopHTML(save: SaveData, native: boolean): string {
 }
 
 /** Yetenekler: bir tanesi takılır, dolunca oyunda tek dokunuşla tetiklenir */
+/** Yetenek ağacı: her yetenek bir dal (şekli + 3 seviye düğümü), aç / geliştir */
 export function skillsHTML(save: SaveData): string {
-  const cards = SKILLS.map((k, i) => {
+  const dec = (v: number): string => (getLang() === 'tr' ? String(v).replace('.', ',') : String(v));
+  const rows = SKILLS.map((k, i) => {
     const owned = save.skills.includes(k.id);
-    const on = save.skill === k.id;
-    let btn: string;
-    if (on) btn = `<span class="buy done">${icon('check')}${t('skills.on')}</span>`;
-    else if (owned) btn = `<button class="buy ghost" data-a="equipSkill" data-id="${k.id}">${t('skills.equip')}</button>`;
-    else btn = `<button class="buy ${save.coins >= k.price ? '' : 'disabled'}" data-a="buySkill" data-id="${k.id}">${icon('coin')}${fmt(k.price)}</button>`;
+    const lv = owned ? Math.max(1, Math.min(SKILL_MAX_LV, save.skillLv[k.id] ?? 1)) : 0;
+    const cost = owned ? skillUpCost(k, lv) : k.price;
+    const maxed = owned && cost < 0;
+    const L = Math.max(1, lv);
+    let nodes = '';
+    for (let n = 1; n <= SKILL_MAX_LV; n++) {
+      if (n > 1) nodes += `<s class="${n <= lv ? 'on' : ''}"></s>`;
+      nodes += `<i class="node ${n <= lv ? 'on' : ''} ${n === lv + 1 ? 'next' : ''}"><b>${n}</b></i>`;
+    }
+    const stat = (l: number): string => `${t('skills.cd', { n: k.cd[l - 1] })} · ${t('skill.' + k.id + '.p', { v: dec(k.power[l - 1]) })}`;
+    const next = owned && !maxed ? `<div class="tree-next">${icon('arrow')}${stat(lv + 1)}</div>` : '';
+    const btn = maxed
+      ? `<span class="buy done">${icon('crown')}${t('skills.max')}</span>`
+      : `<button class="buy ${save.coins >= cost ? '' : 'disabled'}" data-a="buySkill" data-id="${k.id}">${owned ? t('skills.upgrade') : t('skills.unlock')}<em>${icon('coin')}${fmt(cost)}</em></button>`;
     return `
-      <div class="skill-card ${on ? 'on' : ''} ${owned ? '' : 'locked'}" style="--sc:${k.color};--d:${i}">
-        <div class="skill-orb">${icon(k.icon)}</div>
-        <div class="skill-info">
-          <h4>${t('skill.' + k.id)}</h4>
-          <p>${t('skill.' + k.id + '.d')}</p>
+      <div class="tree-row ${owned ? 'owned' : 'locked'}" data-sk="${k.id}" style="--sc:${k.color};--d:${i}">
+        <div class="tree-glyph">
+          <div class="tree-orb">${shapeIcon(k.shape)}${owned ? '' : `<span class="tree-lock">${icon('lock')}</span>`}</div>
+          <span class="tree-draw">${t('skills.draw')}<b>${t('shape.' + k.shape)}</b></span>
         </div>
-        ${btn}
+        <div class="tree-body">
+          <h4>${icon(k.icon)}<span>${t('skill.' + k.id)}</span></h4>
+          <p>${t('skill.' + k.id + '.d')}</p>
+          <div class="tree-track">${nodes}</div>
+          <div class="tree-stat">${stat(L)}</div>
+          ${next}
+          ${btn}
+        </div>
       </div>`;
   }).join('');
-  return panel('skills', t('skills.title'), `<p class="lead">${t('skills.desc')}</p><div class="skill-list">${cards}</div>`, save.coins);
+  return panel('skills', t('skills.title'), `<p class="lead">${t('skills.desc')}</p><div class="tree">${rows}</div>`, save.coins);
 }
 
 function upgradeDesc(id: string, nextLevel: number): string {

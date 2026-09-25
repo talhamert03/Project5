@@ -349,30 +349,393 @@ svg {
   }
 }
 
-/* ───────────── Açılış ───────────── */
-.boot {
+/* ───────────── Açılış ekranı ───────────── */
+.splash {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  background: radial-gradient(120% 80% at 50% 40%, #151a58 0%, var(--night) 70%);
-  transition: opacity 0.6s ease;
-  z-index: 50;
+  overflow: hidden;
+  background: #04061a;
+  pointer-events: auto;
+  transition:
+    opacity 0.7s ease,
+    transform 0.9s var(--smooth);
 }
 
-.boot.out {
+.splash.out {
   opacity: 0;
+  transform: scale(1.06);
   pointer-events: none;
 }
 
-.boot .logo {
-  animation: fadeUp 0.9s var(--smooth) both;
+.sp-sky {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(1.5px 1.5px at 12% 18%, rgba(255, 255, 255, 0.8), transparent 60%),
+    radial-gradient(1px 1px at 28% 72%, rgba(255, 255, 255, 0.6), transparent 60%),
+    radial-gradient(1.5px 1.5px at 44% 34%, rgba(200, 240, 255, 0.8), transparent 60%),
+    radial-gradient(1px 1px at 63% 12%, rgba(255, 255, 255, 0.7), transparent 60%),
+    radial-gradient(1.5px 1.5px at 78% 58%, rgba(255, 230, 200, 0.7), transparent 60%),
+    radial-gradient(1px 1px at 88% 26%, rgba(255, 255, 255, 0.6), transparent 60%),
+    radial-gradient(1px 1px at 8% 88%, rgba(255, 255, 255, 0.5), transparent 60%),
+    radial-gradient(1.5px 1.5px at 52% 90%, rgba(255, 255, 255, 0.6), transparent 60%),
+    radial-gradient(1px 1px at 94% 82%, rgba(200, 220, 255, 0.6), transparent 60%),
+    radial-gradient(1px 1px at 35% 8%, rgba(255, 255, 255, 0.5), transparent 60%),
+    radial-gradient(130% 90% at 50% 38%, #18206a 0%, #0a0e36 45%, #04061a 80%);
+  animation: spFade 1s ease both;
 }
 
-.boot-hint {
-  margin-top: 36px;
-  color: var(--muted);
-  letter-spacing: 0.12em;
-  font-size: 13px;
-  text-transform: uppercase;
-  animation: breathe 1.8s ease-in-out infinite;
+.sp-glow {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: 150vmin;
+  height: 150vmin;
+  margin: -75vmin 0 0 -75vmin;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(62, 240, 224, 0.2), rgba(120, 80, 255, 0.1) 45%, transparent 72%);
+  animation:
+    spFade 1.4s 0.2s ease both,
+    spDrift 7s ease-in-out infinite alternate;
+}
+
+.sp-flash {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: 120vmin;
+  height: 120vmin;
+  margin: -60vmin 0 0 -60vmin;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(233, 255, 253, 0.55), rgba(62, 240, 224, 0.18) 40%, transparent 70%);
+  opacity: 0;
+  animation: spBlip 0.9s 1.1s ease-out both;
+}
+
+.sp-stage {
+  position: relative;
+  width: 320px;
+  height: 150px;
+  margin-bottom: 6px;
+  flex: none;
+}
+
+.sp-ink {
+  position: absolute;
+  left: 0;
+  top: 90px;
+  width: 320px;
+  height: 60px;
+  overflow: visible;
+  transform-origin: 53% 50%;
+  animation: spWobble 0.7s 1.12s ease-out both;
+}
+
+.sp-ink path {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-dasharray: 300;
+  stroke-dashoffset: 300;
+  filter: drop-shadow(0 0 7px var(--ink));
+  animation: spDraw 0.75s 0.2s cubic-bezier(0.5, 0, 0.3, 1) forwards;
+}
+
+/* meteor: çarpma noktası (170, 116) */
+.sp-met {
+  position: absolute;
+  left: 170px;
+  top: 116px;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  animation: spMeteor 1.45s 0.33s both;
+}
+
+.sp-met::before,
+.sp-met::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -6px;
+  width: 170px;
+  height: 12px;
+  border-radius: 0 12px 12px 0;
+  background: linear-gradient(90deg, rgba(255, 190, 120, 0.95), rgba(255, 106, 61, 0.45) 35%, transparent);
+  animation: spHot 1.45s 0.33s both;
+}
+
+.sp-met::after {
+  background: linear-gradient(90deg, rgba(233, 255, 253, 0.95), rgba(62, 240, 224, 0.5) 35%, transparent);
+  animation-name: spCool;
+}
+
+.sp-met b {
+  position: absolute;
+  left: -11px;
+  top: -11px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, #fff 0%, #ffd9a0 35%, #ff6a3d 75%);
+  box-shadow:
+    0 0 14px 4px rgba(255, 140, 70, 0.7),
+    0 0 40px 10px rgba(255, 106, 61, 0.35);
+  animation: spHot 1.45s 0.33s both;
+}
+
+.sp-met b.cool {
+  background: radial-gradient(circle at 40% 40%, #fff 0%, var(--ink-core) 35%, var(--ink) 80%);
+  box-shadow:
+    0 0 14px 4px rgba(62, 240, 224, 0.7),
+    0 0 40px 10px rgba(62, 240, 224, 0.35);
+  animation-name: spCool;
+}
+
+.sp-ring {
+  position: absolute;
+  left: 110px;
+  top: 56px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+  box-shadow:
+    0 0 18px rgba(62, 240, 224, 0.6),
+    inset 0 0 18px rgba(62, 240, 224, 0.4);
+  opacity: 0;
+  animation: spRing 0.8s 1.12s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+.sp-sparks > span {
+  position: absolute;
+  left: 170px;
+  top: 116px;
+  width: 0;
+  height: 0;
+}
+
+.sp-sparks i {
+  position: absolute;
+  left: 0;
+  top: -1.5px;
+  width: 16px;
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #fff, var(--ink));
+  box-shadow: 0 0 6px var(--ink);
+  opacity: 0;
+  animation: spSpark 0.65s ease-out both;
+}
+
+.sp-logo {
+  animation: none;
+}
+
+.sp-logo span {
+  animation:
+    spRise 0.9s 1.2s var(--smooth) both,
+    inkShimmer 5s 2.2s ease-in-out infinite;
+}
+
+.sp-logo span + span {
+  animation-delay: 1.32s, 2.4s;
+}
+
+.sp-tag {
+  animation: spRise 0.8s 1.65s var(--smooth) both;
+}
+
+.sp-load {
+  position: absolute;
+  z-index: 1;
+  bottom: calc(var(--safe-b) + 22vh + 18px);
+  width: 168px;
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(243, 238, 223, 0.1);
+  overflow: hidden;
+  animation: spFade 0.6s 0.4s ease both;
+}
+
+.sp-load i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--turkuaz-deep), var(--ink), #fff);
+  transform-origin: 0 50%;
+  animation: spBar 2.9s 0.4s cubic-bezier(0.45, 0.05, 0.3, 1) both;
+}
+
+@keyframes spFade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes spDrift {
+  to {
+    transform: translate(4vmin, -3vmin) scale(1.08);
+  }
+}
+
+@keyframes spBlip {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes spDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes spWobble {
+  0% {
+    transform: scaleY(1);
+  }
+  25% {
+    transform: scaleY(1.9);
+  }
+  55% {
+    transform: scaleY(0.7);
+  }
+  80% {
+    transform: scaleY(1.15);
+  }
+  100% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes spMeteor {
+  0% {
+    opacity: 0;
+    transform: translate(230px, -270px) rotate(-50deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.9, 0.6);
+  }
+  10% {
+    opacity: 1;
+  }
+  55% {
+    transform: translate(0, 0) rotate(-50deg);
+    animation-timing-function: linear;
+  }
+  57% {
+    transform: translate(-4px, -6px) rotate(56deg);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1);
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-190px, -290px) rotate(56deg);
+  }
+}
+
+@keyframes spHot {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  58%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes spCool {
+  0%,
+  54% {
+    opacity: 0;
+  }
+  57%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes spRing {
+  0% {
+    opacity: 1;
+    transform: scale(0.1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+
+@keyframes spSpark {
+  0% {
+    opacity: 1;
+    transform: translateX(6px) scaleX(0.4);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(78px) scaleX(1);
+  }
+}
+
+@keyframes spRise {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.94);
+  }
+}
+
+@keyframes spBar {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.sp-city {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 20vh;
+  animation: spCity 1.2s 0.1s var(--smooth) both;
+}
+
+.sp-city .b {
+  fill: #070a2a;
+}
+
+.sp-city .l {
+  fill: #ffc870;
+  opacity: 0.55;
+}
+
+@keyframes spCity {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+@media (max-width: 340px) {
+  .sp-stage {
+    transform: scale(0.88);
+  }
 }
 
 @keyframes breathe {
@@ -946,6 +1309,223 @@ svg {
   }
   92% {
     transform: scale(0.98, 1.03);
+  }
+}
+
+/* ── 1.3 premium ana ekran: logo ışınları, bölüm kartı, yetenek şeritleri, cam butonlar */
+.home-brand {
+  position: relative;
+}
+
+.brand-rays {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 360px;
+  height: 360px;
+  margin: -180px 0 0 -180px;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--ac) 20%, transparent) 0deg 7deg, transparent 7deg 22deg);
+  -webkit-mask: radial-gradient(closest-side, #000 20%, transparent 100%);
+  mask: radial-gradient(closest-side, #000 20%, transparent 100%);
+  opacity: 0.55;
+  animation: raysSpin 40s linear infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+
+@keyframes raysSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fab-ic::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  top: 3px;
+  height: 45%;
+  border-radius: 15px 15px 40% 40%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+.fab-ic .shape-ic {
+  width: 30px;
+  height: 30px;
+}
+
+.fab-label {
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: rgba(4, 6, 24, 0.55);
+}
+
+.stage-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 10px;
+  border-radius: 20px;
+  text-align: left;
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--ac) 22%, transparent), transparent 60%),
+    linear-gradient(180deg, rgba(22, 28, 84, 0.9), rgba(8, 11, 40, 0.92));
+  border: 1px solid color-mix(in srgb, var(--ac) 45%, transparent);
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: transform 0.12s;
+}
+
+.stage-card:active {
+  transform: scale(0.98);
+}
+
+.stage-ic {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  color: var(--ac);
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--ac) 35%, transparent), rgba(6, 8, 30, 0.9) 75%);
+  border: 1px solid color-mix(in srgb, var(--ac) 55%, transparent);
+}
+
+.stage-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.stage-info small {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.stage-info b {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--paper);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stage-bar {
+  display: block;
+  height: 5px;
+  margin-top: 2px;
+  border-radius: 5px;
+  background: rgba(243, 238, 223, 0.1);
+  overflow: hidden;
+}
+
+.stage-bar > i {
+  display: block;
+  width: var(--w);
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 60%, #fff), var(--ac));
+}
+
+.stage-best {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.05;
+}
+
+.stage-best small {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.stage-best b {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--gold);
+}
+
+.stage-go {
+  font-size: 18px;
+  color: var(--muted);
+}
+
+.skill-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(4, 6, 24, 0.62);
+  border: 1px solid var(--hair);
+}
+
+.ss-title {
+  margin-right: 2px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.ss {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px 3px 5px;
+  border-radius: 999px;
+  color: var(--sc);
+  background: color-mix(in srgb, var(--sc) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sc) 35%, transparent);
+}
+
+.ss .shape-ic {
+  width: 17px;
+  height: 17px;
+}
+
+.ss em {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--paper);
+}
+
+.ss.more {
+  --sc: var(--dim);
+  font-size: 13px;
+  padding-left: 7px;
+}
+
+@media (max-height: 700px) {
+  .skill-strip {
+    display: none;
+  }
+  .stage-card {
+    padding: 7px 10px 7px 8px;
+  }
+  .stage-ic {
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
   }
 }
 
@@ -2881,98 +3461,142 @@ svg {
 
 /* ═════════════ Sürüm 1.2: yetenek, mağaza, ödüllü video ═════════════ */
 
-/* ── Oyun içi yetenek düğmesi (şehrin üstünde, çizim alanının dışında) */
-.skill-btn {
+/* ── Oyun içi yetenek doku: her yeteneğin şekli, bekleme halkası ve kalan saniye (şehrin altında) */
+.skill-dock {
   position: absolute;
-  right: calc(var(--safe-r) + 14px);
-  bottom: calc(var(--safe-b) + 18px);
-  width: 72px;
-  height: 72px;
+  left: 50%;
+  bottom: calc(var(--safe-b) + 10px);
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(14, 18, 60, 0.72), rgba(4, 6, 24, 0.82));
+  border: 1px solid rgba(243, 238, 223, 0.14);
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  pointer-events: auto;
+}
+
+.skill-dock:empty {
+  display: none;
+}
+
+.sk {
+  position: relative;
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  pointer-events: auto;
   --sc: #ffffff;
-  background: radial-gradient(circle at 35% 30%, rgba(40, 48, 120, 0.95), rgba(8, 10, 36, 0.95));
-  border: 1.5px solid rgba(243, 238, 223, 0.18);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
-  transition: transform 0.12s, box-shadow 0.3s, filter 0.3s;
-  filter: saturate(0.55) brightness(0.8);
+  color: color-mix(in srgb, var(--sc) 55%, #6f6d98);
+  background: radial-gradient(circle at 35% 28%, rgba(46, 54, 130, 0.95), rgba(8, 10, 36, 0.98) 72%);
+  transition: transform 0.12s;
 }
 
-.skill-btn:active {
+.sk:active {
   transform: scale(0.9);
 }
 
-.skill-ring {
+.sk-ring {
   position: absolute;
-  inset: -4px;
-  width: calc(100% + 8px);
-  height: calc(100% + 8px);
+  top: -3px;
+  left: -3px;
+  width: 60px;
+  height: 60px;
   transform: rotate(-90deg);
 }
 
-.skill-ring circle {
+.sk-ring circle {
   fill: none;
-  stroke-width: 5;
+  stroke-width: 3.5;
 }
 
-.skill-ring .bg {
+.sk-ring .bg {
   stroke: rgba(243, 238, 223, 0.12);
 }
 
-.skill-ring .fg {
+.sk-ring .fg {
   stroke: var(--sc);
   stroke-linecap: round;
-  stroke-dasharray: 176;
-  stroke-dashoffset: 176;
+  stroke-dasharray: 163.4;
+  stroke-dashoffset: 163.4;
+  opacity: 0.8;
 }
 
-/* halka ışıması: filtre/geçiş yerine ikinci, geniş ve soluk bir çizgi (her dolumda ucuz boyama) */
-.skill-ring .glow {
-  fill: none;
-  stroke: var(--sc);
-  stroke-width: 10;
-  stroke-linecap: round;
-  stroke-dasharray: 176;
-  stroke-dashoffset: 176;
-  opacity: 0.22;
+.sk-glyph {
+  width: 30px;
+  height: 30px;
+  opacity: 0.55;
 }
 
-.skill-ic {
-  font-size: 32px;
-  color: var(--sc);
-  display: grid;
-  place-items: center;
-}
-
-.skill-ready {
+.sk-sec {
   position: absolute;
-  bottom: -9px;
+  right: -4px;
+  top: -5px;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  color: var(--paper);
+  background: rgba(6, 10, 34, 0.92);
+  border: 1px solid rgba(243, 238, 223, 0.18);
+}
+
+.sk-sec:empty {
+  display: none;
+}
+
+.sk-tag {
+  position: absolute;
+  bottom: -8px;
   left: 50%;
-  transform: translateX(-50%) scale(0.6);
-  padding: 2px 8px;
+  padding: 1px 7px;
   border-radius: 99px;
   font-family: var(--font-display);
-  font-size: 9.5px;
+  font-size: 9px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   color: #041318;
   background: var(--sc);
+  transform: translateX(-50%) scale(0.5);
   opacity: 0;
-  transition: opacity 0.2s, transform 0.3s var(--pop);
+  transition:
+    opacity 0.2s,
+    transform 0.3s var(--pop);
   white-space: nowrap;
 }
 
-.skill-btn.ready {
-  filter: none;
-  border-color: color-mix(in srgb, var(--sc) 70%, transparent);
+.sk.ready {
+  color: var(--sc);
   box-shadow:
-    0 8px 22px rgba(0, 0, 0, 0.5),
-    0 0 26px color-mix(in srgb, var(--sc) 55%, transparent);
+    0 0 0 1.5px color-mix(in srgb, var(--sc) 80%, transparent),
+    0 0 22px color-mix(in srgb, var(--sc) 60%, transparent);
 }
 
-.skill-btn::before {
+.sk.ready .sk-glyph {
+  opacity: 1;
+  filter: drop-shadow(0 0 5px var(--sc));
+}
+
+.sk.ready .sk-ring .fg {
+  opacity: 1;
+}
+
+.sk.ready .sk-tag {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+/* hazırken dışarı yayılan halka (yalnızca dönüşüm + opaklık) */
+.sk::after {
   content: '';
   position: absolute;
   top: 0;
@@ -2980,34 +3604,37 @@ svg {
   bottom: 0;
   left: 0;
   border-radius: 50%;
-  box-shadow: 0 0 40px color-mix(in srgb, var(--sc) 85%, transparent);
+  border: 2px solid var(--sc);
   opacity: 0;
   pointer-events: none;
 }
 
-.skill-btn.ready::before {
-  animation: skillPulse 1.1s ease-in-out infinite;
+.sk.ready::after {
+  animation: skWave 1.6s ease-out infinite;
 }
 
-.skill-btn.ready .skill-ready {
-  opacity: 1;
-  transform: translateX(-50%) scale(1);
-}
-
-.skill-btn.active {
-  filter: none;
-  animation: skillSpin 0.6s linear infinite;
-}
-
-@keyframes skillPulse {
-  50% {
-    opacity: 1;
+@keyframes skWave {
+  0% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.55);
   }
 }
 
-@keyframes skillSpin {
-  to {
-    transform: rotate(360deg);
+@media (max-width: 360px) {
+  .sk {
+    width: 48px;
+    height: 48px;
+  }
+  .sk-ring {
+    width: 54px;
+    height: 54px;
+  }
+  .skill-dock {
+    gap: 8px;
   }
 }
 
@@ -3448,58 +4075,124 @@ svg {
   box-shadow: 0 0 12px rgba(255, 200, 87, 0.8);
 }
 
-/* ── Yetenekler */
-.skill-list {
+/* ── Yetenek ağacı */
+.tree {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
-.skill-card {
+.tree-row {
+  --sc: #fff;
   display: grid;
-  grid-template-columns: 64px 1fr;
-  grid-template-rows: auto auto;
-  align-items: center;
-  gap: 10px 14px;
+  grid-template-columns: 82px 1fr;
+  gap: 14px;
   padding: 14px;
-  border-radius: 20px;
+  border-radius: 22px;
   background:
-    radial-gradient(90% 120% at 0% 0%, color-mix(in srgb, var(--sc) 16%, transparent), transparent 70%),
-    var(--panel);
-  border: 1.5px solid color-mix(in srgb, var(--sc) 30%, transparent);
+    radial-gradient(90% 120% at 0% 0%, color-mix(in srgb, var(--sc) 14%, transparent), transparent 70%),
+    linear-gradient(180deg, rgba(24, 30, 86, 0.92), rgba(10, 13, 44, 0.94));
+  border: 1.5px solid color-mix(in srgb, var(--sc) 28%, transparent);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   animation: fadeUp 0.45s var(--smooth) both;
-  animation-delay: calc(var(--d, 0) * 60ms);
+  animation-delay: calc(var(--d, 0) * 70ms);
 }
 
-.skill-card.on {
-  border-color: color-mix(in srgb, var(--sc) 75%, transparent);
-  box-shadow: 0 0 24px color-mix(in srgb, var(--sc) 25%, transparent);
+.tree-row.owned {
+  border-color: color-mix(in srgb, var(--sc) 60%, transparent);
 }
 
-.skill-card.locked .skill-orb {
-  filter: saturate(0.4) brightness(0.8);
+.tree-row.lvup {
+  animation: treeUp 0.6s var(--pop);
 }
 
-.skill-orb {
-  grid-row: span 2;
-  width: 64px;
-  height: 64px;
+@keyframes treeUp {
+  40% {
+    transform: scale(1.03);
+  }
+}
+
+.tree-glyph {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.tree-orb {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border-radius: 24px;
+  display: grid;
+  place-items: center;
+  color: var(--sc);
+  background: radial-gradient(circle at 35% 28%, color-mix(in srgb, var(--sc) 30%, transparent), rgba(6, 8, 30, 0.95) 72%);
+  border: 1.5px solid color-mix(in srgb, var(--sc) 55%, transparent);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--sc) 28%, transparent);
+}
+
+.tree-orb .shape-ic {
+  width: 46px;
+  height: 46px;
+  filter: drop-shadow(0 0 6px var(--sc));
+}
+
+.tree-row.locked .tree-orb {
+  color: var(--dim);
+  border-color: var(--hair-strong);
+  box-shadow: none;
+}
+
+.tree-row.locked .tree-orb .shape-ic {
+  filter: none;
+  opacity: 0.6;
+}
+
+.tree-lock {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 32px;
+  font-size: 15px;
+  color: var(--paper);
+  background: #151a4e;
+  border: 1px solid var(--hair-strong);
+}
+
+.tree-draw {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.tree-draw b {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.04em;
   color: var(--sc);
-  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--sc) 35%, transparent), rgba(8, 10, 36, 0.9) 70%);
-  border: 1.5px solid color-mix(in srgb, var(--sc) 55%, transparent);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--sc) 30%, transparent);
 }
 
-.skill-card.on .skill-orb {
-  animation: breathe 1.6s ease-in-out infinite;
+.tree-row.locked .tree-draw b {
+  color: var(--paper);
 }
 
-.skill-info h4 {
+.tree-body h4 {
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
   font-family: var(--font-display);
   font-size: 13.5px;
   font-weight: 800;
@@ -3507,15 +4200,94 @@ svg {
   color: var(--sc);
 }
 
-.skill-info p {
-  margin: 4px 0 0;
+.tree-body h4 svg {
+  font-size: 17px;
+}
+
+.tree-body p {
+  margin: 5px 0 10px;
   font-size: 12.5px;
   line-height: 1.38;
   color: #cfcbe6;
 }
 
-.skill-card .buy {
+.tree-track {
+  display: flex;
+  align-items: center;
+}
+
+.tree-track .node {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+  font-style: normal;
+  background: rgba(243, 238, 223, 0.06);
+  border: 1.5px solid var(--hair-strong);
+}
+
+.tree-track .node b {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.tree-track .node.on {
+  background: var(--sc);
+  border-color: var(--sc);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--sc) 60%, transparent);
+}
+
+.tree-track .node.on b {
+  color: #05081e;
+}
+
+.tree-track .node.next {
+  border-color: color-mix(in srgb, var(--sc) 70%, transparent);
+  border-style: dashed;
+}
+
+.tree-track s {
+  flex: 1;
+  max-width: 44px;
+  height: 3px;
+  margin: 0 4px;
+  border-radius: 2px;
+  background: rgba(243, 238, 223, 0.12);
+}
+
+.tree-track s.on {
+  background: var(--sc);
+}
+
+.tree-stat,
+.tree-next {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.tree-next {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  color: color-mix(in srgb, var(--sc) 80%, var(--paper));
+}
+
+.tree-row .buy {
+  margin-top: 10px;
   justify-self: start;
+}
+
+.tree-row .buy em {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  font-style: normal;
 }
 
 /* Kısa ekranlar: üç katlı yan düğme sütunu OYNA'ya taşmasın */
@@ -3532,6 +4304,26 @@ svg {
   }
   .fab-sub {
     display: none;
+  }
+}
+
+/* çok kısa ekranlar (360x640 vb.): yan butonların yazıları gizlenir, sütun bölüm kartına taşmaz */
+@media (max-height: 680px) {
+  .side {
+    top: 1%;
+    gap: 6px;
+  }
+  .fab-label {
+    display: none;
+  }
+  .fab-ic {
+    width: 46px;
+    height: 46px;
+    border-radius: 15px;
+    font-size: 22px;
+  }
+  .home-brand {
+    margin-top: 4px;
   }
 }
 

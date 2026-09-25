@@ -56,7 +56,8 @@ export class Director {
   baseSpeed(H: number): number {
     const w = this.wave;
     // ilk dalgalar öğretici hızda; 10. dalgadan sonra tempo biraz daha artar
-    const s = 195 + 12 * Math.min(w, 10) + 13.5 * Math.max(0, Math.min(w, 28) - 10) + 4 * Math.max(0, w - 28);
+    // 1.3: şekille atılan yetenekler oyuncuya güç kattığı için tempo bir tık daha yüksek
+    const s = 204 + 13 * Math.min(w, 10) + 14 * Math.max(0, Math.min(w, 28) - 10) + 4.5 * Math.max(0, w - 28);
     return s * (H / 1280) * this.mods.speed;
   }
 
@@ -131,7 +132,7 @@ export class Director {
       return;
     }
 
-    const total = Math.round(5 + wave * 3);
+    const total = Math.round(6 + wave * 3.2);
     let count = 0;
     let t = 1.2;
     const pw = (min: number, w: number): number => (wave >= min ? w : 0);
@@ -145,6 +146,7 @@ export class Director {
         pw(5, 0.3), // V
         pw(6, 0.28), // yağmur
         pw(8, 0.22), // kuyruklu yıldız sağanağı
+        pw(10, 0.2), // makas: iki köşeden aynı anda çapraz kuyruklu yıldız
       ]);
       let n = 1;
       if (pattern === 0) {
@@ -195,13 +197,26 @@ export class Director {
           const [vx, vy] = aim(x, MK.Shard, speed * 1.05);
           add(t + i * 0.13, MK.Shard, x, vx, vy);
         }
-      } else {
+      } else if (pattern === 7) {
         // aynı köşeden art arda üç kuyruklu yıldız
         n = 3;
         for (let i = 0; i < n; i++) add(t + i * 0.42, MK.Comet, 0, 0, 0);
+      } else {
+        // makas: iki kuyruklu yıldız karşı köşelerden aynı anda, ortada kesişir
+        n = 2;
+        const rr = KINDS[MK.Comet].r * this.mods.size;
+        const sp = speed * KINDS[MK.Comet].speed * r.range(0.95, 1.05);
+        for (const left of [true, false]) {
+          const sx = left ? r.range(30, 110) : r.range(610, 690);
+          const tx = left ? r.range(470, 680) : r.range(40, 250);
+          const dx = tx - sx;
+          const dy = groundY + 40;
+          const L = Math.hypot(dx, dy);
+          this.queue.push({ t, kind: MK.Comet, x: sx, y: -rr - 12, vx: (dx / L) * sp, vy: (dy / L) * sp });
+        }
       }
       count += n;
-      const gap = Math.max(0.45, 1.45 - wave * 0.07) + n * 0.18 + r.range(-0.15, 0.2);
+      const gap = Math.max(0.42, 1.4 - wave * 0.075) + n * 0.18 + r.range(-0.15, 0.2);
       t += gap;
     }
     this.queue.sort((a, b) => a.t - b.t);
@@ -211,7 +226,8 @@ export class Director {
   escort(dt: number, H: number, groundY: number): Spawn | null {
     this.escortT -= dt;
     if (this.escortT > 0) return null;
-    this.escortT = Math.max(1.6, 3.2 - this.wave * 0.05);
+    // boss artık şehre inmediği için baskı eskortlardan gelir
+    this.escortT = Math.max(1.3, 2.8 - this.wave * 0.05);
     const signature = [MK.Normal, MK.Comet, MK.Ice, MK.Phantom, MK.Nova][this.bossType] ?? MK.Normal;
     const kind = this.bossType > 0 && this.rng.chance(0.5) ? signature : this.pickKind();
     if (kind === MK.Comet) {

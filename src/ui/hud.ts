@@ -1,6 +1,6 @@
 import { t } from '../i18n';
 import type { View } from '../render/view';
-import type { Hud } from '../game/world';
+import type { Hud, SkillSlot } from '../game/world';
 import { fmt } from './format';
 import { icon } from './icons';
 
@@ -25,13 +25,9 @@ export class HudView {
   private bossFill!: HTMLElement;
   private hintEl!: HTMLElement;
   private fpsEl!: HTMLElement;
-  private skillBtn!: HTMLButtonElement;
-  private skillRing!: SVGCircleElement;
-  private skillGlow!: SVGCircleElement;
-  private skillIc!: HTMLElement;
+  private dock!: HTMLElement;
+  private dockItems: Array<{ el: HTMLElement; ring: SVGCircleElement; sec: HTMLElement; key: number; ready: boolean }> = [];
   private bossLabel!: HTMLElement;
-  private lastSkill = -1;
-  private lastSkillReady = false;
 
   private shownScore = 0;
   private lastScoreText = '';
@@ -85,11 +81,7 @@ export class HudView {
         <div class="bar"><i id="h-bossfill" style="--w:100%"></i></div>
       </div>
       <div class="hint" id="h-hint" hidden></div>
-      <button class="skill-btn interactive" data-a="skill" id="h-skill" aria-label="skill">
-        <svg class="skill-ring" viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="28"/><circle class="glow" id="h-skillglow" cx="32" cy="32" r="28"/><circle class="fg" id="h-skillring" cx="32" cy="32" r="28"/></svg>
-        <span class="skill-ic" id="h-skillic"></span>
-        <span class="skill-ready">${t('hud.skillReady')}</span>
-      </button>
+      <div class="skill-dock" id="h-dock"></div>
       <div class="fps" id="h-fps" hidden></div>`;
     const $ = <T extends HTMLElement>(id: string): T => this.root.querySelector('#' + id) as T;
     this.score = $('h-score');
@@ -107,10 +99,8 @@ export class HudView {
     this.bossFill = $('h-bossfill');
     this.hintEl = $('h-hint');
     this.fpsEl = $('h-fps');
-    this.skillBtn = $('h-skill') as HTMLButtonElement;
-    this.skillRing = this.root.querySelector('#h-skillring') as SVGCircleElement;
-    this.skillGlow = this.root.querySelector('#h-skillglow') as SVGCircleElement;
-    this.skillIc = $('h-skillic');
+    this.dock = $('h-dock');
+    this.dockItems = [];
     this.bossLabel = $('h-bosslabel');
     this.invalidate();
   }
@@ -124,20 +114,40 @@ export class HudView {
     this.lastWave = -1;
     this.lastBoss = -2;
     this.lastCoins = -1;
-    this.lastSkill = -1;
-    this.lastSkillReady = false;
+    for (const d of this.dockItems) d.key = -1;
   }
 
-  /** Eğitimde yetenek düğmesi gizlenir */
+  /** Eğitimde yetenek doku gizlenir */
   showSkill(on: boolean): void {
-    this.skillBtn.hidden = !on;
+    this.dock.hidden = !on;
   }
 
-  /** Turun yeteneği: ikon ve renk */
-  setSkill(iconName: string, color: string): void {
-    this.skillIc.innerHTML = icon(iconName);
-    this.skillBtn.style.setProperty('--sc', color);
-    this.lastSkill = -1;
+  /** Yetenek doku: her açık yetenek için şeklinin simgesi ve bekleme halkası */
+  setSkills(slots: Array<{ id: string; shape: string; color: string }>): void {
+    this.dock.innerHTML = slots
+      .map(
+        (k) => `
+        <button class="sk interactive" data-a="skillHint" data-id="${k.id}" style="--sc:${k.color}" aria-label="${t('skill.' + k.id)}">
+          <svg class="sk-ring" viewBox="0 0 60 60"><circle class="bg" cx="30" cy="30" r="26"/><circle class="fg" cx="30" cy="30" r="26"/></svg>
+          ${shapeIcon(k.shape, 'sk-glyph')}
+          <b class="sk-sec"></b>
+          <span class="sk-tag">${t('hud.skillReady')}</span>
+        </button>`,
+      )
+      .join('');
+    this.dockItems = [...this.dock.querySelectorAll<HTMLElement>('.sk')].map((el) => ({
+      el,
+      ring: el.querySelector('.fg') as SVGCircleElement,
+      sec: el.querySelector('.sk-sec') as HTMLElement,
+      key: -1,
+      ready: false,
+    }));
+  }
+
+  /** Hazır olan yeteneğin simgesi zıplar */
+  bounceSkill(id: string): void {
+    const d = this.dockItems.find((x) => x.el.dataset.id === id);
+    if (d) pulse(d.el, 1.35);
   }
 
   /** Boss barının etiketi (boss adı) */
@@ -273,21 +283,8 @@ export class HudView {
       if (changed) this.onLayout?.();
     }
 
-    // yetenek halkası: dolum oranı (her %1'de bir güncelle)
-    const sk = Math.round(Math.min(1, h.skill) * 100);
-    const ready = sk >= 100 && !h.skillActive;
-    if (sk !== this.lastSkill || ready !== this.lastSkillReady) {
-      this.lastSkill = sk;
-      const off = String(176 * (1 - sk / 100));
-      this.skillRing.style.strokeDashoffset = off;
-      this.skillGlow.style.strokeDashoffset = off;
-      if (ready !== this.lastSkillReady) {
-        this.lastSkillReady = ready;
-        this.skillBtn.classList.toggle('ready', ready);
-        if (ready) pulse(this.skillBtn, 1.3);
-      }
-      this.skillBtn.classList.toggle('active', h.skillActive);
-    }
+    // yetenek doku: bekleme halkası (her %1'de bir) ve kalan saniye
+    this.updateDock(h.skills);
 
     if (h.coins !== this.lastCoins) {
       const bump = this.lastCoins >= 0 && h.coins > this.lastCoins;
@@ -295,6 +292,26 @@ export class HudView {
       this.coins.textContent = fmt(h.coins);
       if (bump) {
         pulse(this.coins, 1.25);
+      }
+    }
+  }
+
+  private updateDock(slots: SkillSlot[]): void {
+    const n = Math.min(slots.length, this.dockItems.length);
+    for (let i = 0; i < n; i++) {
+      const k = slots[i];
+      const d = this.dockItems[i];
+      const frac = k.cd > 0 ? 1 - k.left / k.cd : 1;
+      const key = Math.round(frac * 100) * 1000 + Math.ceil(k.left);
+      if (key === d.key) continue;
+      d.key = key;
+      d.ring.style.strokeDashoffset = (163.4 * (1 - frac)).toFixed(1);
+      const ready = k.left <= 0;
+      d.sec.textContent = ready ? '' : String(Math.ceil(k.left));
+      if (ready !== d.ready) {
+        d.ready = ready;
+        d.el.classList.toggle('ready', ready);
+        if (ready) pulse(d.el, 1.3);
       }
     }
   }
@@ -316,4 +333,15 @@ export class HudView {
 /** Yerleşimi yeniden hesaplatmadan (reflow yok) kısa büyüme animasyonu */
 function pulse(el: HTMLElement, scale: number): void {
   el.animate([{ transform: 'none' }, { transform: `scale(${scale})`, offset: 0.4 }, { transform: 'none' }], { duration: 220, easing: 'ease-out' });
+}
+
+/** Yetenek şekillerinin simgesi (arayüz: dok, yetenek ağacı, ipuçları) */
+export function shapeIcon(shape: string, cls = ''): string {
+  const d: Record<string, string> = {
+    circle: '<circle cx="12" cy="12" r="7.6"/>',
+    triangle: '<path d="M12 4.2 L20 18.6 H4 Z"/>',
+    square: '<path d="M5.2 5.2 H18.8 V18.8 H5.2 Z"/>',
+    zigzag: '<path d="M4.5 6 H19.5 L4.5 18 H19.5"/>',
+  };
+  return `<svg class="shape-ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${d[shape] ?? ''}</svg>`;
 }

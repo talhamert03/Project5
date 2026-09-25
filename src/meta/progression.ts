@@ -86,22 +86,43 @@ export function metaBonus(save: SaveData): MetaBonus {
 
 // ───────────────────────── YETENEKLER ─────────────────────────
 
+export type SkillShape = 'circle' | 'triangle' | 'square' | 'zigzag';
+
 export interface SkillDef {
   id: 'nova' | 'warp' | 'aegis' | 'starfall';
+  /** açma bedeli (0: başlangıçta açık) */
   price: number;
   icon: string;
   color: string;
+  /** oyunda bu şekli çizince atılır */
+  shape: SkillShape;
+  /** seviye 1-3 bekleme süresi (sn) */
+  cd: [number, number, number];
+  /** seviye 1-3 gücü (süre sn / sayı / boss hasarı) */
+  power: [number, number, number];
+  /** 2. ve 3. seviye bedelleri */
+  up: [number, number];
 }
 
-/** Oyun içi aktif yetenekler: düşmanları yok ettikçe dolar, tek dokunuşla tetiklenir */
+export const SKILL_MAX_LV = 3;
+
+/**
+ * Yetenek ağacı: açılan her yetenek oyunda şeklini çizince atılır (bekleme süresiyle).
+ * Seviye atlatmak bekleme süresini kısaltır ve gücü artırır.
+ */
 export const SKILLS: SkillDef[] = [
-  { id: 'nova', price: 0, icon: 'burst', color: '#FFFFFF' },
-  { id: 'warp', price: 1800, icon: 'clock', color: '#6EC8FF' },
-  { id: 'aegis', price: 3200, icon: 'shield', color: '#3EF0E0' },
-  { id: 'starfall', price: 5000, icon: 'stars', color: '#FFC857' },
+  { id: 'nova', price: 0, icon: 'burst', color: '#FFFFFF', shape: 'circle', cd: [40, 34, 28], power: [3, 4, 6], up: [900, 2400] },
+  { id: 'warp', price: 1500, icon: 'clock', color: '#6EC8FF', shape: 'triangle', cd: [36, 31, 26], power: [5, 6.5, 8], up: [1400, 3400] },
+  { id: 'aegis', price: 2800, icon: 'shield', color: '#3EF0E0', shape: 'square', cd: [46, 40, 34], power: [6, 8, 10], up: [1900, 4400] },
+  { id: 'starfall', price: 4200, icon: 'stars', color: '#FFC857', shape: 'zigzag', cd: [40, 34, 28], power: [12, 16, 22], up: [2400, 5400] },
 ];
 
 export const SKILL_BY_ID = new Map(SKILLS.map((s) => [s.id as string, s]));
+
+/** Sıradaki seviyenin bedeli (en üst seviyedeyse -1) */
+export function skillUpCost(k: SkillDef, lv: number): number {
+  return lv >= SKILL_MAX_LV ? -1 : k.up[lv - 1];
+}
 
 // ───────────────────────── GÜNLÜK MEYDAN OKUMA ─────────────────────────
 

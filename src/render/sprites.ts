@@ -530,9 +530,6 @@ function drawMeteor(kind: keyof typeof METEOR_COLORS, variant: number, armor: bo
   g.lineWidth = R * 0.06;
   g.stroke();
 
-  // Sevimli yüzler: hayalet ve bosslar (kişilik katar)
-  if (kind === 'phantom' || kind === 'boss') drawFace(g, cx, cy, R, kind === 'phantom' ? -1 : bossType);
-
   if (armor) {
     // Zırh plakaları: ağır meteor, ilk çarpmada kabuğunu kaybeder
     const segs = 6;
@@ -561,63 +558,4 @@ function drawMeteor(kind: keyof typeof METEOR_COLORS, variant: number, armor: bo
     }
   }
   return c;
-}
-
-/** Göz ve kaş: hayalet meraklı, bosslar kızgın/kendinden emin */
-function drawFace(g: CanvasRenderingContext2D, cx: number, cy: number, R: number, bossType: number): void {
-  const ghost = bossType < 0;
-  const ex = R * (ghost ? 0.3 : 0.32);
-  const ey = cy - R * (ghost ? 0.05 : 0.08);
-  const ew = R * (ghost ? 0.16 : 0.15);
-  const eh = R * (ghost ? 0.22 : 0.12);
-  const eyeCol = bossType === 3 ? '#E6CCFF' : bossType === 1 || bossType === 2 ? '#0E2A40' : '#FFF6E0';
-  const pupil = bossType === 3 ? '#5A1AA0' : bossType === 1 || bossType === 2 ? '#BFFBFF' : '#1A0A10';
-  for (const side of [-1, 1]) {
-    const x = cx + side * ex;
-    // göz akı
-    g.fillStyle = eyeCol;
-    g.beginPath();
-    g.ellipse(x, ey, ew, eh, 0, 0, TAU);
-    g.fill();
-    // bebek + parıltı
-    g.fillStyle = pupil;
-    g.beginPath();
-    g.ellipse(x + side * ew * 0.15, ey + eh * 0.2, ew * 0.55, eh * 0.62, 0, 0, TAU);
-    g.fill();
-    g.fillStyle = 'rgba(255,255,255,0.9)';
-    g.beginPath();
-    g.arc(x - ew * 0.25, ey - eh * 0.2, ew * 0.22, 0, TAU);
-    g.fill();
-    if (!ghost) {
-      // kızgın kaş
-      g.strokeStyle = bossType === 1 || bossType === 2 ? '#0E2A40' : 'rgba(20,6,10,0.9)';
-      g.lineWidth = R * 0.07;
-      g.lineCap = 'round';
-      g.beginPath();
-      g.moveTo(x - side * ew * 1.2, ey - eh * 1.9);
-      g.lineTo(x + side * ew * 0.9, ey - eh * 1.1);
-      g.stroke();
-    }
-  }
-  if (ghost) {
-    // küçük "o" ağız
-    g.fillStyle = '#2a1848';
-    g.beginPath();
-    g.ellipse(cx, cy + R * 0.32, R * 0.09, R * 0.12, 0, 0, TAU);
-    g.fill();
-    // yanak pembeliği
-    g.fillStyle = 'rgba(255,150,210,0.35)';
-    for (const side of [-1, 1]) {
-      g.beginPath();
-      g.ellipse(cx + side * R * 0.48, cy + R * 0.2, R * 0.12, R * 0.07, 0, 0, TAU);
-      g.fill();
-    }
-  } else {
-    // sırıtan ağız
-    g.strokeStyle = bossType === 1 || bossType === 2 ? '#0E2A40' : 'rgba(20,6,10,0.85)';
-    g.lineWidth = R * 0.05;
-    g.beginPath();
-    g.arc(cx, cy + R * 0.18, R * 0.24, 0.2 * Math.PI, 0.8 * Math.PI);
-    g.stroke();
-  }
 }

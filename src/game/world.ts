@@ -13,6 +13,7 @@ import { WORLD_W, type View } from '../render/view';
 import { BLOCKS, BLOCK_W, City } from './city';
 import { Director, type DirectorMods } from './director';
 import { Effects } from './effects';
+import { type GestureResult, type Shape as GestureShape, recognize, shapeGuide } from './gesture';
 import { type InkLine, LineManager } from './lines';
 import { BT, KINDS, MK, Meteor, renderBossRing, renderMeteors, shieldPos } from './meteors';
 import type { Pen } from './pens';
@@ -48,13 +49,32 @@ export interface RunOptions {
   tutorial: boolean;
   best: number;
   pen: Pen;
-  /** donanımlı aktif yetenek */
-  skill: SkillId;
+  /** açık yetenekler: her biri şekli çizilince atılır */
+  skills: SkillLoadout[];
 }
 
 export type SkillId = 'nova' | 'warp' | 'aegis' | 'starfall';
-/** Yeteneğin dolması için gereken enerji (öldürme = 1, sekme = 0.4) */
-const SKILL_NEED = 34;
+
+export interface SkillLoadout {
+  id: SkillId;
+  shape: GestureShape;
+  lv: number;
+  /** bekleme süresi (sn) */
+  cd: number;
+  /** süre / sayı / hasar */
+  power: number;
+  color: string;
+}
+
+export interface SkillSlot extends SkillLoadout {
+  /** kalan bekleme (sn); 0 = hazır */
+  left: number;
+}
+
+/** Düşman öldürmek/sektirmek bekleme süresini kısaltır (öldürme başına sn) */
+const SKILL_KILL_SEC = 0.3;
+/** Yetenek hazırken mürekkep bitse de şekil çizmeye devam edilebilecek en uzun yol */
+const OVERDRAW_LEN = 1100;
 
 /**
  * Menü arka planındaki demo (attract) yalnızca bir video gibi oynar: titreşim ve efekt sesi
@@ -113,8 +133,9 @@ export type WorldEvent =
   | { type: 'atmosphere'; index: number }
   | { type: 'revive'; count: number }
   | { type: 'nearMiss' }
-  | { type: 'skillReady' }
-  | { type: 'skill'; id: SkillId };
+  | { type: 'skillReady'; id: SkillId; shape: GestureShape; first: boolean }
+  | { type: 'skill'; id: SkillId }
+  | { type: 'skillWait'; id: SkillId; left: number };
 
 export type Phase = 'attract' | 'tutorial' | 'intro' | 'play' | 'cleared' | 'transition' | 'revive' | 'dying' | 'over';
 
@@ -142,9 +163,8 @@ export interface Hud {
   comboT: number;
   bossHp: number;
   coins: number;
-  /** yetenek dolumu 0..1 */
-  skill: number;
-  skillActive: boolean;
+  /** açık yetenekler ve bekleme süreleri */
+  skills: SkillSlot[];
 }
 
 interface Pending {
@@ -235,10 +255,22 @@ export class World implements PointerSink {
   /** İkiz Yıldızlar: ikisinin döndüğü ortak merkez */
   private twinC = { x: 360, y: -110, vy: 0, base: 0, spin: 0.9 };
 
-  // aktif yetenek
-  skillId: SkillId = 'nova';
-  private energy = 0;
-  private skillReadyShown = false;
+  // aktif yetenekler (şekil çizerek)
+  skillSlots: SkillSlot[] = [];
+  /** bu turda ilk kez hazır olan yetenekler (ipucu için) */
+  private skillSeen = new Set<SkillId>();
+  /** çizilmekte olan çizgiye harcanan mürekkep (yetenek atılırsa iade) */
+  private strokeInk = 0;
+  /** mürekkep bittikten sonra şekil için ücretsiz çizim */
+  private overdraw = false;
+  private overdrawT = 0;
+  /** şekil kılavuzu (ilk hazır oluş / dok düğmesine dokunuş) */
+  private shapeHint: { shape: GestureShape; t: number; color: string } | null = null;
+  /** atılan şeklin kusursuz hali parlayıp büyür */
+  private castFx: { shape: GestureShape; x: number; y: number; r: number; t: number; color: string } | null = null;
+  private novaX = 360;
+  private novaY = 0;
+  private novaDmg = 3;
   private novaR = -1;
   private novaHit = new Set<Meteor>();
   private warpT = 0;
@@ -289,8 +321,7 @@ export class World implements PointerSink {
     comboT: 0,
     bossHp: -1,
     coins: 0,
-    skill: 0,
-    skillActive: false,
+    skills: [],
   };
 
   constructor(
@@ -400,6 +431,13 @@ export class World implements PointerSink {
   // ───────────────────────── YAŞAM DÖNGÜSÜ ─────────────────────────
 
   private resetField(): void {
+    // dünya geçişi sürerken oyun başlarsa (menüde "Oyna"ya erken dokunuş) geçişi anında tamamla
+    const tr = this.trans;
+    if (tr) {
+      if (tr.stage === 0) this.applyAtmosphere(tr.to);
+      this.trans = null;
+      this.director.bias = this.atm.bias;
+    }
     for (const m of this.meteors) m.active = false;
     this.lines.clear();
     this.parts.clear();
@@ -484,9 +522,11 @@ export class World implements PointerSink {
     this.recordBroken = false;
     this.phoenixUsed = 0;
     this.revives = 0;
-    this.skillId = opts.skill;
-    this.energy = 0;
-    this.skillReadyShown = false;
+    // yetenekler turun başında yarı dolu (ilk kullanım ~15-20 sn sonra)
+    this.skillSlots = opts.tutorial ? [] : opts.skills.map((k) => ({ ...k, left: k.cd * 0.5 }));
+    this.skillSeen.clear();
+    this.shapeHint = null;
+    this.castFx = null;
     this.droneT = 3;
     if (this.atmIndex !== 0) this.applyAtmosphere(0);
     this.director.bias = this.atm.bias;
@@ -602,6 +642,9 @@ export class World implements PointerSink {
     const line = this.lines.begin(x, y, tm, this.stats.maxLines, (this.realT * 90) % 360);
     if (!line) return;
     this.drawing = true;
+    this.strokeInk = 0;
+    this.overdraw = false;
+    this.overdrawT = 0;
     this.tutDrawn = true;
     this.penSpeed = 0;
     audio.setDrawing(true, 0);
@@ -615,6 +658,16 @@ export class World implements PointerSink {
     const d = l.distTo(x, y);
     if (d < 8) return;
     const cost = d * this.stats.drawCost;
+    // bir yetenek hazırsa mürekkep bitse de şekil tamamlanabilir (tanınmazsa çizgi söner)
+    if (cost > this.ink && this.anySkillReady && l.len < OVERDRAW_LEN) {
+      const added = l.extend(x, y, tm);
+      this.strokeInk += this.ink;
+      this.ink = 0;
+      this.overdraw = true;
+      if (l.full) this.endLine();
+      void added;
+      return;
+    }
     if (cost > this.ink) {
       const f = this.ink / cost;
       const px = l.lastX + (x - l.lastX) * f;
@@ -627,6 +680,7 @@ export class World implements PointerSink {
     }
     const added = l.extend(x, y, tm);
     this.ink -= added * this.stats.drawCost;
+    this.strokeInk += added * this.stats.drawCost;
     this.penSpeed = this.penSpeed * 0.7 + (added / Math.max(0.004, 1 / 120)) * 0.3;
     if (l.full) this.endLine();
   }
@@ -642,9 +696,19 @@ export class World implements PointerSink {
     audio.setDrawing(false, 0);
     const l = this.lines.end(this.stats.lineLife);
     if (l && l.n >= 2) {
+      if (this.trySkillGesture(l)) return;
+      if (this.overdraw) {
+        // mürekkepsiz çizilen ama şekle uymayan çizgi kalıcı olmaz
+        this.dissolveLine(l);
+        l.shattered = true;
+        l.kill();
+        this.overdraw = false;
+        return;
+      }
       // bırakırken küçük mürekkep sıçraması
       this.parts.burst(l.lastX, l.lastY, Math.round(6 * this.q), this.sp.penHot, 30, 140, 0.4, 10, { drag: 4 });
     }
+    this.overdraw = false;
   }
 
   private inkEmptyFx(): void {
@@ -724,8 +788,12 @@ export class World implements PointerSink {
         this.ink -= 5 * realDt;
         if (this.ink <= 0) {
           this.ink = 0;
-          this.endLine();
-          this.inkEmptyFx();
+          // yetenek hazırsa şekli bitirmek için kısa bir ek süre (sonsuz ağır çekim olmasın)
+          this.overdrawT += realDt;
+          if (!this.anySkillReady || this.overdrawT > 2.5) {
+            this.endLine();
+            this.inkEmptyFx();
+          }
         }
       } else {
         this.ink = Math.min(this.stats.maxInk, this.ink + this.stats.inkRegen * sdt * (this.warpT > 0 ? 2.5 : 1));
@@ -775,8 +843,7 @@ export class World implements PointerSink {
     }
     h.bossHp = hp > 0 ? hp / max : -1;
     h.coins = this.coins;
-    h.skill = this.energy / SKILL_NEED;
-    h.skillActive = this.novaR >= 0 || this.warpT > 0 || this.aegisT > 0 || this.starfallN > 0;
+    h.skills = this.skillSlots;
   }
 
   private updateSpawns(sdt: number): void {
@@ -856,7 +923,7 @@ export class World implements PointerSink {
       m.vy = m.baseV;
       m.minionT = 2.5;
       m.rot = 0;
-      // yüzü olan bosslar dönmez, yalnızca hafifçe sallanır
+      // bosslar yavaşça sallanır (ışık yönü sabit kalsın)
       m.spin = 0;
       this.bosses.push(m);
       return m;
@@ -1020,27 +1087,27 @@ export class World implements PointerSink {
       return;
     }
     const enraged = m.hp < m.maxHp * 0.5;
-    m.vy += (m.baseV - m.vy) * Math.min(1, dt * 1.1);
-    // yatay konum sabit bir salınım: çizgiler boss'u yana itemez
+    // Boss sahnenin orta bandında dolaşır: şehre inmez (çizim alanı hep kalır), tepeye de kaçmaz
+    m.vy = this.roamY(m, m.y, dt, 0, enraged, m.vy);
+    // yatay: iki salınımın toplamı, ekranın bir ucundan öbürüne gezinir; çizgiler yana itemez
+    const ph = m.swayPh;
     let targetX: number;
     switch (m.bossType) {
       case BT.Queen:
-        targetX = 360 + Math.sin(m.age * 0.8) * 230 + Math.sin(m.age * 2.1) * 40;
+        targetX = 360 + Math.sin(m.age * 0.8 + ph) * 220 + Math.sin(m.age * 2.1) * 40;
         break;
       case BT.Frost:
-        targetX = 360 + Math.sin(m.age * 0.35) * 120;
+        targetX = 360 + Math.sin(m.age * 0.33 + ph) * 175 + Math.sin(m.age * 0.9) * 35;
         break;
       case BT.Singularity:
-        targetX = 360 + Math.sin(m.age * 0.5) * 170;
+        targetX = 360 + Math.sin(m.age * 0.5 + ph) * 190 + Math.sin(m.age * 1.3) * 30;
         break;
       default:
-        targetX = 360 + Math.sin(m.age * 0.45) * 150;
+        targetX = 360 + Math.sin(m.age * 0.42 + ph) * 200 + Math.sin(m.age * 1.1) * 40;
     }
+    targetX = clamp(targetX, m.r + 12, WORLD_W - m.r - 12);
     m.vx = (targetX - m.x) * 3;
     m.rot = Math.sin(m.age * 1.3) * 0.1;
-    // geri itilince HUD'un altına kaçmasın
-    const minY = this.topInset + m.r * 0.6;
-    if (m.y < minY && m.vy < 0) m.vy = 0;
 
     // Buz Kalesi: kırılan kristaller zamanla yeniden büyür
     if (m.bossType === BT.Frost && m.shields !== 7) {
@@ -1105,20 +1172,37 @@ export class World implements PointerSink {
     }
   }
 
+  /**
+   * Boss'un dikey gezinmesi: HUD'un hemen altı ile ekranın ortası arasındaki bantta yavaşça
+   * iner çıkar. Çizgiye çarpıp yukarı itilince yumuşakça banda geri döner. Yeni dikey hızı döndürür.
+   */
+  private roamY(m: Meteor, y: number, dt: number, pad: number, enraged: boolean, vy: number): number {
+    const H = this.view.H;
+    const top = this.topInset + m.r * 0.9 + 26 + pad;
+    // öfkelenince biraz daha aşağı sarkar, ama çizim için hep geniş bir alan kalır
+    const low = Math.min(H * (enraged ? 0.5 : 0.46), this.groundY - 440) - pad * 0.6;
+    const bot = Math.max(top + 70, low);
+    const u = 0.5 + 0.34 * Math.sin(m.age * 0.37 + m.swayPh * 1.7) + 0.16 * Math.sin(m.age * 0.91 + 1.3);
+    const ty = top + (bot - top) * u;
+    // girişte daha hızlı süzülür, bantta ağır ağır
+    const lim = y < top ? 150 : 70;
+    const want = clamp((ty - y) * 0.9, -lim, lim) * this.speedScale;
+    let v = vy + (want - vy) * Math.min(1, dt * 1.6);
+    // geri itilince HUD'un altına kaçmasın
+    if (y < this.topInset + m.r * 0.6 && v < 0 && m.age > 2) v = 0;
+    return v;
+  }
+
   /** İkiz Yıldızlar: ortak merkez etrafında dans eder; biri düşünce diğeri öfkelenir */
   private updateTwin(m: Meteor, dt: number): void {
     const c = this.twinC;
     const alive = this.bosses.filter((b) => b.active && b.kind === MK.Boss);
     const lead = alive[0] === m;
     if (lead) {
-      c.vy += (c.base - c.vy) * Math.min(1, dt * 1.1);
+      // ortak merkez de orta bantta gezinir (ikizlerin yörüngesi için bant biraz daraltılır)
+      c.vy = this.roamY(m, c.y, dt, 70, alive.length === 1, c.vy);
       c.y += c.vy * dt;
-      const minY = this.topInset + 80;
-      if (c.y < minY && c.vy < 0) {
-        c.y = minY;
-        c.vy = 0;
-      }
-      c.x = 360 + Math.sin(m.age * 0.5) * 140;
+      c.x = 360 + Math.sin(m.age * 0.5) * 150 + Math.sin(m.age * 1.2) * 30;
       if (alive.length === 1) c.spin = 1.7;
     }
     const a = m.age * c.spin + m.twin * Math.PI;
@@ -1150,26 +1234,47 @@ export class World implements PointerSink {
         m.vy += (dy / d) * f;
       }
     }
-    const turn = m.homing > 0 ? m.homing : this.stats.magnet > 0 ? 1.4 + this.stats.magnet * 1.3 : 0;
+    // Güdüm yalnızca yakından geçerken: menzil dışındaki hedef kovalanmaz, önde kalan düşmana hafifçe kıvrılır.
+    // Mıknatıs kartı zayıf ve kısa menzilli; yeteneklerin güdümlü yıldızları daha geniş (ama sınırlı) alanda arar.
+    const lvl = this.stats.magnet;
+    let turn = 0;
+    let range = 0;
+    let cone = -1;
+    if (m.homing > 0) {
+      turn = m.homing;
+      range = m.homing >= 5 ? 640 : 380;
+    } else if (lvl > 0) {
+      turn = 0.75 + lvl * 0.4;
+      range = 130 + lvl * 30;
+      cone = 0.25;
+    }
     if (turn <= 0) return;
+    const sp = Math.hypot(m.vx, m.vy) || 1;
+    const hx = m.vx / sp;
+    const hy = m.vy / sp;
     let best: Meteor | null = null;
-    let bd = 520 * 520;
+    let bd = range;
     for (const o of this.meteors) {
       if (!o.active || o.friendly || o.ghost) continue;
-      const d2 = (o.x - m.x) ** 2 + (o.y - m.y) ** 2;
-      if (d2 < bd) {
-        bd = d2;
-        best = o;
-      }
+      const dx = o.x - m.x;
+      const dy = o.y - m.y;
+      if (dx > range || dx < -range || dy > range || dy < -range) continue;
+      const d = Math.sqrt(dx * dx + dy * dy) - o.r;
+      if (d >= bd) continue;
+      // arkada kalan hedefe dönülmez (tam tur atan "füze" hissi olmasın)
+      if (cone > -1 && (dx * hx + dy * hy) / Math.max(1, d + o.r) < cone) continue;
+      bd = d;
+      best = o;
     }
     if (!best) return;
-    const sp = Math.hypot(m.vx, m.vy) || 1;
+    // yaklaştıkça biraz güçlenir, menzil kenarında neredeyse hissedilmez
+    const w = turn * (0.3 + 0.7 * (1 - Math.max(0, bd) / range));
     const cur = Math.atan2(m.vy, m.vx);
     const want = Math.atan2(best.y - m.y, best.x - m.x);
     let d = want - cur;
     while (d > Math.PI) d -= TAU;
     while (d < -Math.PI) d += TAU;
-    const na = cur + clamp(d, -turn * dt, turn * dt);
+    const na = cur + clamp(d, -w * dt, w * dt);
     m.vx = Math.cos(na) * sp;
     m.vy = Math.sin(na) * sp;
   }
@@ -1297,7 +1402,7 @@ export class World implements PointerSink {
     m.deflectedBy = l.id;
     m.fade = 0;
     if (wasHostile) {
-      this.gainEnergy(0.4);
+      this.chargeSkills(0.4);
       // buz kristali dokunduğu çizgiyi dondurur: kısa süre sonra kırılır
       if (m.kind === MK.Ice && l.frozen <= 0 && this.phase !== 'attract') {
         l.frozen = 0.42;
@@ -1519,7 +1624,7 @@ export class World implements PointerSink {
     this.explosionFx(x, y, col, 0.9);
     this.addScore(40 * dmg, x, y, true);
     this.bumpCombo();
-    this.gainEnergy(1.5);
+    this.chargeSkills(1.5);
     this.fx.shake(0.18);
     audio.bossHit();
     haptics.medium();
@@ -1627,7 +1732,7 @@ export class World implements PointerSink {
       this.addScore(pts, m.x, m.y, true);
       this.ink = Math.min(this.stats.maxInk, this.ink + this.stats.inkPerKill);
       this.fx.home(m.x, m.y, this.hudInk.x, this.hudInk.y, this.pen.color, 18, 0.55);
-      this.gainEnergy(1);
+      this.chargeSkills(1);
     }
     const col = METEOR_COLORS[def.key];
     const scale = m.kind === MK.Heavy ? 1.3 : m.kind === MK.Shard ? 0.6 : m.kind === MK.Nova ? 1.5 : m.kind === MK.Comet ? 0.8 : 1;
@@ -1971,83 +2076,136 @@ export class World implements PointerSink {
 
   // ───────────────────────── AKTİF YETENEK ─────────────────────────
 
-  get skillReady(): boolean {
-    return this.energy >= SKILL_NEED;
+  get anySkillReady(): boolean {
+    if (this.phase !== 'play' && this.phase !== 'intro') return false;
+    for (const k of this.skillSlots) if (k.left <= 0) return true;
+    return false;
   }
 
-  private get skillBusy(): boolean {
-    return this.novaR >= 0 || this.warpT > 0 || this.aegisT > 0 || this.starfallN > 0;
-  }
-
-  private gainEnergy(v: number): void {
+  /** Düşman öldürmek / sektirmek bekleme sürelerini kısaltır */
+  private chargeSkills(v: number): void {
     if (this.phase === 'attract' || this.phase === 'tutorial' || !this.opts || this.opts.tutorial) return;
-    if (this.skillBusy) return;
-    this.energy = Math.min(SKILL_NEED, this.energy + v * this.stats.charge);
-    if (this.energy >= SKILL_NEED && !this.skillReadyShown) {
-      this.skillReadyShown = true;
-      audio.skillReady();
-      haptics.light();
-      this.onEvent({ type: 'skillReady' });
+    this.tickSkills(v * SKILL_KILL_SEC * this.stats.charge);
+  }
+
+  private tickSkills(sec: number): void {
+    for (const k of this.skillSlots) {
+      if (k.left <= 0) continue;
+      k.left = Math.max(0, k.left - sec);
+      if (k.left <= 0) {
+        audio.skillReady();
+        haptics.light();
+        const first = !this.skillSeen.has(k.id);
+        this.skillSeen.add(k.id);
+        this.onEvent({ type: 'skillReady', id: k.id, shape: k.shape, first });
+      }
     }
   }
 
-  /** Yetenek butonu: dolu ise tetikle */
-  activateSkill(): boolean {
-    if (!this.skillReady || this.skillBusy) return false;
-    if (this.phase !== 'play' && this.phase !== 'intro') return false;
-    this.energy = 0;
-    this.skillReadyShown = false;
+  /** Şekil kılavuzunu ekranın ortasında canlandır (ipucu) */
+  showShapeHint(id: SkillId): void {
+    const k = this.skillSlots.find((s) => s.id === id);
+    if (!k) return;
+    this.shapeHint = { shape: k.shape, t: 0, color: k.color === '#FFFFFF' ? this.pen.color : k.color };
+  }
+
+  /** Bitirilen çizgi bir yetenek şekli mi? Hazırsa yeteneği at (çizgi ışığa dönüşür) */
+  private trySkillGesture(l: InkLine): boolean {
+    if ((this.phase !== 'play' && this.phase !== 'intro') || !this.skillSlots.length) return false;
+    const g = recognize(l.pts, l.n);
+    if (!g) return false;
+    const k = this.skillSlots.find((s) => s.shape === g.shape);
+    if (!k) return false;
+    if (k.left > 0) {
+      // bekliyor: çizgi normal mürekkep olarak kalır, kalan süre gösterilir
+      this.fx.text(`${Math.ceil(k.left)}s`, g.cx, g.cy, 30, '#A8A6C8', false, 0.9);
+      this.onEvent({ type: 'skillWait', id: k.id, left: k.left });
+      return false;
+    }
+    this.castSkill(k, g, l);
+    return true;
+  }
+
+  private castSkill(k: SkillSlot, g: GestureResult, l: InkLine): void {
+    k.left = k.cd;
     const H = this.view.H;
-    const col = this.inkColor;
-    switch (this.skillId) {
+    const col = k.color === '#FFFFFF' ? this.inkColor : k.color;
+    // çizilen şekil ışığa dönüşüp merkezine akar; harcanan mürekkep iade edilir
+    l.shattered = true;
+    l.kill();
+    const p = l.pts;
+    const hot = this.parts.register('hot:' + col, this.sprites.glow(col, true));
+    const step = Math.max(1, Math.round(2 / this.q));
+    for (let i = 0; i < l.n; i += step) {
+      const x = p[i * 2];
+      const y = p[i * 2 + 1];
+      this.parts.spawn({ x, y, vx: (g.cx - x) * 2.2, vy: (g.cy - y) * 2.2, life: 0.45, size: fx.r(9, 16), sprite: hot, drag: 2.5 });
+    }
+    this.ink = Math.min(this.stats.maxInk, this.ink + this.strokeInk);
+    this.strokeInk = 0;
+    this.overdraw = false;
+    this.castFx = { shape: k.shape, x: g.cx, y: g.cy, r: Math.max(60, g.r), t: 0, color: col };
+    this.fx.ring(g.cx, g.cy, 10, g.r * 2.4, 0.6, col, 10);
+    switch (k.id) {
       case 'nova':
         this.novaR = 0;
+        this.novaX = g.cx;
+        this.novaY = g.cy;
+        this.novaDmg = k.power;
         this.novaHit.clear();
         this.hitstop = 0.08;
-        this.fx.flash('#FFFFFF', 0.55);
+        this.fx.flash('#FFFFFF', 0.5);
         this.fx.shake(0.7);
-        this.parts.burst(360, this.groundY, Math.round(70 * this.q), this.sp.penHot, 200, 900, 1.2, 22, { drag: 1.6, shape: Shape.Streak });
+        this.parts.burst(g.cx, g.cy, Math.round(70 * this.q), this.sp.penHot, 200, 900, 1.2, 22, { drag: 1.6, shape: Shape.Streak });
         audio.skillNova();
         break;
       case 'warp':
-        this.warpT = 5.5;
+        this.warpT = k.power;
         this.fx.flash('#6EC8FF', 0.35);
-        this.fx.ring(360, H * 0.45, 20, 700, 0.9, '#6EC8FF', 18);
+        this.fx.ring(g.cx, g.cy, 20, 700, 0.9, '#6EC8FF', 18);
         audio.skillWarp();
         break;
       case 'aegis':
-        this.aegisT = 7;
+        this.aegisT = k.power;
         this.fx.flash(col, 0.3);
         this.parts.burst(360, this.groundY - 60, Math.round(60 * this.q), this.sp.penHot, 100, 600, 1, 18, { drag: 2, gravity: -60 });
         audio.skillAegis();
         break;
       case 'starfall':
-        this.starfallN = 12;
+        this.starfallN = k.power;
         this.starfallT = 0;
         this.fx.flash(C.gold, 0.3);
         audio.skillStar();
         break;
     }
-    this.fx.text(t('skill.' + this.skillId), 360, H * 0.4, 46, col, true, 1.3);
+    this.fx.text(t('skill.' + k.id), 360, H * 0.4, 46, col, true, 1.3);
     haptics.success();
-    this.onEvent({ type: 'skill', id: this.skillId });
-    return true;
+    this.onEvent({ type: 'skill', id: k.id });
   }
 
   private updateSkill(sdt: number, realDt: number): void {
     const H = this.view.H;
-    // Yıldız Patlaması: şehirden yükselen şok dalgası
+    if ((this.phase === 'play' || this.phase === 'intro') && this.skillSlots.length) this.tickSkills(sdt * this.stats.charge);
+    if (this.shapeHint) {
+      this.shapeHint.t += realDt;
+      if (this.shapeHint.t > 2.8) this.shapeHint = null;
+    }
+    if (this.castFx) {
+      this.castFx.t += realDt;
+      if (this.castFx.t > 0.7) this.castFx = null;
+    }
+    // Yıldız Patlaması: çizilen dairenin merkezinden yayılan şok dalgası
     if (this.novaR >= 0) {
       this.novaR += realDt * 1500 * this.speedScale;
-      const ox = 360;
-      const oy = this.groundY;
+      const ox = this.novaX;
+      const oy = this.novaY;
       for (const m of this.meteors) {
         if (!m.active || m.friendly || this.novaHit.has(m)) continue;
         const d = Math.hypot(m.x - ox, m.y - oy);
         if (d > this.novaR + m.r) continue;
         this.novaHit.add(m);
         if (m.kind === MK.Boss) {
-          this.hurtBoss(m, 3, m.x, m.y + m.r * 0.5);
+          this.hurtBoss(m, this.novaDmg, m.x, m.y + m.r * 0.5);
           m.vy = -220 * this.speedScale;
           if (m.bossType === BT.Twins) this.twinC.vy = -220 * this.speedScale;
           if (m.bossType === BT.Frost) m.shields = 0;
@@ -2056,7 +2214,7 @@ export class World implements PointerSink {
           this.killMeteor(m, 1);
         }
       }
-      if (this.novaR > H + 300) {
+      if (this.novaR > H + 400) {
         this.novaR = -1;
         this.novaHit.clear();
       }
@@ -2187,18 +2345,33 @@ export class World implements PointerSink {
     const col = this.inkColor;
     g.globalCompositeOperation = 'lighter';
     if (this.novaR >= 0) {
-      const a = clamp(1 - this.novaR / (this.view.H + 300), 0, 1);
+      const a = clamp(1 - this.novaR / (this.view.H + 400), 0, 1);
       g.strokeStyle = col;
       g.globalAlpha = 0.28 * a;
       g.lineWidth = 60;
       g.beginPath();
-      g.arc(360, this.groundY, this.novaR, Math.PI, TAU);
+      g.arc(this.novaX, this.novaY, this.novaR, 0, TAU);
       g.stroke();
       g.strokeStyle = '#FFFFFF';
       g.globalAlpha = 0.85 * a;
       g.lineWidth = 7;
       g.beginPath();
-      g.arc(360, this.groundY, this.novaR, Math.PI, TAU);
+      g.arc(this.novaX, this.novaY, this.novaR, 0, TAU);
+      g.stroke();
+    }
+    // atılan şekil: kusursuz hali parlar ve büyüyerek söner
+    const cf = this.castFx;
+    if (cf) {
+      const p = cf.t / 0.7;
+      const sz = cf.r * 2 * (1 + p * 0.5);
+      this.traceShape(g, cf.shape, cf.x - sz / 2, cf.y - sz / 2, sz, 1);
+      g.strokeStyle = cf.color;
+      g.globalAlpha = 0.35 * (1 - p);
+      g.lineWidth = 26;
+      g.stroke();
+      g.strokeStyle = '#FFFFFF';
+      g.globalAlpha = 0.9 * (1 - p);
+      g.lineWidth = 5;
       g.stroke();
     }
     if (this.aegisT > 0) {
@@ -2526,6 +2699,8 @@ export class World implements PointerSink {
         this.phase = 'intro';
         this.tutStep = 3;
         this.onEvent({ type: 'tutorialDone' });
+        // eğitim bitince yetenekler de devreye girer
+        if (this.opts) this.skillSlots = this.opts.skills.map((k) => ({ ...k, left: k.cd * 0.5 }));
         for (const m of this.meteors) m.active = false;
         this.startWave(1);
       }
@@ -2569,7 +2744,7 @@ export class World implements PointerSink {
       lines[i * 3 + 1] = Math.random();
       lines[i * 3 + 2] = 0.4 + Math.random() * 0.8;
     }
-    this.trans = { t: 0, dur: 2.1, to, stage: 0, back: this.phase, old: this.snapA, neu: this.snapB, lines };
+    this.trans = { t: 0, dur: 2.7, to, stage: 0, back: this.phase, old: this.snapA, neu: this.snapB, lines };
     this.phase = 'transition';
     audio.sceneTurn();
     haptics.medium();
@@ -2608,7 +2783,7 @@ export class World implements PointerSink {
       this.trans = null;
       this.phase = tr.back;
       this.director.bias = this.atm.bias;
-      this.fx.flash(this.atm.accent, 0.35);
+      this.fx.flash(this.atm.accent, 0.16);
       audio.newWorld();
       haptics.success();
       this.onEvent({ type: 'atmosphere', index: this.atmIndex });
@@ -2621,26 +2796,29 @@ export class World implements PointerSink {
     const W = v.canvas.width;
     const H = v.canvas.height;
     const p = clamp(tr.t / tr.dur, 0, 1);
-    const e = easeInOutCubic(p);
+    // yumuşak dönüş: sinüs yavaşlaması (ani hızlanma ve sert duruş yok)
+    const e = 0.5 - 0.5 * Math.cos(Math.PI * p);
     const theta = e * Math.PI;
-    const zoom = 1 - 0.16 * Math.sin(Math.PI * p);
+    const speed = Math.sin(Math.PI * p);
+    const zoom = 1 - 0.11 * speed;
     const R = (W / 2) * zoom;
     const cx = W / 2;
     const cy = H / 2;
+    const accent = this.atm.accent;
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';
-    g.fillStyle = '#02030C';
+    g.fillStyle = '#04051A';
     g.fillRect(0, 0, W, H);
-    // tamburun arkası: yeni dünyanın renginde derin bir boşluk ve yıldızlar
-    const speed0 = Math.sin(Math.PI * p);
+    // tamburun arkası: yeni dünyanın renginde yumuşak bir nebula ve süzülen yıldızlar
     g.globalCompositeOperation = 'lighter';
-    g.globalAlpha = 0.5 * speed0;
-    blit(g, this.sprites.glow(this.atm.accent), -W * 0.3, H * 0.1, W * 1.6, H * 0.8);
-    g.globalAlpha = 0.8 * speed0;
+    g.globalAlpha = 0.45 * speed;
+    blit(g, this.sprites.glow(accent), -W * 0.35, H * 0.05, W * 1.7, H * 0.9);
     const star = this.sprites.glow('#FFFFFF', true);
     for (let i = 0; i < 28; i++) {
-      const sx = ((tr.lines[i * 3 + 2] * 7.13 + p * 0.25 * tr.lines[i * 3]) % 1) * W;
+      const tw = 0.5 + 0.5 * Math.sin(tr.t * 3 + i * 1.7);
+      g.globalAlpha = (0.35 + 0.45 * tw) * speed;
+      const sx = ((tr.lines[i * 3 + 2] * 7.13 + p * 0.18 * tr.lines[i * 3]) % 1) * W;
       const sy = tr.lines[i * 3 + 1] * H;
       const ss = 3 + tr.lines[i * 3] * 5;
       blit(g, star, sx - ss / 2, sy - ss / 2, ss, ss);
@@ -2663,14 +2841,15 @@ export class World implements PointerSink {
         const w = x1 - x0;
         if (w < 0.3) continue;
         const shade = Math.cos((c0 + c1) / 2);
-        const h = H * zoom * (0.84 + 0.16 * shade);
+        const h = H * zoom * (0.88 + 0.12 * shade);
         const y = cy - h / 2;
         g.globalAlpha = 1;
         g.drawImage(img, u0 * W, 0, Math.max(1, (u1 - u0) * W), H, x0, y, w + 0.8, h);
-        const dark = (1 - shade) * 0.9;
+        // kenara doğru derin gece mavisine yumuşak kararma (siyaha değil)
+        const dark = (1 - shade) * (1 - shade) * 0.7;
         if (dark > 0.01) {
           g.globalAlpha = dark;
-          g.fillStyle = '#000';
+          g.fillStyle = '#060824';
           g.fillRect(x0, y, w + 0.8, h);
         }
       }
@@ -2679,25 +2858,30 @@ export class World implements PointerSink {
     face(tr.old, theta);
     face(tr.neu, theta - Math.PI);
 
-    // dikiş ışığı ve hız çizgileri (yeni dünyanın rengiyle)
-    const speed = Math.sin(Math.PI * p);
-    const seamX = cx - R * Math.cos(theta);
     g.globalCompositeOperation = 'lighter';
+    // dikiş: sert çizgi yerine yeni dünyanın renginde yumuşak bir ışık perdesi
+    const seamX = cx - R * Math.cos(theta);
     if (p > 0.03 && p < 0.97) {
-      const glow = this.sprites.glow(this.atm.accent);
-      g.globalAlpha = 0.9 * speed;
-      blit(g, glow, seamX - W * 0.18, cy - H * 0.55, W * 0.36, H * 1.1);
-      g.globalAlpha = speed;
-      g.fillStyle = '#FFFFFF';
-      g.fillRect(seamX - 1.5, cy - H * 0.46 * zoom, 3, H * 0.92 * zoom);
+      g.globalAlpha = 0.55 * speed;
+      blit(g, this.sprites.glow(accent), seamX - W * 0.22, cy - H * 0.55, W * 0.44, H * 1.1);
+      g.globalAlpha = 0.35 * speed;
+      blit(g, this.sprites.glow('#FFFFFF', true), seamX - W * 0.04, cy - H * 0.45 * zoom, W * 0.08, H * 0.9 * zoom);
     }
+    // yeni dünya öne gelirken üstünden geçen yumuşak bir ışık süpürmesi
+    if (p > 0.55) {
+      const q = (p - 0.55) / 0.45;
+      const lx = -W * 0.4 + q * W * 1.8;
+      g.globalAlpha = 0.28 * Math.sin(Math.PI * q);
+      blit(g, this.sprites.glow(accent, true), lx - W * 0.3, -H * 0.1, W * 0.6, H * 1.2);
+    }
+    // ince, sönük hız izleri
     const streak = this.sprites.glow('#FFFFFF', true);
     for (let i = 0; i < 28; i++) {
       const ly = tr.lines[i * 3 + 1] * H;
-      const len = W * 0.25 * tr.lines[i * 3 + 2] * speed;
-      const lx = ((tr.lines[i * 3] + p * 2.2 * tr.lines[i * 3 + 2]) % 1.3) * W - len;
-      g.globalAlpha = 0.35 * speed;
-      blit(g, streak, lx, ly - 2, len, 4);
+      const len = W * 0.2 * tr.lines[i * 3 + 2] * speed;
+      const lx = ((tr.lines[i * 3] + p * 1.8 * tr.lines[i * 3 + 2]) % 1.3) * W - len;
+      g.globalAlpha = 0.2 * speed;
+      blit(g, streak, lx, ly - 1.5, len, 3);
     }
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';
@@ -2732,6 +2916,7 @@ export class World implements PointerSink {
     this.parts.render(g, k, tx, ty);
     this.fx.renderRings(g);
     this.renderGhost(g);
+    this.renderShapeHint(g);
     this.fx.renderText(g, k);
 
     // ekran katmanları (piksel uzayı)
@@ -2823,6 +3008,60 @@ export class World implements PointerSink {
       g.globalAlpha = 1;
       g.globalCompositeOperation = 'source-over';
     }
+  }
+
+  /** Şekil kılavuzunu (birim kare) yol olarak kur; frac: çizilen kısım (0..1) */
+  private traceShape(g: CanvasRenderingContext2D, shape: GestureShape, x: number, y: number, size: number, frac: number): [number, number] {
+    const pts = shapeGuide(shape);
+    let total = 0;
+    for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    let left = total * frac;
+    g.beginPath();
+    g.moveTo(x + pts[0][0] * size, y + pts[0][1] * size);
+    let ex = x + pts[0][0] * size;
+    let ey = y + pts[0][1] * size;
+    for (let i = 1; i < pts.length && left > 0; i++) {
+      const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+      const f = Math.min(1, left / d);
+      ex = x + (pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * f) * size;
+      ey = y + (pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * f) * size;
+      g.lineTo(ex, ey);
+      left -= d;
+    }
+    return [ex, ey];
+  }
+
+  /** Yetenek hazır olunca: ekranın ortasında şeklin nasıl çizileceğini gösteren parlak kılavuz */
+  private renderShapeHint(g: CanvasRenderingContext2D): void {
+    const h = this.shapeHint;
+    if (!h || this.drawing) return;
+    const size = 230;
+    const x = 360 - size / 2;
+    const y = this.view.H * 0.42 - size / 2;
+    const a = Math.min(1, h.t * 4, (2.8 - h.t) * 2.5);
+    const cyc = (h.t % 1.4) / 1.1;
+    const prog = easeInOutCubic(clamp(cyc, 0, 1));
+    g.globalCompositeOperation = 'lighter';
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    this.traceShape(g, h.shape, x, y, size, 1);
+    g.setLineDash([12, 14]);
+    g.strokeStyle = h.color;
+    g.globalAlpha = 0.35 * a;
+    g.lineWidth = 5;
+    g.stroke();
+    g.setLineDash([]);
+    const [ex, ey] = this.traceShape(g, h.shape, x, y, size, prog);
+    g.globalAlpha = 0.25 * a;
+    g.lineWidth = 22;
+    g.stroke();
+    g.globalAlpha = 0.95 * a;
+    g.lineWidth = 7;
+    g.stroke();
+    g.globalAlpha = a;
+    blit(g, this.sprites.glow(h.color, true), ex - 36, ey - 36, 72, 72);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
   }
 
   /** Eğitimde parmağın nereye çizeceğini gösteren hayalet el */

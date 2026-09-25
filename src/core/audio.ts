@@ -1,7 +1,8 @@
 /**
  * Prosedürel ses motoru: tüm efektler ve müzik WebAudio ile anlık sentezlenir.
  * Hiç ses dosyası yok -> küçük paket, internetsiz çalışır.
- * Müzik Hicaz makamında (D Hicaz: D Eb F# G A Bb C) üretken bir synthwave döngüsü.
+ * Müzik Hicaz makamında (D Hicaz: D Eb F# G A Bb C) üretken, yumuşak bir ambiyans:
+ * notalar geniş bir yankı odasından geçer, kuru ses çok azdır (kulağı yormaz).
  */
 
 const HICAZ = [0, 1, 4, 5, 7, 8, 10];
@@ -52,12 +53,17 @@ const BAR_CHORDS = [
   [-2, 1, 5],
 ];
 
+/** müzik kanalının açık seviyesi */
+const MUSIC_VOL = 0.62;
+
 export class AudioEngine {
   ctx: AudioContext | null = null;
   private master!: GainNode;
   private sfxBus!: GainNode;
   private musicBus!: GainNode;
   private musicLP!: BiquadFilterNode;
+  /** müzik notalarının girişi: az kuru + çok yankı -> alçak geçiren -> müzik kanalı */
+  private musicIn!: GainNode;
   private reverbSend!: GainNode;
   private noise!: AudioBuffer;
   private drawGain: GainNode | null = null;
@@ -126,19 +132,27 @@ export class AudioEngine {
     this.musicLP.frequency.value = 18000;
     this.musicLP.Q.value = 0.7;
     this.musicBus = ctx.createGain();
-    this.musicBus.gain.value = this.musicOn ? 0.55 : 0;
+    this.musicBus.gain.value = this.musicOn ? MUSIC_VOL : 0;
     this.musicLP.connect(this.musicBus);
     this.musicBus.connect(this.master);
 
-    // Sentetik reverb (üretilmiş dürtü yanıtı)
+    // Müzik: tüm notalar (yankıları dahil) müzik kanalından geçer -> kapatınca tamamen susar
+    this.musicIn = ctx.createGain();
+    const dry = ctx.createGain();
+    dry.gain.value = 0.2;
+    const hall = ctx.createConvolver();
+    hall.buffer = this.impulse(2.8, 2.2);
+    const wet = ctx.createGain();
+    wet.gain.value = 1;
+    this.musicIn.connect(dry);
+    dry.connect(this.musicLP);
+    this.musicIn.connect(hall);
+    hall.connect(wet);
+    wet.connect(this.musicLP);
+
+    // Efektler için kısa sentetik reverb (üretilmiş dürtü yanıtı)
     const rev = ctx.createConvolver();
-    const len = Math.floor(ctx.sampleRate * 1.6);
-    const ir = ctx.createBuffer(2, len, ctx.sampleRate);
-    for (let c = 0; c < 2; c++) {
-      const d = ir.getChannelData(c);
-      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6);
-    }
-    rev.buffer = ir;
+    rev.buffer = this.impulse(1.6, 2.6);
     this.reverbSend = ctx.createGain();
     this.reverbSend.gain.value = 0.32;
     this.reverbSend.connect(rev);
@@ -166,6 +180,18 @@ export class AudioEngine {
     src.start();
   }
 
+  /** Rastgele gürültüden sönümlenen stereo dürtü yanıtı (yankı odası) */
+  private impulse(seconds: number, decay: number): AudioBuffer {
+    const ctx = this.ctx!;
+    const len = Math.floor(ctx.sampleRate * seconds);
+    const ir = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = ir.getChannelData(c);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+    return ir;
+  }
+
   suspend(): void {
     if (this.ctx && this.ctx.state === 'running') void this.ctx.suspend().catch(() => undefined);
   }
@@ -176,7 +202,7 @@ export class AudioEngine {
 
   setMusic(on: boolean): void {
     this.musicOn = on;
-    if (this.ctx) this.musicBus.gain.setTargetAtTime(on ? 0.55 : 0, this.ctx.currentTime, 0.1);
+    if (this.ctx) this.musicBus.gain.setTargetAtTime(on ? MUSIC_VOL : 0, this.ctx.currentTime, 0.1);
   }
 
   setSfx(on: boolean): void {
@@ -454,8 +480,8 @@ export class AudioEngine {
   /** Sahne tamburu dönerken yükselen rüzgâr */
   sceneTurn(): void {
     if (!this.ctx || !this.sfxOn) return;
-    this.noiseBurst({ type: 'bandpass', freq: 250, freqEnd: 4200, q: 1.1, dur: 1.9, vol: 0.2, attack: 1.2 });
-    this.tone({ type: 'sawtooth', freq: 110, freqEnd: 440, dur: 1.9, vol: 0.05, attack: 1.3, lp: 1600 });
+    this.noiseBurst({ type: 'bandpass', freq: 220, freqEnd: 2800, q: 0.9, dur: 2.5, vol: 0.12, attack: 1.4, reverb: 0.3 });
+    this.tone({ type: 'triangle', freq: 110, freqEnd: 330, dur: 2.5, vol: 0.035, attack: 1.5, lp: 1200, reverb: 0.4 });
   }
 
   /** Yeni dünya açıldı: geniş, parlak akor */
@@ -561,7 +587,8 @@ export class AudioEngine {
     // sekme arka planda kaldıysa geride kalan notaları çalma
     if (this.nextTime < ctx.currentTime - 0.2) this.nextTime = ctx.currentTime + 0.05;
     while (this.nextTime < ctx.currentTime + 0.14) {
-      this.playStep(this.step, this.nextTime, stepDur);
+      // müzik kapalıyken nota üretilmez (işlemci boşa çalışmaz), ritim yine ilerler
+      if (this.musicOn) this.playStep(this.step, this.nextTime, stepDur);
       this.nextTime += stepDur;
       this.step++;
       if (this.step >= 16) {
@@ -580,68 +607,58 @@ export class AudioEngine {
   }
 
   private playStep(step: number, t: number, sd: number): void {
-    const dest = this.musicLP;
+    const dest = this.musicIn;
     const I = this.intensity;
     const R = this.root;
     const root = 50 + R + BAR_ROOTS[this.bar];
     const chord = BAR_CHORDS[this.bar].map((c) => c + R);
 
-    // Pad: her ölçünün başında
+    // Pad: her ölçünün başında yavaş açılan, yumuşak akor
     if (step === 0) {
       const barLen = sd * 16;
       for (const c of chord) {
         const f = mtof(62 + c);
-        this.tone({ type: 'sawtooth', freq: f, dur: barLen * 1.05, vol: 0.022, attack: 0.5, when: t, dest, lp: I >= 4 ? 1400 : 900, detune: -7 });
-        this.tone({ type: 'sawtooth', freq: f, dur: barLen * 1.05, vol: 0.018, attack: 0.6, when: t, dest, lp: 900, detune: 7 });
+        this.tone({ type: 'triangle', freq: f, dur: barLen * 1.15, vol: 0.026, attack: barLen * 0.3, when: t, dest, detune: -6 });
+        this.tone({ type: 'sine', freq: f * 2, dur: barLen, vol: 0.01, attack: barLen * 0.4, when: t, dest, detune: 5 });
       }
+      if (I >= 1) {
+        // derin, yuvarlak alt ses
+        this.tone({ type: 'sine', freq: mtof(root - 12), dur: barLen * 0.95, vol: 0.085, attack: 0.4, when: t, dest });
+      }
+      if (I >= 4) this.tone({ type: 'triangle', freq: mtof(root - 24), dur: barLen, vol: 0.05, attack: 0.8, when: t, dest, lp: 320 });
     }
 
-    // Arpej
-    if (I === 0) {
-      if (step % 2 === 0) {
-        const n = chord[(step / 2) % 3] + 74 + (step >= 8 ? 12 : 0);
-        this.tone({ type: 'triangle', freq: mtof(n), dur: sd * 3, vol: 0.028, when: t, dest, reverb: 0.5 });
-      }
-    } else {
-      const n = chord[step % 3] + 74 + (step % 6 >= 3 ? 12 : 0);
-      this.tone({ type: 'square', freq: mtof(n), dur: sd * 0.9, vol: 0.016, when: t, dest, lp: 2200 + I * 400 });
+    // Arpej: yankıda eriyen çan tınısı (sakinde seyrek, dalga yoğunlaştıkça sıklaşır)
+    const dense = I >= 2;
+    if (step % 2 === 0 || dense) {
+      const k = dense ? step : step / 2;
+      const n = chord[k % 3] + 74 + ((dense ? step % 6 >= 3 : step >= 8) ? 12 : 0);
+      const v = dense && step % 2 === 1 ? 0.016 : 0.03;
+      this.tone({ type: 'triangle', freq: mtof(n), dur: sd * 3, vol: v, when: t, dest, lp: 3200 + I * 300 });
     }
 
-    if (I >= 1) {
-      // Bas
-      const bassPattern = [1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1];
-      if (bassPattern[step]) {
-        const oct = step === 6 || step === 14 ? 12 : 0;
-        this.tone({ type: 'sawtooth', freq: mtof(root - 12 + oct), dur: sd * 1.6, vol: 0.075, when: t, dest, lp: 520 });
-      }
-      // Kick
-      if (step === 0 || step === 8 || (I >= 3 && (step === 6 || step === 14))) {
-        this.tone({ type: 'sine', freq: 150, freqEnd: 42, dur: 0.22, vol: 0.34, when: t, dest });
-      }
+    // Ara sıra yüksek bir çan (menüde ve sakin dalgalarda)
+    if (I <= 1 && step % 4 === 0 && this.rand() < 0.14) {
+      const n = hicaz(7 + Math.floor(this.rand() * 7), 74 + R);
+      this.tone({ type: 'sine', freq: mtof(n), dur: sd * 6, vol: 0.022, when: t, dest });
     }
 
-    if (I >= 2) {
-      if (step === 4 || step === 12) {
-        this.noiseBurst({ type: 'bandpass', freq: 1700, q: 0.9, dur: 0.16, vol: 0.12, when: t, dest, reverb: 0.2 });
-        this.tone({ type: 'triangle', freq: 190, freqEnd: 120, dur: 0.1, vol: 0.06, when: t, dest });
-      }
-      if (step % 4 === 2 || (I >= 3 && step % 2 === 1)) {
-        this.noiseBurst({ type: 'highpass', freq: 7500, dur: 0.035, vol: step % 4 === 2 ? 0.05 : 0.025, when: t, dest });
-      }
+    // Kalp atışı: yumuşak, kuru (yankıya gitmez) bir vuruş
+    if (I >= 2 && (step === 0 || step === 8 || (I >= 4 && (step === 6 || step === 14)))) {
+      this.tone({ type: 'sine', freq: 110, freqEnd: 44, dur: 0.26, vol: 0.16, when: t, dest: this.musicLP });
+    }
+    if (I >= 3 && step % 4 === 2) {
+      this.noiseBurst({ type: 'bandpass', freq: 6200, q: 0.8, dur: 0.05, vol: 0.012, attack: 0.012, when: t, dest: this.musicLP });
     }
 
-    if (I >= 3 && step % 2 === 0 && this.rand() < 0.42) {
-      // Hicaz'da rastgele yürüyüş melodisi
+    if (I >= 3 && step % 2 === 0 && this.rand() < 0.38) {
+      // Hicaz'da yavaş yürüyen melodi
       this.melodyDeg += Math.floor(this.rand() * 5) - 2;
       if (this.melodyDeg < 4) this.melodyDeg = 5;
       if (this.melodyDeg > 13) this.melodyDeg = 11;
       const n = hicaz(this.melodyDeg, 62 + R);
-      this.tone({ type: 'triangle', freq: mtof(n), dur: sd * 3.5, vol: 0.05, when: t, dest, reverb: 0.55 });
-      this.tone({ type: 'sine', freq: mtof(n + 12), dur: sd * 2, vol: 0.015, when: t, dest });
-    }
-
-    if (I >= 4 && step % 8 === 0) {
-      this.tone({ type: 'sawtooth', freq: mtof(root - 24), dur: sd * 8, vol: 0.06, when: t, dest, lp: 260 });
+      this.tone({ type: 'triangle', freq: mtof(n), dur: sd * 4, vol: 0.045, attack: 0.03, when: t, dest });
+      this.tone({ type: 'sine', freq: mtof(n + 12), dur: sd * 2.5, vol: 0.012, when: t, dest });
     }
   }
 }

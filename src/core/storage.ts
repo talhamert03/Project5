@@ -60,9 +60,13 @@ export interface SaveData {
   noAds: boolean;
   /** başlangıç paketi (tek sefer) alındı mı */
   starter: boolean;
-  /** açılan yetenekler ve takılı olan */
+  /** açılan yetenekler (hepsi oyunda şekliyle atılabilir) ve seviyeleri */
   skills: string[];
+  /** eski sürümlerden kalan: takılı yetenek (artık kullanılmıyor) */
   skill: string;
+  skillLv: Record<string, number>;
+  /** yetenek şekli ipucu gösterilen yetenekler (ilk kez hazır olunca) */
+  skillHints: string[];
   /** günlük ücretsiz altın videoları */
   adCoins: { date: string; n: number };
 }
@@ -106,6 +110,8 @@ export function defaultSave(): SaveData {
     starter: false,
     skills: ['nova'],
     skill: 'nova',
+    skillLv: { nova: 1 },
+    skillHints: [],
     adCoins: { date: '', n: 0 },
   };
 }
@@ -126,6 +132,8 @@ export function loadSave(): SaveData {
       gift: { ...def.gift, ...(parsed.gift ?? {}) },
       adCoins: { ...def.adCoins, ...(parsed.adCoins ?? {}) },
       skills: Array.isArray(parsed.skills) && parsed.skills.length ? parsed.skills : def.skills,
+      skillLv: { ...def.skillLv, ...(parsed.skillLv ?? {}) },
+      skillHints: Array.isArray(parsed.skillHints) ? parsed.skillHints : [],
       workshop: { ...(parsed.workshop ?? {}) },
       missionTiers: { ...(parsed.missionTiers ?? {}) },
       pens: Array.isArray(parsed.pens) && parsed.pens.length ? parsed.pens : def.pens,
