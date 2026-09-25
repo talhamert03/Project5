@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Inkfall</string>
     <string name="title_activity_main">Inkfall</string>
-    <string name="package_name">com.talhamert.murekkepkalkani</string>
-    <string name="custom_url_scheme">com.talhamert.murekkepkalkani</string>
+    <string name="package_name">com.talhamert.inkfall</string>
+    <string name="custom_url_scheme">com.talhamert.inkfall</string>
 </resources>

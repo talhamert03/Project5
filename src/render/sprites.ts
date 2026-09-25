@@ -149,6 +149,18 @@ export class Sprites {
     return c;
   }
 
+  /** Tüm meteor görsellerini önceden hazırlayan adımlar (ilk görünüşte takılma olmasın) */
+  warmSteps(): Array<() => void> {
+    const keys = Object.keys(METEOR_COLORS) as Array<keyof typeof METEOR_COLORS>;
+    const steps: Array<() => void> = keys.map((k) => () => {
+      this.meteor(k, 0);
+      this.glow(METEOR_COLORS[k]);
+      this.glow(METEOR_COLORS[k], true);
+    });
+    steps.push(() => this.meteor('heavy', 0, true));
+    return steps;
+  }
+
   /** Meteor gövdesi (türe göre 3 varyant). R = sprite yarıçapı piksel. */
   meteor(kind: keyof typeof METEOR_COLORS, variant: number, armor = false): Canvas {
     const cache = armor ? this.armored : this.meteors;

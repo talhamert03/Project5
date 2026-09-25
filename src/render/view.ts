@@ -41,7 +41,7 @@ export class View {
       queued = true;
       requestAnimationFrame(() => {
         queued = false;
-        this.resize();
+        this.resize(false);
       });
     };
     window.addEventListener('resize', onResize);
@@ -57,9 +57,14 @@ export class View {
     return Math.max(1, Math.min(window.devicePixelRatio || 1, cap) * this.adaptive);
   }
 
-  resize(): void {
+  /**
+   * force=false iken yalnızca piksel yoğunluğu değiştiyse (otomatik kalite) dinleyiciler çağrılmaz:
+   * önbellekli görseller yeni tuvale ölçeklenerek kullanılır, yeniden çizim takılması olmaz.
+   */
+  resize(force = true): void {
     const w = Math.max(1, window.innerWidth);
     const h = Math.max(1, window.innerHeight);
+    const layout = force || w !== this.cssW || h !== this.cssH;
     this.cssW = w;
     this.cssH = h;
     this.dpr = this.maxDpr();
@@ -77,7 +82,7 @@ export class View {
     this.scale = Math.min(w / WORLD_W, h / this.H);
     this.offX = (w - WORLD_W * this.scale) / 2;
     this.offY = (h - this.H * this.scale) / 2;
-    for (const fn of this.listeners) fn();
+    if (layout) for (const fn of this.listeners) fn();
   }
 
   /** Oyun alanı ekranı tamamen kaplamıyorsa (tablet/masaüstü) true */

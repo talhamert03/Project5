@@ -273,6 +273,15 @@ export class World implements PointerSink {
     audio.setScene(a.music.root, a.music.bpm);
   }
 
+  /** Sıradaki dünyayı parça parça hazırla (her çağrı tek bir ağır işi yapar; bitince false) */
+  prebuildStep(index: number, step: number): boolean {
+    const a = ATMOSPHERES[index];
+    if (!a) return false;
+    if (step === 0) this.bg.prebuild(a);
+    else if (step === 1) this.city.prebuild(a.house.tint);
+    return step < 1;
+  }
+
   setPen(pen: Pen): void {
     this.pen = pen;
     this.sp.pen = this.parts.register('pen:' + pen.id, this.sprites.glow(pen.color));
@@ -768,6 +777,15 @@ export class World implements PointerSink {
       }
       if (m.kind === MK.Golden && !m.friendly) {
         m.vx = m.baseV + Math.sin(m.age * 2.4 + m.swayPh) * 90 * this.speedScale;
+      }
+      if (m.kind !== MK.Boss) {
+        // zırhı kırılıp yukarı seken düşman meteor yeniden düşer; ekran dışında kaybolup dalgayı kilitlemesin
+        if (!m.friendly && m.vy < 90 * this.speedScale) m.vy += 520 * this.speedScale * dt;
+        // güvenlik ağı: çok uzun yaşayan (sıkışmış) meteorları sessizce kaldır
+        if (m.age > 45) {
+          m.active = false;
+          continue;
+        }
       }
       if (m.kind === MK.Boss) this.updateBoss(m, dt);
 
@@ -1888,8 +1906,7 @@ export class World implements PointerSink {
 
   private captureTransition(tr: DrumTransition): void {
     const v = this.view;
-    // eski sahne: son kare
-    this.renderScene();
+    // eski sahne: tuvaldeki son kare (yeniden çizmeye gerek yok; geçiş karesi yarı maliyette)
     tr.old.getContext('2d')!.drawImage(v.canvas, 0, 0);
     // yeni sahne: atmosferi uygula, sahneyi temiz çiz
     for (const m of this.meteors) m.active = false;

@@ -8,15 +8,20 @@ if (keystorePropsFile.exists()) {
 }
 def signingValue = { String envKey, String propKey -> System.getenv(envKey) ?: keystoreProps[propKey] }
 
+// çıktı dosyaları: Inkfall-<sürüm>-debug.apk / Inkfall-<sürüm>-release.aab
+base {
+    archivesName = "Inkfall-" + (System.getenv("MK_VERSION_NAME") ?: "1.1.1")
+}
+
 android {
     namespace = "com.talhamert.murekkepkalkani"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.talhamert.murekkepkalkani"
+        applicationId "com.talhamert.inkfall"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode ((System.getenv("MK_VERSION_CODE") ?: "1") as Integer)
-        versionName (System.getenv("MK_VERSION_NAME") ?: "1.1.0")
+        versionName (System.getenv("MK_VERSION_NAME") ?: "1.1.1")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

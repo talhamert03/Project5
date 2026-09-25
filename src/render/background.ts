@@ -81,6 +81,9 @@ interface Scene {
   beacons: Array<[number, number]>;
 }
 
+/** ışık lekesi katmanı: kenar payı (dünya birimi) ve çözünürlük (px / birim) */
+const GL_PAD = 420;
+const GL_RES = 0.25;
 const SKYLINE_H = 440;
 const SKYLINE_B = SKYLINE_H - 20;
 
@@ -820,7 +823,45 @@ export class Background {
 
   /** Piksel uzayında gökyüzü */
   renderSky(g: CanvasRenderingContext2D): void {
-    if (this.scene) g.drawImage(this.scene.sky, 0, 0);
+    // tuval yalnızca piksel yoğunluğu değişerek küçülmüş olabilir: tam ekrana ölçekle
+    if (this.scene) g.drawImage(this.scene.sky, 0, 0, this.view.canvas.width, this.view.canvas.height);
+  }
+
+  private glowCv: Canvas | null = null;
+  private glowT = -1;
+  private glowAtm = '';
+
+  /** Işık lekesi katmanı (dünya birimi başına GL_RES piksel); yavaş aktığı için ~20 Hz güncellenir */
+  private glowLayer(H: number): Canvas {
+    const w = Math.ceil((WORLD_W + GL_PAD * 2) * GL_RES);
+    const h = Math.ceil((H + GL_PAD * 2) * GL_RES);
+    let c = this.glowCv;
+    if (!c || c.width !== w || c.height !== h) {
+      c = this.glowCv = makeCanvas(w, h);
+      this.glowT = -1;
+    }
+    const t = this.t;
+    if (this.glowT >= 0 && Math.abs(t - this.glowT) < 0.05 && this.glowAtm === this.atm.id) return c;
+    this.glowT = t;
+    this.glowAtm = this.atm.id;
+    const atm = this.atm;
+    const g = ctx2d(c);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'source-over';
+    g.clearRect(0, 0, w, h);
+    g.setTransform(GL_RES, 0, 0, GL_RES, GL_PAD * GL_RES, GL_PAD * GL_RES);
+    g.globalCompositeOperation = 'lighter';
+    const glows: Array<[string, number, number, number, number]> = [
+      [atm.glows[0], 180 + Math.sin(t * 0.07) * 120, H * 0.22 + Math.cos(t * 0.05) * 60, 620, 0.06],
+      [atm.glows[1], 540 + Math.cos(t * 0.06) * 140, H * 0.36 + Math.sin(t * 0.04) * 80, 700, 0.07],
+      [atm.glows[2], 360 + Math.sin(t * 0.045 + 2) * 200, H * 0.62, 760, 0.05],
+    ];
+    for (const [col, x, y, s, a] of glows) {
+      g.globalAlpha = a;
+      g.drawImage(this.sprites.glow(col), x - s / 2, y - s / 2, s, s);
+    }
+    g.globalAlpha = 1;
+    return c;
   }
 
   /** Dünya uzayında canlı katmanlar (dünya dönüşümü ayarlanmış olmalı) */
@@ -850,16 +891,11 @@ export class Background {
     }
 
     if (quality > 0) {
-      // akan büyük ışık lekeleri
-      const glows: Array<[string, number, number, number, number]> = [
-        [atm.glows[0], 180 + Math.sin(t * 0.07) * 120, H * 0.22 + Math.cos(t * 0.05) * 60, 620, 0.06],
-        [atm.glows[1], 540 + Math.cos(t * 0.06) * 140, H * 0.36 + Math.sin(t * 0.04) * 80, 700, 0.07],
-        [atm.glows[2], 360 + Math.sin(t * 0.045 + 2) * 200, H * 0.62, 760, 0.05],
-      ];
-      for (const [col, x, y, s, a] of glows) {
-        g.globalAlpha = a;
-        g.drawImage(this.sprites.glow(col), x - s / 2, y - s / 2, s, s);
-      }
+      // akan büyük ışık lekeleri: üçü küçük bir katmanda toplanır, ekrana tek geçişte basılır
+      // (yumuşak degrade olduğundan düşük çözünürlük fark edilmez; doldurma maliyeti 1/3)
+      const L = this.glowLayer(H);
+      g.globalAlpha = 1;
+      g.drawImage(L, -GL_PAD, -GL_PAD, WORLD_W + GL_PAD * 2, H + GL_PAD * 2);
     }
 
     // kuzey ışığı perdeleri: yatay akan, nefes alan dokular
@@ -908,8 +944,8 @@ export class Background {
     // uzak silüet
     const sc = this.scene;
     if (sc) {
-      const k = this.view.scale * this.view.dpr;
-      const h = sc.skyline.height / k;
+      // oran üzerinden: silüet, piksel yoğunluğu sonradan değişse de doğru boyda kalır
+      const h = (sc.skyline.height / sc.skyline.width) * WORLD_W;
       const top = H - 95 - SKYLINE_B;
       g.drawImage(sc.skyline, 0, top, WORLD_W, h);
       g.globalCompositeOperation = 'lighter';

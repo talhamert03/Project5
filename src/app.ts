@@ -48,7 +48,7 @@ import {
   worldsHTML,
 } from './ui/screens';
 
-export const VERSION = '1.1.0';
+export const VERSION = '1.1.1';
 
 type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'revive' | 'over';
 type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds';
@@ -61,6 +61,12 @@ interface Timer {
 const QUALITY_LEVEL: Record<Quality, number> = { high: 1, balanced: 0.75, saver: 0.45 };
 const TAB_PANELS: PanelName[] = ['pens', 'workshop', 'missions', 'records'];
 const REVIVE_SECONDS = 7;
+
+/** Tarayıcı boştayken çalıştır (animasyon karelerini bölmesin) */
+function whenIdle(fn: () => void): void {
+  if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(() => fn(), { timeout: 600 });
+  else setTimeout(fn, 60);
+}
 
 /**
  * Uygulama denetleyicisi: durum makinesi (açılış → menü → oyun → güç seçimi → oyun sonu),
@@ -138,6 +144,15 @@ export class App {
     // menü arka planı: oyuncunun seçtiği (açık) dünya
     this.save.menuAtm = Math.min(this.save.menuAtm, this.save.maxAtm);
     if (this.save.menuAtm > 0) this.world.applyAtmosphere(this.save.menuAtm);
+    // ağır görselleri menüdeyken boşta hazırla: meteorlar ve (menü başka dünyadaysa) oyunun ilk dünyası
+    const warm = this.sprites.warmSteps();
+    if (this.save.menuAtm > 0) warm.push(() => this.world.prebuildStep(0, 0), () => this.world.prebuildStep(0, 1));
+    const runWarm = (i: number): void => {
+      if (i >= warm.length) return;
+      warm[i]();
+      whenIdle(() => runWarm(i + 1));
+    };
+    window.setTimeout(() => whenIdle(() => runWarm(0)), 1500);
 
     this.ui.addEventListener('click', (e) => this.onClick(e));
     // Tarayıcılar sesi dokunmatikte parmak kalkınca (pointerup/touchend) izin verir
@@ -509,12 +524,14 @@ export class App {
     const sub = start ? t('up.subStart') : t('up.sub', { n: this.world.wave + 1 });
     this.setScreen(upgradeHTML(ids, this.world.levels, sub, this.world.rerolls));
     audio.whoosh();
-    // kartlar ekranı kaplarken sıradaki dünyayı hazırla (geçişte takılma olmasın)
+    // kartlar yerleştikten sonra sıradaki dünyayı boşta, parça parça hazırla (geçişte takılma olmasın)
     const nx = this.world.atmIndex + 1;
     if (nx < ATMOSPHERES.length) {
-      window.setTimeout(() => {
-        if (this.state === 'upgrade') this.bg.prebuild(ATMOSPHERES[nx]);
-      }, 650);
+      const step = (i: number): void => {
+        if (this.state !== 'upgrade') return;
+        if (this.world.prebuildStep(nx, i)) whenIdle(() => step(i + 1));
+      };
+      window.setTimeout(() => whenIdle(() => step(0)), 1000);
     }
   }
 
@@ -1067,7 +1084,7 @@ export class App {
       if (this.lowFpsT > 3 && this.view.adaptive > 0.6) {
         this.lowFpsT = 0;
         this.view.adaptive *= 0.85;
-        this.view.resize();
+        this.view.resize(false);
         if (this.view.adaptive < 0.8) this.world.setQuality(Math.min(QUALITY_LEVEL[this.save.settings.quality], 0.7));
       }
     }

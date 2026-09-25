@@ -1,4 +1,4 @@
-name: Android derlemesi
+name: Inkfall Android derlemesi
 
 on:
   push:
@@ -6,12 +6,16 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
       HAS_KEYSTORE: ${{ secrets.MK_KEYSTORE_BASE64 != '' }}
       MK_VERSION_CODE: ${{ github.run_number }}
+      MK_VERSION_NAME: '1.1.1'
     steps:
       - uses: actions/checkout@v5
 
@@ -43,10 +47,27 @@ jobs:
         working-directory: android
         run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
 
+      - name: APK adı
+        run: cp android/app/build/outputs/apk/debug/Inkfall-*-debug.apk "Inkfall-$MK_VERSION_NAME.apk" && ls -la Inkfall-*.apk
+
       - uses: actions/upload-artifact@v4
         with:
-          name: murekkep-kalkani-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: inkfall-apk
+          path: Inkfall-*.apk
+
+      # En güncel APK'yı 'apk' dalına da koy (tek dosya, geçmişsiz; git ile kolayca indirilebilir)
+      - name: APK dalını güncelle
+        if: github.event_name == 'push' && !startsWith(github.ref_name, 'apk')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/apk" && cp Inkfall-*.apk "$RUNNER_TEMP/apk/"
+          cd "$RUNNER_TEMP/apk"
+          git init -q -b apk
+          git add .
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Inkfall $MK_VERSION_NAME ($GITHUB_REF_NAME @ ${GITHUB_SHA::7})"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" apk
 
       - name: Play Store paketi (imzalı AAB)
         if: env.HAS_KEYSTORE == 'true'
@@ -63,5 +84,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: env.HAS_KEYSTORE == 'true'
         with:
-          name: murekkep-kalkani-aab
+          name: inkfall-aab
           path: android/app/build/outputs/bundle/release/*.aab

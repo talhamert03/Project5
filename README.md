@@ -101,8 +101,8 @@ npm run android:open # Android Studio'da aç, cihazda çalıştır
 `.github/workflows/android.yml` her push'ta:
 
 1. Tip denetimi ve web derlemesi yapar,
-2. Test APK'sı üretir (**Actions → çalıştırma → Artifacts → `murekkep-kalkani-apk`**). Telefona indirip kurabilirsin,
-3. İmza bilgileri tanımlıysa Play Store'a yüklenecek imzalı **AAB** üretir (`murekkep-kalkani-aab`).
+2. Test APK'sı üretir (**Actions → çalıştırma → Artifacts → `inkfall-apk` (içinde `Inkfall-<sürüm>-debug.apk`)**). Telefona indirip kurabilirsin,
+3. İmza bilgileri tanımlıysa Play Store'a yüklenecek imzalı **AAB** üretir (`inkfall-aab`).
 
 ### Yayın imzası
 
@@ -133,7 +133,7 @@ keytool -genkey -v -keystore upload.jks -keyalg RSA -keysize 2048 -validity 1000
 ### Play Console kontrol listesi
 
 - [ ] Geliştirici hesabı (tek seferlik 25 $)
-- [ ] Uygulama oluştur: ad **Inkfall: Meteor Defense**, paket adı `com.talhamert.murekkepkalkani`
+- [ ] Uygulama oluştur: ad **Inkfall: Meteor Defense**, paket adı `com.talhamert.inkfall`
 - [ ] Mağaza girişi: metinler `store/listing.md`, ikon `store/icon-512.png`, tanıtım görseli `store/feature-graphic-tr.jpg`, ekran görüntüleri `store/screenshots/`
 - [ ] Gizlilik politikası: `docs/privacy-policy.md` dosyasını herkese açık bir adreste yayınla (örneğin GitHub Pages) ve adresini gir
 - [ ] Veri güvenliği formu: veri toplanmıyor, paylaşılmıyor (oyun yalnızca cihazda yerel kayıt tutar)
