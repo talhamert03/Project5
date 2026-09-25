@@ -3,6 +3,19 @@ import './ui/strings';
 import './ui/strings2';
 import { App } from './app';
 
+// Eski WebView (Chrome < 84): flex "gap" yoksa margin yedeklerini aç (vite.config.ts)
+try {
+  const d = document.createElement('div');
+  d.style.cssText = 'display:flex;flex-direction:column;row-gap:1px;position:absolute;visibility:hidden';
+  d.appendChild(document.createElement('div'));
+  d.appendChild(document.createElement('div'));
+  document.body.appendChild(d);
+  if (d.scrollHeight !== 1) document.documentElement.classList.add('nfg');
+  d.remove();
+} catch {
+  /* yoksay */
+}
+
 function boot(): void {
   const app = new App();
   app.start();

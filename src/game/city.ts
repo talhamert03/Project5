@@ -1,6 +1,6 @@
 import { clamp, easeInCubic, easeOutBack } from '../core/math';
 import { Rng } from '../core/rng';
-import { type Canvas, type Sprites, ctx2d, makeCanvas } from '../render/sprites';
+import { type Canvas, type Sprites, ctx2d, makeCanvas, blit } from '../render/sprites';
 import { WORLD_W, type View } from '../render/view';
 
 export const BLOCKS = 5;
@@ -456,12 +456,12 @@ export class City {
         const pulse = 0.08 + 0.03 * Math.sin(this.t * 1.7 + b.i * 2);
         g.globalAlpha = (b.hp >= b.maxHp ? 1 : 0.5) * pulse;
         const s = BLOCK_W * 2.2;
-        g.drawImage(this.sprites.glow(this.glowCol), x - s / 2, H - 150 - s / 2, s, s);
+        blit(g, this.sprites.glow(this.glowCol), x - s / 2, H - 150 - s / 2, s, s);
       }
       if (b.flash > 0) {
         g.globalAlpha = b.flash;
         const s = BLOCK_W * 2.6;
-        g.drawImage(this.sprites.glow('#FF5A3A', true), b.i * BLOCK_W + BLOCK_W / 2 - s / 2, H - 120 - s / 2, s, s);
+        blit(g, this.sprites.glow('#FF5A3A', true), b.i * BLOCK_W + BLOCK_W / 2 - s / 2, H - 120 - s / 2, s, s);
       }
     }
     g.globalAlpha = 1;
@@ -492,7 +492,7 @@ export class City {
       const x = WORLD_W / 2 + Math.cos(ang) * r;
       const y = cy + Math.sin(ang) * r;
       g.globalAlpha = 0.9;
-      g.drawImage(this.sprites.glow(color, true), x - 9, y - 9, 18, 18);
+      blit(g, this.sprites.glow(color, true), x - 9, y - 9, 18, 18);
     }
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';

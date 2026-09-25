@@ -1,6 +1,6 @@
 import { TAU } from '../core/math';
 import { BOSS_COLORS, METEOR_COLORS } from '../render/palette';
-import { METEOR_R, type Sprites } from '../render/sprites';
+import { METEOR_R, type Sprites, blit } from '../render/sprites';
 
 export const enum MK {
   Normal = 0,
@@ -193,15 +193,18 @@ export function renderMeteors(
     const glow = sprites.glow(col);
     const vis = 1 - m.fade * 0.8;
     const n = m.trailN;
-    for (let i = 0; i < n; i++) {
+    // iz: birbirine binen yumuşak parıltılar. Bir atlayarak çizilir (yarı çizim),
+    // parlaklık telafi edilir: parıltılar aralıktan çok büyük olduğundan görüntü aynı kalır.
+    const bs = m.kind === MK.Boss ? 1.2 : 1;
+    for (let i = 0; i < n; i += 2) {
       // en yeni -> en eski
       const idx = (m.trailHead - 1 - i + TRAIL * 2) % TRAIL;
       const x = m.trail[idx * 2];
       const y = m.trail[idx * 2 + 1];
-      const f = 1 - i / TRAIL;
-      const s = m.r * (1.1 + 1.6 * f) * (m.kind === MK.Boss ? 1.2 : 1);
-      g.globalAlpha = 0.55 * f * f * vis;
-      g.drawImage(glow, x - s, y - s, s * 2, s * 2);
+      const f = 1 - (i + 0.5) / TRAIL;
+      const s = m.r * (1.1 + 1.6 * f) * bs;
+      g.globalAlpha = Math.min(0.9, 0.55 * f * f * 1.75) * vis;
+      blit(g, glow, x - s, y - s, s * 2, s * 2);
     }
     if (m.kind === MK.Comet || (m.kind === MK.Boss && m.bossType === BT.Queen)) {
       // uzun, ışıldayan kuyruk: hızın tersine doğru incelen parıltılar
@@ -217,12 +220,12 @@ export function renderMeteors(
         const x = m.x + ux * L * f - uy * wob;
         const y = m.y + uy * L * f + ux * wob;
         g.globalAlpha = 0.5 * (1 - f) * vis;
-        g.drawImage(i < 4 ? hot : glow, x - w, y - w, w * 2, w * 2);
+        blit(g, i < 4 ? hot : glow, x - w, y - w, w * 2, w * 2);
       }
     }
     const hs = m.r * (m.kind === MK.Boss ? 4.4 : 5.2);
     g.globalAlpha = (m.friendly ? 0.75 : 0.55) * vis;
-    g.drawImage(glow, m.x - hs / 2, m.y - hs / 2, hs, hs);
+    blit(g, glow, m.x - hs / 2, m.y - hs / 2, hs, hs);
   }
 
   // 2) gövdeler
@@ -252,42 +255,42 @@ export function renderMeteors(
     const col = m.glowColor(inkColor);
     const hs = m.r * 2.2;
     g.globalAlpha = 0.85 * vis;
-    g.drawImage(sprites.glow(col, true), hx - hs / 2, hy - hs / 2, hs, hs);
+    blit(g, sprites.glow(col, true), hx - hs / 2, hy - hs / 2, hs, hs);
     if (m.friendly) {
       g.globalAlpha = 0.55;
       const fs = m.r * 2.6;
-      g.drawImage(sprites.glow(inkColor), m.x - fs / 2, m.y - fs / 2, fs, fs);
+      blit(g, sprites.glow(inkColor), m.x - fs / 2, m.y - fs / 2, fs, fs);
     } else if (m.kind === MK.Nova) {
       // kalp atışı gibi büyüyen çekirdek: patlamaya hazır
       const beat = Math.pow(Math.max(0, Math.sin(time * 7 + m.swayPh)), 6);
       g.globalAlpha = 0.45 + beat * 0.5;
       const cs = m.r * (1.6 + beat * 1.2);
-      g.drawImage(sprites.glow('#FF9FEA', true), m.x - cs / 2, m.y - cs / 2, cs, cs);
+      blit(g, sprites.glow('#FF9FEA', true), m.x - cs / 2, m.y - cs / 2, cs, cs);
     } else if (m.kind === MK.Ice) {
       g.globalAlpha = 0.5 + Math.sin(time * 5 + m.swayPh) * 0.3;
       const ss = m.r * 2.8;
-      g.drawImage(sprites.sparkle, m.x - ss / 2 - m.r * 0.25, m.y - ss / 2 - m.r * 0.3, ss, ss);
+      blit(g, sprites.sparkle, m.x - ss / 2 - m.r * 0.25, m.y - ss / 2 - m.r * 0.3, ss, ss);
     } else if (m.kind === MK.Phantom && m.fade > 0.05) {
       // saydamken titreyen hayalet halkası: yeri belli olsun
       g.globalAlpha = m.fade * (0.35 + 0.25 * Math.sin(time * 20));
       const rs = m.r * 3.2;
-      g.drawImage(sprites.ring, m.x - rs / 2, m.y - rs / 2, rs, rs);
+      blit(g, sprites.ring, m.x - rs / 2, m.y - rs / 2, rs, rs);
     }
     if (m.kind === MK.Golden) {
       g.globalAlpha = 0.6 + Math.sin(time * 9 + m.swayPh) * 0.4;
       const ss = m.r * 3.4;
-      g.drawImage(sprites.sparkle, m.x - ss / 2 + m.r * 0.3, m.y - ss / 2 - m.r * 0.3, ss, ss);
+      blit(g, sprites.sparkle, m.x - ss / 2 + m.r * 0.3, m.y - ss / 2 - m.r * 0.3, ss, ss);
     }
     if (m.slowT > 0 && !m.friendly) {
       g.globalAlpha = Math.min(1, m.slowT) * 0.55;
       const fs = m.r * 2.6;
-      g.drawImage(sprites.glow('#BFF6FF'), m.x - fs / 2, m.y - fs / 2, fs, fs);
+      blit(g, sprites.glow('#BFF6FF'), m.x - fs / 2, m.y - fs / 2, fs, fs);
     }
     if (m.kind === MK.Boss) renderBossFx(g, m, sprites, time);
     if (m.flash > 0) {
       g.globalAlpha = Math.min(1, m.flash * 3);
       const fs = m.r * 3;
-      g.drawImage(sprites.glow('#FFFFFF', true), m.x - fs / 2, m.y - fs / 2, fs, fs);
+      blit(g, sprites.glow('#FFFFFF', true), m.x - fs / 2, m.y - fs / 2, fs, fs);
     }
   }
   g.globalAlpha = 1;
@@ -309,7 +312,7 @@ function renderBossFx(g: CanvasRenderingContext2D, m: Meteor, sprites: Sprites, 
     case BT.Titan: {
       g.globalAlpha = 0.35 + pulse * 0.35;
       const cs = m.r * (1.2 + pulse * 0.3);
-      g.drawImage(sprites.glow('#FF7A4F', true), m.x - cs / 2, m.y - cs / 2, cs, cs);
+      blit(g, sprites.glow('#FF7A4F', true), m.x - cs / 2, m.y - cs / 2, cs, cs);
       break;
     }
     case BT.Queen: {
@@ -320,7 +323,7 @@ function renderBossFx(g: CanvasRenderingContext2D, m: Meteor, sprites: Sprites, 
         const y = m.y + Math.sin(a) * m.r * 1.05;
         g.globalAlpha = 0.6 + 0.4 * Math.sin(time * 6 + i);
         const ss = m.r * (i === 2 ? 1.3 : 0.9);
-        g.drawImage(sprites.sparkle, x - ss / 2, y - ss / 2, ss, ss);
+        blit(g, sprites.sparkle, x - ss / 2, y - ss / 2, ss, ss);
       }
       break;
     }
@@ -330,7 +333,7 @@ function renderBossFx(g: CanvasRenderingContext2D, m: Meteor, sprites: Sprites, 
         const [x, y] = shieldPos(m, i, time);
         g.globalAlpha = 0.85;
         const gs = 96;
-        g.drawImage(sprites.glow(col), x - gs / 2, y - gs / 2, gs, gs);
+        blit(g, sprites.glow(col), x - gs / 2, y - gs / 2, gs, gs);
         // kristal gövdesi opak çizilir (net görünsün), sonra ışıma moduna dönülür
         g.globalCompositeOperation = 'source-over';
         g.globalAlpha = 1;
@@ -359,21 +362,21 @@ function renderBossFx(g: CanvasRenderingContext2D, m: Meteor, sprites: Sprites, 
         const R = m.r * (1.3 + 0.25 * Math.sin(time * 3 + i));
         g.globalAlpha = 0.35;
         const s = m.r * 0.7;
-        g.drawImage(sprites.glow(col), m.x + Math.cos(a) * R - s / 2, m.y + Math.sin(a) * R * 0.5 - s / 2, s, s);
+        blit(g, sprites.glow(col), m.x + Math.cos(a) * R - s / 2, m.y + Math.sin(a) * R * 0.5 - s / 2, s, s);
       }
       if (m.pulseT < 0) {
         // nabız uyarısı: büyüyen halka
         const p = 1 + m.pulseT;
         g.globalAlpha = 0.35 + 0.65 * (1 - p);
         const rs = m.r * 2 + p * 420;
-        g.drawImage(sprites.ring, m.x - rs / 2, m.y - rs / 2, rs, rs);
+        blit(g, sprites.ring, m.x - rs / 2, m.y - rs / 2, rs, rs);
       }
       break;
     }
     case BT.Twins: {
       g.globalAlpha = 0.4 + pulse * 0.4;
       const cs = m.r * (1.4 + pulse * 0.3);
-      g.drawImage(sprites.glow('#FFE07A', true), m.x - cs / 2, m.y - cs / 2, cs, cs);
+      blit(g, sprites.glow('#FFE07A', true), m.x - cs / 2, m.y - cs / 2, cs, cs);
       break;
     }
   }

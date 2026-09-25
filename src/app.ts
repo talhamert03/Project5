@@ -66,7 +66,7 @@ import {
   worldsHTML,
 } from './ui/screens';
 
-export const VERSION = '1.2.0';
+export const VERSION = '1.2.1';
 
 type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'revive' | 'over';
 type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds' | 'shop' | 'skills';
@@ -113,6 +113,8 @@ export class App {
   private adBusy = false;
   private adResolve: (() => void) | null = null;
   private buying = false;
+  /** menü paneli ne zamandır ekranı kaplıyor (sn) */
+  private coverT = 0;
   private reviveCount = 0;
   private lastRunCoins = 0;
   private doubled = false;
@@ -1318,7 +1320,11 @@ export class App {
 
   private frame(dt: number): void {
     const s = this.state;
-    if (s !== 'paused') {
+    // menüde opak bir panel ekranı tamamen kapladıysa arkadaki sahne görünmez:
+    // simülasyon ve çizim durur (GPU boşa çalışmaz), panel kapanınca kaldığı yerden sürer
+    this.coverT = this.panel && s === 'menu' ? this.coverT + dt : 0;
+    const covered = this.coverT > 0.45 && !this.world.transitioning;
+    if (s !== 'paused' && !covered) {
       this.world.update(dt);
       this.world.render();
     }
@@ -1363,11 +1369,13 @@ export class App {
       if (this.save.settings.showFps) this.hud.setFps(`${Math.round(this.loop.fps)} FPS · ${this.loop.workMs.toFixed(1)}ms · ${this.world.parts.n}p`);
     }
     if ((s === 'game' || s === 'menu') && !document.hidden && !this.world.transitioning) {
-      if (this.loop.fps < 48) this.lowFpsT += dt;
+      // çok yavaş cihaz/emülatör (yazılımsal çizim): hızlı ve büyük adım; hafif düşüşte yavaş, küçük adım
+      const fps = this.loop.fps;
+      if (fps < 48) this.lowFpsT += dt * (fps < 30 ? 2 : 1);
       else this.lowFpsT = Math.max(0, this.lowFpsT - dt * 0.5);
-      if (this.lowFpsT > 3 && this.view.adaptive > 0.6) {
+      if (this.lowFpsT > 3 && this.view.adaptive > 0.5) {
         this.lowFpsT = 0;
-        this.view.adaptive *= 0.85;
+        this.view.adaptive *= fps < 30 ? 0.72 : 0.85;
         this.view.resize(false);
         if (this.view.adaptive < 0.8) this.world.setQuality(Math.min(QUALITY_LEVEL[this.save.settings.quality], 0.7));
       }

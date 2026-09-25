@@ -1,7 +1,7 @@
 import { TAU, clamp, hexToRgb, lerp } from '../core/math';
 import { Rng } from '../core/rng';
 import { ATMOSPHERES, type Atmosphere } from './atmospheres';
-import { type Canvas, type Sprites, ctx2d, makeCanvas } from './sprites';
+import { type Canvas, type Sprites, ctx2d, makeCanvas, blit } from './sprites';
 import { WORLD_W, type View } from './view';
 
 // ───────────────────────── GÜRÜLTÜ ─────────────────────────
@@ -1066,9 +1066,46 @@ export class Background {
   }
 
   /** Piksel uzayında gökyüzü */
-  renderSky(g: CanvasRenderingContext2D): void {
-    // tuval yalnızca piksel yoğunluğu değişerek küçülmüş olabilir: tam ekrana ölçekle
-    if (this.scene) g.drawImage(this.scene.sky, 0, 0, this.view.canvas.width, this.view.canvas.height);
+  private backdrop: Canvas | null = null;
+  private backdropT = -1;
+  private backdropKey = '';
+
+  /**
+   * Gökyüzü + akan ışık lekeleri tek bir hazır zemin tuvalinde birleşir ve saniyede ~5 kez
+   * yenilenir (lekeler çok yavaş akar: adım piksel altı, fark edilmez). Her karede tam ekran
+   * yalnızca tek, ölçeksiz bir kopya çizilir; önceden iki büyük katman karıştırılıyordu.
+   */
+  renderSky(g: CanvasRenderingContext2D, quality: number): void {
+    const v = this.view;
+    const W = v.canvas.width;
+    const Hc = v.canvas.height;
+    let c = this.backdrop;
+    if (!c || c.width !== W || c.height !== Hc) {
+      c = this.backdrop = makeCanvas(W, Hc);
+      this.backdropT = -1;
+    }
+    const key = this.atm.id + '|' + quality + '|' + (this.scene ? 1 : 0);
+    if (this.backdropT < 0 || this.t - this.backdropT >= 0.2 || this.t < this.backdropT || key !== this.backdropKey) {
+      this.backdropT = this.t;
+      this.backdropKey = key;
+      const b = ctx2d(c);
+      b.setTransform(1, 0, 0, 1, 0, 0);
+      b.globalCompositeOperation = 'source-over';
+      b.globalAlpha = 1;
+      // tuval yalnızca piksel yoğunluğu değişerek küçülmüş olabilir: tam ekrana ölçekle
+      if (this.scene) b.drawImage(this.scene.sky, 0, 0, W, Hc);
+      if (quality > 0) {
+        const H = v.H;
+        const L = this.glowLayer(H);
+        const k = v.scale * v.dpr;
+        b.setTransform(k, 0, 0, k, v.offX * v.dpr, v.offY * v.dpr);
+        b.globalCompositeOperation = 'lighter';
+        b.drawImage(L, -GL_PAD, -GL_PAD, WORLD_W + GL_PAD * 2, H + GL_PAD * 2);
+        b.setTransform(1, 0, 0, 1, 0, 0);
+        b.globalCompositeOperation = 'source-over';
+      }
+    }
+    g.drawImage(c, 0, 0);
   }
 
   private glowCv: Canvas | null = null;
@@ -1102,7 +1139,7 @@ export class Background {
     ];
     for (const [col, x, y, s, a] of glows) {
       g.globalAlpha = a;
-      g.drawImage(this.sprites.glow(col), x - s / 2, y - s / 2, s, s);
+      blit(g, this.sprites.glow(col), x - s / 2, y - s / 2, s, s);
     }
     g.globalAlpha = 1;
     return c;
@@ -1134,13 +1171,7 @@ export class Background {
       }
     }
 
-    if (quality > 0) {
-      // akan büyük ışık lekeleri: üçü küçük bir katmanda toplanır, ekrana tek geçişte basılır
-      // (yumuşak degrade olduğundan düşük çözünürlük fark edilmez; doldurma maliyeti 1/3)
-      const L = this.glowLayer(H);
-      g.globalAlpha = 1;
-      g.drawImage(L, -GL_PAD, -GL_PAD, WORLD_W + GL_PAD * 2, H + GL_PAD * 2);
-    }
+    void quality; // ışık lekeleri zemin tuvalinde (renderSky)
 
     // kuzey ışığı perdeleri: yatay akan, nefes alan dokular
     if (this.curtains.length) {
@@ -1165,11 +1196,11 @@ export class Background {
       if (a < 0.03) continue;
       g.globalAlpha = a;
       const sz = s.s * (0.7 + tw * 0.5);
-      g.drawImage(this.sprites.glow(cols[s.col], true), s.x - sz / 2, s.y - sz / 2, sz, sz);
+      blit(g, this.sprites.glow(cols[s.col], true), s.x - sz / 2, s.y - sz / 2, sz, sz);
       if (tw > 0.92) {
         g.globalAlpha = (tw - 0.92) * 8;
         const ss = sz * 2.4;
-        g.drawImage(this.sprites.sparkle, s.x - ss / 2, s.y - ss / 2, ss, ss);
+        blit(g, this.sprites.sparkle, s.x - ss / 2, s.y - ss / 2, ss, ss);
       }
     }
     // kayan yıldızlar
@@ -1181,7 +1212,7 @@ export class Background {
         const f = i / n;
         g.globalAlpha = a * (1 - f) * 0.8;
         const sz = 10 * (1 - f) + 2;
-        g.drawImage(this.sprites.glow('#FFFFFF', true), s.x - s.vx * f * 0.09 - sz / 2, s.y - s.vy * f * 0.09 - sz / 2, sz, sz);
+        blit(g, this.sprites.glow('#FFFFFF', true), s.x - s.vx * f * 0.09 - sz / 2, s.y - s.vy * f * 0.09 - sz / 2, sz, sz);
       }
     }
     g.globalAlpha = 1;
@@ -1201,7 +1232,7 @@ export class Background {
       const blink = Math.sin(t * 3) > 0.3 ? 0.95 : 0.12;
       g.globalAlpha = blink;
       const red = this.sprites.glow('#FF3355', true);
-      for (const [bx, by] of sc.beacons) g.drawImage(red, bx - 8, top + by - 8, 16, 16);
+      for (const [bx, by] of sc.beacons) blit(g, red, bx - 8, top + by - 8, 16, 16);
       g.globalAlpha = 1;
       g.globalCompositeOperation = 'source-over';
     }
@@ -1228,11 +1259,11 @@ export class Background {
           // disk önündeyken parlak, arkadayken sönük
           g.globalAlpha = Math.sin(a) > 0 ? 0.55 : 0.2;
           const s = 22 + (i % 2) * 10;
-          g.drawImage(hot, x - s / 2, y - s / 2, s, s);
+          blit(g, hot, x - s / 2, y - s / 2, s, s);
         }
         g.globalAlpha = 0.25 + 0.15 * Math.sin(t * 2.2);
         const rs = 118;
-        g.drawImage(this.sprites.ring, cx - rs / 2, cy - rs / 2, rs, rs);
+        blit(g, this.sprites.ring, cx - rs / 2, cy - rs / 2, rs, rs);
         break;
       }
       case 'supernova': {
@@ -1240,11 +1271,11 @@ export class Background {
           const p = (t * 0.22 + i * 0.5) % 1;
           g.globalAlpha = (1 - p) * 0.45;
           const rs = 90 + p * 420;
-          g.drawImage(this.sprites.ring, cx - rs / 2, cy - rs / 2, rs, rs);
+          blit(g, this.sprites.ring, cx - rs / 2, cy - rs / 2, rs, rs);
         }
         g.globalAlpha = 0.5 + 0.3 * Math.sin(t * 5);
         const cs = 90 + 16 * Math.sin(t * 5);
-        g.drawImage(this.sprites.glow('#FFFFFF', true), cx - cs / 2, cy - cs / 2, cs, cs);
+        blit(g, this.sprites.glow('#FFFFFF', true), cx - cs / 2, cy - cs / 2, cs, cs);
         break;
       }
       case 'saturn': {
@@ -1260,7 +1291,7 @@ export class Background {
           const y = cy + ex * sr + ey * cr;
           g.globalAlpha = (Math.sin(a) > 0 ? 0.7 : 0.18) * (0.5 + 0.5 * Math.sin(t * 3 + i));
           const s = 14 + (i % 3) * 5;
-          g.drawImage(sp, x - s / 2, y - s / 2, s, s);
+          blit(g, sp, x - s / 2, y - s / 2, s, s);
         }
         break;
       }
@@ -1271,7 +1302,7 @@ export class Background {
           const tw = 0.5 + 0.5 * Math.sin(t * 2.4 + i * 2);
           g.globalAlpha = 0.35 + tw * 0.5;
           const s = 34 + tw * 20;
-          g.drawImage(this.sprites.sparkle, x - s / 2, y - s / 2, s, s);
+          blit(g, this.sprites.sparkle, x - s / 2, y - s / 2, s, s);
         }
         break;
       }
@@ -1323,7 +1354,7 @@ export class Background {
         if (m.col === 0) {
           g.globalAlpha = a * 0.8;
           const ss = s * 3.2;
-          g.drawImage(this.sprites.sparkle, m.x - ss / 2, m.y - ss / 2, ss, ss);
+          blit(g, this.sprites.sparkle, m.x - ss / 2, m.y - ss / 2, ss, ss);
           continue;
         }
       } else if (kind === 'spiral') {
@@ -1340,7 +1371,7 @@ export class Background {
         s *= 1.4;
       }
       g.globalAlpha = a;
-      g.drawImage(this.sprites.glow(col, true), m.x - s, m.y - s, s * 2, s * 2);
+      blit(g, this.sprites.glow(col, true), m.x - s, m.y - s, s * 2, s * 2);
     }
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';

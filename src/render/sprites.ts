@@ -17,34 +17,88 @@ export function ctx2d(c: Canvas): CanvasRenderingContext2D {
 
 const GLOW_SIZE = 64;
 
+/** Atlastaki bir görsel: kaynak tuval + dikdörtgen */
+export interface Spr {
+  img: Canvas;
+  sx: number;
+  sy: number;
+  sw: number;
+  sh: number;
+}
+
+/** Atlas görselini hedef dikdörtgene çiz */
+export function blit(g: CanvasRenderingContext2D, s: Spr, x: number, y: number, w: number, h: number): void {
+  g.drawImage(s.img, s.sx, s.sy, s.sw, s.sh, x, y, w, h);
+}
+
+/**
+ * Doku atlası: bütün parıltılar, kıvılcım, halka ve duman tek bir tuvalde durur.
+ * Aynı dokudan gelen ardışık çizimler GPU'da tek bir çizim çağrısında birleştirilebilir
+ * (parçacık yağmurunda yüzlerce ayrı doku değişimi yerine birkaç çağrı).
+ * Görseller arasında saydam boşluk bırakılır: ölçeklemede komşu görsel sızmaz.
+ */
+class Atlas {
+  readonly c: Canvas;
+  private g: CanvasRenderingContext2D;
+  private x = 0;
+  private y = 0;
+  private rowH = 0;
+  private static readonly PAD = 2;
+
+  constructor(readonly size: number) {
+    this.c = makeCanvas(size, size);
+    this.g = ctx2d(this.c);
+  }
+
+  add(src: Canvas): Spr {
+    const P = Atlas.PAD;
+    const w = src.width;
+    const h = src.height;
+    if (this.x + w + P * 2 > this.size) {
+      this.x = 0;
+      this.y += this.rowH;
+      this.rowH = 0;
+    }
+    // atlas doluysa görsel kendi tuvalinde kalır (yine çalışır, yalnızca birleşmez)
+    if (this.y + h + P * 2 > this.size) return { img: src, sx: 0, sy: 0, sw: w, sh: h };
+    const sx = this.x + P;
+    const sy = this.y + P;
+    this.g.drawImage(src, sx, sy);
+    this.x += w + P * 2;
+    this.rowH = Math.max(this.rowH, h + P * 2);
+    return { img: this.c, sx, sy, sw: w, sh: h };
+  }
+}
+
 /**
  * Önceden çizilmiş sprite önbelleği. Oyun sırasında shadowBlur / gradient üretmek yerine
  * hazır parıltı görselleri additive modda basılır: mobil GPU için en ucuz "neon" yöntemi.
  */
 export class Sprites {
-  private glows = new Map<string, Canvas>();
-  private hotGlows = new Map<string, Canvas>();
+  private glows = new Map<string, Spr>();
+  private hotGlows = new Map<string, Spr>();
   private meteors = new Map<string, Canvas[]>();
   private armored = new Map<string, Canvas[]>();
-  readonly smoke: Canvas;
-  readonly sparkle: Canvas;
+  private atlas = new Atlas(1024);
+  readonly smoke: Spr;
+  readonly sparkle: Spr;
   readonly vignette: Canvas;
-  readonly ring: Canvas;
+  readonly ring: Spr;
 
   constructor() {
-    this.smoke = this.makeSmoke();
-    this.sparkle = this.makeSparkle();
+    this.smoke = this.atlas.add(this.makeSmoke());
+    this.sparkle = this.atlas.add(this.makeSparkle());
     this.vignette = this.makeVignette();
-    this.ring = this.makeRing();
+    this.ring = this.atlas.add(this.makeRing());
   }
 
   /** Radyal parıltı; hot=true ise merkezi beyaz-sıcak */
-  glow(color: string, hot = false): Canvas {
+  glow(color: string, hot = false): Spr {
     // sıcak yolda metin birleştirme yok: iki ayrı önbellek (karede yüzlerce çağrı)
     const cache = hot ? this.hotGlows : this.glows;
-    let c = cache.get(color);
-    if (c) return c;
-    c = makeCanvas(GLOW_SIZE, GLOW_SIZE);
+    const found = cache.get(color);
+    if (found) return found;
+    const c = makeCanvas(GLOW_SIZE, GLOW_SIZE);
     const g = ctx2d(c);
     const [r, gg, b] = hexToRgb(color);
     const h = GLOW_SIZE / 2;
@@ -61,8 +115,9 @@ export class Sprites {
     grad.addColorStop(1, `rgba(${r},${gg},${b},0)`);
     g.fillStyle = grad;
     g.fillRect(0, 0, GLOW_SIZE, GLOW_SIZE);
-    cache.set(color, c);
-    return c;
+    const spr = this.atlas.add(c);
+    cache.set(color, spr);
+    return spr;
   }
 
   private makeSmoke(): Canvas {

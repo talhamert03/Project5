@@ -1,5 +1,5 @@
-import { audio } from '../core/audio';
-import { haptics } from '../core/haptics';
+import { audio as realAudio } from '../core/audio';
+import { haptics as realHaptics } from '../core/haptics';
 import type { PointerSink } from '../core/input';
 import { TAU, clamp, damp, easeInOutCubic, hsl } from '../core/math';
 import { Rng, fx } from '../core/rng';
@@ -8,7 +8,7 @@ import { ATMOSPHERES, type Atmosphere } from '../render/atmospheres';
 import type { Background } from '../render/background';
 import { BOSS_COLORS, C, METEOR_COLORS } from '../render/palette';
 import { Particles, Shape } from '../render/particles';
-import type { Sprites } from '../render/sprites';
+import { blit, type Sprites } from '../render/sprites';
 import { WORLD_W, type View } from '../render/view';
 import { BLOCKS, BLOCK_W, City } from './city';
 import { Director, type DirectorMods } from './director';
@@ -55,6 +55,31 @@ export interface RunOptions {
 export type SkillId = 'nova' | 'warp' | 'aegis' | 'starfall';
 /** Yeteneğin dolması için gereken enerji (öldürme = 1, sekme = 0.4) */
 const SKILL_NEED = 34;
+
+/**
+ * Menü arka planındaki demo (attract) yalnızca bir video gibi oynar: titreşim ve efekt sesi
+ * çalışmaz. Müzikle ilgili çağrılar (ton, yoğunluk) geçer. Dünya bu kontrolü kurar.
+ */
+let isQuiet: () => boolean = () => false;
+const noop = (): void => undefined;
+function quietProxy<T extends object>(obj: T, keep: Set<string>): T {
+  const bound = new Map<PropertyKey, unknown>();
+  return new Proxy(obj, {
+    get(target, prop) {
+      const v = Reflect.get(target, prop);
+      if (typeof v !== 'function') return v;
+      if (!keep.has(prop as string) && isQuiet()) return noop;
+      let b = bound.get(prop);
+      if (!b) {
+        b = (v as (...args: unknown[]) => unknown).bind(target);
+        bound.set(prop, b);
+      }
+      return b;
+    },
+  });
+}
+const audio = quietProxy(realAudio, new Set(['setScene', 'setIntensity', 'setSlowmo', 'setDrawing']));
+const haptics = quietProxy(realHaptics, new Set());
 
 export interface RunResult {
   score: number;
@@ -282,6 +307,7 @@ export class World implements PointerSink {
     this.director = new Director(1, { speed: 1, golden: 1, size: 1, chaos: false });
     this.setPen(pen);
     this.registerSprites();
+    isQuiet = () => this.phase === 'attract';
   }
 
   atmIndex = 0;
@@ -2196,7 +2222,7 @@ export class World implements PointerSink {
         const x = 360 - Math.cos(u) * 430;
         const y = cy - Math.sin(u) * 175;
         g.globalAlpha = 0.5 * a;
-        g.drawImage(glow, x - 14, y - 14, 28, 28);
+        blit(g, glow, x - 14, y - 14, 28, 28);
       }
     }
     if (this.stats.guardian > 0 && this.phase !== 'attract') {
@@ -2204,9 +2230,9 @@ export class World implements PointerSink {
       const ready = this.droneT <= 1;
       g.globalAlpha = 0.6;
       const s = ready ? 60 : 44;
-      g.drawImage(this.sprites.glow(C.turkuaz), x - s / 2, y - s / 2, s, s);
+      blit(g, this.sprites.glow(C.turkuaz), x - s / 2, y - s / 2, s, s);
       g.globalAlpha = 1;
-      g.drawImage(this.sprites.glow('#FFFFFF', true), x - 9, y - 9, 18, 18);
+      blit(g, this.sprites.glow('#FFFFFF', true), x - 9, y - 9, 18, 18);
       g.globalAlpha = 0.5;
       g.strokeStyle = C.turkuaz;
       g.lineWidth = 2;
@@ -2609,14 +2635,14 @@ export class World implements PointerSink {
     const speed0 = Math.sin(Math.PI * p);
     g.globalCompositeOperation = 'lighter';
     g.globalAlpha = 0.5 * speed0;
-    g.drawImage(this.sprites.glow(this.atm.accent), -W * 0.3, H * 0.1, W * 1.6, H * 0.8);
+    blit(g, this.sprites.glow(this.atm.accent), -W * 0.3, H * 0.1, W * 1.6, H * 0.8);
     g.globalAlpha = 0.8 * speed0;
     const star = this.sprites.glow('#FFFFFF', true);
     for (let i = 0; i < 28; i++) {
       const sx = ((tr.lines[i * 3 + 2] * 7.13 + p * 0.25 * tr.lines[i * 3]) % 1) * W;
       const sy = tr.lines[i * 3 + 1] * H;
       const ss = 3 + tr.lines[i * 3] * 5;
-      g.drawImage(star, sx - ss / 2, sy - ss / 2, ss, ss);
+      blit(g, star, sx - ss / 2, sy - ss / 2, ss, ss);
     }
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';
@@ -2659,7 +2685,7 @@ export class World implements PointerSink {
     if (p > 0.03 && p < 0.97) {
       const glow = this.sprites.glow(this.atm.accent);
       g.globalAlpha = 0.9 * speed;
-      g.drawImage(glow, seamX - W * 0.18, cy - H * 0.55, W * 0.36, H * 1.1);
+      blit(g, glow, seamX - W * 0.18, cy - H * 0.55, W * 0.36, H * 1.1);
       g.globalAlpha = speed;
       g.fillStyle = '#FFFFFF';
       g.fillRect(seamX - 1.5, cy - H * 0.46 * zoom, 3, H * 0.92 * zoom);
@@ -2670,7 +2696,7 @@ export class World implements PointerSink {
       const len = W * 0.25 * tr.lines[i * 3 + 2] * speed;
       const lx = ((tr.lines[i * 3] + p * 2.2 * tr.lines[i * 3 + 2]) % 1.3) * W - len;
       g.globalAlpha = 0.35 * speed;
-      g.drawImage(streak, lx, ly - 2, len, 4);
+      blit(g, streak, lx, ly - 2, len, 4);
     }
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';
@@ -2684,7 +2710,7 @@ export class World implements PointerSink {
     v.setPixelTransform();
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';
-    this.bg.renderSky(g);
+    this.bg.renderSky(g, this.q >= 0.7 ? 1 : 0);
 
     const sx = this.fx.shakeX;
     const sy = this.fx.shakeY;
@@ -2705,7 +2731,7 @@ export class World implements PointerSink {
     this.parts.render(g, k, tx, ty);
     this.fx.renderRings(g);
     this.renderGhost(g);
-    this.fx.renderText(g);
+    this.fx.renderText(g, k);
 
     // ekran katmanları (piksel uzayı)
     v.setPixelTransform();
@@ -2756,7 +2782,7 @@ export class World implements PointerSink {
       const pulse = 0.5 + 0.5 * Math.sin(this.realT * 22);
       g.globalAlpha = (0.35 + pulse * 0.5) * p;
       const sz = s.kind === MK.Boss ? 70 : 34;
-      g.drawImage(this.sprites.glow(col, true), s.x - sz / 2, y - sz / 2, sz, sz);
+      blit(g, this.sprites.glow(col, true), s.x - sz / 2, y - sz / 2, sz, sz);
       g.strokeStyle = col;
       g.lineWidth = 3;
       g.beginPath();
@@ -2825,7 +2851,7 @@ export class World implements PointerSink {
     g.stroke();
     const fade = cyc > 0.85 ? (1 - cyc) / 0.15 : 1;
     g.globalAlpha = fade;
-    g.drawImage(this.sprites.glow(this.pen.color, true), x - 40, y - 40, 80, 80);
+    blit(g, this.sprites.glow(this.pen.color, true), x - 40, y - 40, 80, 80);
     g.globalCompositeOperation = 'source-over';
     // dokunma halkası
     g.globalCompositeOperation = 'lighter';

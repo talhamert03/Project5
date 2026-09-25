@@ -30,7 +30,8 @@ export class View {
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
-    const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+    // desynchronized kullanılmaz: bazı emülatör ve GPU'larda yırtılma/titreme yapar
+    const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) throw new Error('Canvas 2D desteklenmiyor');
     this.ctx = ctx;
     this.resize();
@@ -54,7 +55,12 @@ export class View {
 
   maxDpr(): number {
     const cap = this.quality === 'high' ? 2 : this.quality === 'balanced' ? 1.6 : 1.1;
-    return Math.max(1, Math.min(window.devicePixelRatio || 1, cap) * this.adaptive);
+    // piksel bütçesi: tabletlerde (büyük ekran x 2 DPR) tuval 5-6 MP'ye çıkıp GPU'yu boğmasın.
+    // 3,2 MP, 11" tablette bile keskin görüntü verir; telefonlar bu sınırın altında kalır.
+    const budget = this.quality === 'high' ? 3.2e6 : this.quality === 'balanced' ? 2.2e6 : 1.3e6;
+    const area = Math.max(1, window.innerWidth * window.innerHeight);
+    const byBudget = Math.sqrt(budget / area);
+    return Math.max(1, Math.min(window.devicePixelRatio || 1, cap, byBudget) * this.adaptive);
   }
 
   /**

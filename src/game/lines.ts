@@ -1,5 +1,5 @@
 import { clamp, hsl } from '../core/math';
-import type { Sprites } from '../render/sprites';
+import { blit, type Sprites } from '../render/sprites';
 import type { Pen } from './pens';
 
 export const MAXP = 180;
@@ -35,6 +35,14 @@ export class InkLine {
   hue = 0;
   /** buz kristali dokundu: süre dolunca kırılır */
   frozen = 0;
+  /**
+   * Durağan çizginin yolları (Path2D) önbelleği: aynı yol nesnesi kare kare yeniden
+   * kullanılır, tarayıcı rasterleştirmeyi önbellekten yapabilir. Titreşimde geçersizleşir.
+   */
+  pCenter: Path2D | null = null;
+  pOuter: Path2D | null = null;
+  pCore: Path2D | null = null;
+  pBw = 0;
   private lastT = 0;
   private wTarget = 1;
 
@@ -51,6 +59,7 @@ export class InkLine {
     this.wobN = 0;
     this.deflects = 0;
     this.frozen = 0;
+    this.pCenter = this.pOuter = this.pCore = null;
     this.hue = hue;
     this.minX = this.maxX = x;
     this.minY = this.maxY = y;
@@ -124,10 +133,17 @@ export class InkLine {
   }
 
   wobble(s0: number, amp: number): void {
+    this.pCenter = this.pOuter = this.pCore = null;
     const i = this.wobN < 3 ? this.wobN++ : 0;
     this.wob[i * 3] = s0;
     this.wob[i * 3 + 1] = 0;
     this.wob[i * 3 + 2] = amp;
+  }
+
+  /** Çarpma titreşimi hâlâ sürüyor mu */
+  get wobbling(): boolean {
+    for (let w = 0; w < this.wobN; w++) if (this.wob[w * 3 + 1] <= 1.2) return true;
+    return false;
   }
 
   alpha(): number {
@@ -221,6 +237,15 @@ export class LineManager {
       if (a <= 0.01) continue;
       const color = l.frozen > 0 ? '#CFF6FF' : pen.rainbow ? hsl(l.hue + this.t * 90, 95, 62) : pen.color;
       const n = l.n;
+      const flash = l.killT >= 0 ? 1 + (1 - l.killT / 0.16) * 1.5 : 1;
+      const bw = baseWidth * (l.drawing ? 1.05 : 1);
+      const still = !l.drawing && !l.wobbling;
+      if (n >= 2 && still && l.pCenter && l.pOuter && l.pCore && l.pBw === bw) {
+        // durağan çizgi: önbellekteki yollarla çiz
+        this.paint(g, l.pCenter, l.pOuter, l.pCore, color, pen.core, a, flash, bw);
+        if (l.drawing) this.tip(g, l, n, color, pen);
+        continue;
+      }
       // titreşim uygulanmış çizim noktaları
       for (let i = 0; i < n; i++) {
         let x = l.pts[i * 2];
@@ -250,49 +275,62 @@ export class LineManager {
         RR[i * 2 + 1] = y;
       }
 
-      const flash = l.killT >= 0 ? 1 + (1 - l.killT / 0.16) * 1.5 : 1;
-      const bw = baseWidth * (l.drawing ? 1.05 : 1);
-
       if (n >= 2) {
-        // 1-2) ışıma geçişleri (merkez hat)
-        g.strokeStyle = color;
-        g.globalAlpha = 0.14 * a * flash;
-        g.lineWidth = bw * 3.6;
-        this.centerPath(g, n);
-        g.stroke();
-        g.globalAlpha = 0.3 * a * flash;
-        g.lineWidth = bw * 1.8;
-        g.stroke();
-
-        // 3-4) fırça şeridi + beyaz-sıcak çekirdek
+        const center = new Path2D();
+        this.centerPath(center, n);
         this.ribbon(l, n, bw * 0.55);
-        g.fillStyle = color;
-        g.globalAlpha = 0.9 * a;
-        this.fillRibbon(g, n);
+        const outer = new Path2D();
+        this.fillRibbon(outer, n);
         this.ribbon(l, n, bw * 0.2);
-        g.fillStyle = pen.core;
-        g.globalAlpha = 0.95 * a;
-        this.fillRibbon(g, n);
+        const core = new Path2D();
+        this.fillRibbon(core, n);
+        if (still) {
+          l.pCenter = center;
+          l.pOuter = outer;
+          l.pCore = core;
+          l.pBw = bw;
+        } else {
+          l.pCenter = l.pOuter = l.pCore = null;
+        }
+        this.paint(g, center, outer, core, color, pen.core, a, flash, bw);
       }
 
       // çizim ucu parıltısı
-      if (l.drawing) {
-        const x = RR[(n - 1) * 2];
-        const y = RR[(n - 1) * 2 + 1];
-        g.globalAlpha = 0.9;
-        const s = 64 + Math.sin(this.t * 30) * 6;
-        g.drawImage(this.sprites.glow(color), x - s / 2, y - s / 2, s, s);
-        g.globalAlpha = 1;
-        const s2 = 22;
-        g.drawImage(this.sprites.glow(pen.core, true), x - s2 / 2, y - s2 / 2, s2, s2);
-      }
+      if (l.drawing) this.tip(g, l, n, color, pen);
     }
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';
   }
 
-  private centerPath(g: CanvasRenderingContext2D, n: number): void {
-    g.beginPath();
+  /** Işıma geçişleri (merkez hat) + fırça şeridi + beyaz-sıcak çekirdek */
+  private paint(g: CanvasRenderingContext2D, center: Path2D, outer: Path2D, core: Path2D, color: string, coreCol: string, a: number, flash: number, bw: number): void {
+    g.strokeStyle = color;
+    g.globalAlpha = 0.14 * a * flash;
+    g.lineWidth = bw * 3.6;
+    g.stroke(center);
+    g.globalAlpha = 0.3 * a * flash;
+    g.lineWidth = bw * 1.8;
+    g.stroke(center);
+    g.fillStyle = color;
+    g.globalAlpha = 0.9 * a;
+    g.fill(outer);
+    g.fillStyle = coreCol;
+    g.globalAlpha = 0.95 * a;
+    g.fill(core);
+  }
+
+  private tip(g: CanvasRenderingContext2D, l: InkLine, n: number, color: string, pen: Pen): void {
+    const x = l.drawing ? RR[(n - 1) * 2] : l.pts[(n - 1) * 2];
+    const y = l.drawing ? RR[(n - 1) * 2 + 1] : l.pts[(n - 1) * 2 + 1];
+    g.globalAlpha = 0.9;
+    const s = 64 + Math.sin(this.t * 30) * 6;
+    blit(g, this.sprites.glow(color), x - s / 2, y - s / 2, s, s);
+    g.globalAlpha = 1;
+    const s2 = 22;
+    blit(g, this.sprites.glow(pen.core, true), x - s2 / 2, y - s2 / 2, s2, s2);
+  }
+
+  private centerPath(g: CanvasPath, n: number): void {
     g.moveTo(RR[0], RR[1]);
     if (n === 2) {
       g.lineTo(RR[2], RR[3]);
@@ -327,8 +365,7 @@ export class LineManager {
     }
   }
 
-  private fillRibbon(g: CanvasRenderingContext2D, n: number): void {
-    g.beginPath();
+  private fillRibbon(g: CanvasPath, n: number): void {
     g.moveTo(LX[0], LX[1]);
     for (let i = 1; i < n - 1; i++) {
       g.quadraticCurveTo(LX[i * 2], LX[i * 2 + 1], (LX[i * 2] + LX[i * 2 + 2]) * 0.5, (LX[i * 2 + 1] + LX[i * 2 + 3]) * 0.5);
@@ -341,6 +378,5 @@ export class LineManager {
     }
     g.lineTo(RX[0], RX[1]);
     g.closePath();
-    g.fill();
   }
 }

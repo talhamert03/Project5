@@ -10,7 +10,7 @@ def signingValue = { String envKey, String propKey -> System.getenv(envKey) ?: k
 
 // çıktı dosyaları: Inkfall-<sürüm>-debug.apk / Inkfall-<sürüm>-release.aab
 base {
-    archivesName = "Inkfall-" + (System.getenv("MK_VERSION_NAME") ?: "1.2.0")
+    archivesName = "Inkfall-" + (System.getenv("MK_VERSION_NAME") ?: "1.2.1")
 }
 
 android {
@@ -21,7 +21,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode ((System.getenv("MK_VERSION_CODE") ?: "1") as Integer)
-        versionName (System.getenv("MK_VERSION_NAME") ?: "1.2.0")
+        versionName (System.getenv("MK_VERSION_NAME") ?: "1.2.1")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

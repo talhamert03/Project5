@@ -1,5 +1,5 @@
 import { TAU } from '../core/math';
-import type { Canvas } from './sprites';
+import type { Spr } from './sprites';
 
 export const enum Shape {
   /** yumuşak parıltı (sprite) */
@@ -53,8 +53,8 @@ export class Particles {
   private shape: Uint8Array;
   private add: Uint8Array;
 
-  /** sprite kayıt defteri: id -> canvas (Glow/Streak) veya renk (Chip) */
-  private sprites: Canvas[] = [];
+  /** sprite kayıt defteri: id -> atlas görseli (Glow/Streak) veya renk (Chip) */
+  private sprites: Spr[] = [];
   private colors: string[] = [];
   private ids = new Map<string, number>();
 
@@ -81,7 +81,7 @@ export class Particles {
   }
 
   /** Görsel kaydı: aynı anahtar tekrar kayıt edilmez */
-  register(key: string, sprite: Canvas, color = '#fff'): number {
+  register(key: string, sprite: Spr, color = '#fff'): number {
     const found = this.ids.get(key);
     if (found !== undefined) return found;
     const id = this.sprites.length;
@@ -101,6 +101,43 @@ export class Particles {
   }
 
   spawn(o: SpawnOpts): void {
+    this.put(
+      o.x,
+      o.y,
+      o.vx,
+      o.vy,
+      o.life,
+      o.size,
+      o.sizeEnd ?? 0,
+      o.sprite,
+      o.shape ?? Shape.Glow,
+      o.additive === false ? 0 : 1,
+      o.drag ?? 0,
+      o.gravity ?? 0,
+      o.alpha ?? 1,
+      o.spin ?? 0,
+      o.stretch ?? 0.045,
+    );
+  }
+
+  /** Doğrudan dizilere yazar: patlamalarda parçacık başına nesne üretilmez (çöp toplayıcı rahat) */
+  private put(
+    x: number,
+    y: number,
+    vx: number,
+    vy: number,
+    life: number,
+    size: number,
+    sizeEnd: number,
+    sprite: number,
+    shape: number,
+    add: number,
+    drag: number,
+    grav: number,
+    alpha: number,
+    spin: number,
+    stretch: number,
+  ): void {
     let i = this.n;
     if (i >= this.cap) {
       // bütçe doluysa en eski yerine rastgele birini ez (görsel olarak fark edilmez)
@@ -108,23 +145,23 @@ export class Particles {
     } else {
       this.n++;
     }
-    this.x[i] = o.x;
-    this.y[i] = o.y;
-    this.vx[i] = o.vx;
-    this.vy[i] = o.vy;
-    this.life[i] = o.life;
-    this.max[i] = o.life;
-    this.s0[i] = o.size;
-    this.s1[i] = o.sizeEnd ?? 0;
-    this.drag[i] = o.drag ?? 0;
-    this.grav[i] = o.gravity ?? 0;
-    this.alpha[i] = o.alpha ?? 1;
+    this.x[i] = x;
+    this.y[i] = y;
+    this.vx[i] = vx;
+    this.vy[i] = vy;
+    this.life[i] = life;
+    this.max[i] = life;
+    this.s0[i] = size;
+    this.s1[i] = sizeEnd;
+    this.drag[i] = drag;
+    this.grav[i] = grav;
+    this.alpha[i] = alpha;
     this.rot[i] = Math.random() * TAU;
-    this.spin[i] = o.spin ?? 0;
-    this.stretch[i] = o.stretch ?? 0.045;
-    this.spr[i] = o.sprite;
-    this.shape[i] = o.shape ?? Shape.Glow;
-    this.add[i] = o.additive === false ? 0 : 1;
+    this.spin[i] = spin;
+    this.stretch[i] = stretch;
+    this.spr[i] = sprite;
+    this.shape[i] = shape;
+    this.add[i] = add;
   }
 
   /** Dairesel patlama */
@@ -137,21 +174,36 @@ export class Particles {
     speedMax: number,
     life: number,
     size: number,
-    opts: Partial<SpawnOpts> = {},
+    opts?: Partial<SpawnOpts>,
   ): void {
+    const sizeEnd = opts?.sizeEnd ?? 0;
+    const shape = opts?.shape ?? Shape.Glow;
+    const add = opts?.additive === false ? 0 : 1;
+    const drag = opts?.drag ?? 0;
+    const grav = opts?.gravity ?? 0;
+    const alpha = opts?.alpha ?? 1;
+    const spin = opts?.spin ?? 0;
+    const stretch = opts?.stretch ?? 0.045;
     for (let k = 0; k < count; k++) {
       const a = Math.random() * TAU;
       const sp = speedMin + Math.random() * (speedMax - speedMin);
-      this.spawn({
+      this.put(
         x,
         y,
-        vx: Math.cos(a) * sp,
-        vy: Math.sin(a) * sp,
-        life: life * (0.6 + Math.random() * 0.6),
-        size: size * (0.6 + Math.random() * 0.7),
+        Math.cos(a) * sp,
+        Math.sin(a) * sp,
+        life * (0.6 + Math.random() * 0.6),
+        size * (0.6 + Math.random() * 0.7),
+        sizeEnd,
         sprite,
-        ...opts,
-      });
+        shape,
+        add,
+        drag,
+        grav,
+        alpha,
+        spin,
+        stretch,
+      );
     }
   }
 
@@ -236,7 +288,8 @@ export class Particles {
           g.setTransform(k, 0, 0, k, tx, ty);
           transformed = false;
         }
-        g.drawImage(this.sprites[this.spr[i]], x - size * 0.5, y - size * 0.5, size, size);
+        const sp = this.sprites[this.spr[i]];
+        g.drawImage(sp.img, sp.sx, sp.sy, sp.sw, sp.sh, x - size * 0.5, y - size * 0.5, size, size);
       } else if (shape === Shape.Streak) {
         const vx = this.vx[i];
         const vy = this.vy[i];
@@ -246,7 +299,8 @@ export class Particles {
         const s = (vy / sp) * k;
         g.setTransform(c, s, -s, c, tx + x * k, ty + y * k);
         transformed = true;
-        g.drawImage(this.sprites[this.spr[i]], -len * 0.5, -size * 0.5, len, size);
+        const im = this.sprites[this.spr[i]];
+        g.drawImage(im.img, im.sx, im.sy, im.sw, im.sh, -len * 0.5, -size * 0.5, len, size);
       } else {
         const r = this.rot[i];
         const c = Math.cos(r) * k;
