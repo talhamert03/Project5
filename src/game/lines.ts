@@ -33,6 +33,8 @@ export class InkLine {
   wobN = 0;
   deflects = 0;
   hue = 0;
+  /** buz kristali dokundu: süre dolunca kırılır */
+  frozen = 0;
   private lastT = 0;
   private wTarget = 1;
 
@@ -48,6 +50,7 @@ export class InkLine {
     this.shattered = false;
     this.wobN = 0;
     this.deflects = 0;
+    this.frozen = 0;
     this.hue = hue;
     this.minX = this.maxX = x;
     this.minY = this.maxY = y;
@@ -216,7 +219,7 @@ export class LineManager {
       if (!l.alive || l.n < 1) continue;
       const a = l.alpha();
       if (a <= 0.01) continue;
-      const color = pen.rainbow ? hsl(l.hue + this.t * 90, 95, 62) : pen.color;
+      const color = l.frozen > 0 ? '#CFF6FF' : pen.rainbow ? hsl(l.hue + this.t * 90, 95, 62) : pen.color;
       const n = l.n;
       // titreşim uygulanmış çizim noktaları
       for (let i = 0; i < n; i++) {

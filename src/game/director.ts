@@ -1,6 +1,6 @@
 import { clamp } from '../core/math';
 import { Rng } from '../core/rng';
-import { KINDS, MK } from './meteors';
+import { BOSS_TYPES, KINDS, MK, SPAWN_KINDS } from './meteors';
 
 export interface Spawn {
   t: number;
@@ -9,7 +9,12 @@ export interface Spawn {
   y: number;
   vx: number;
   vy: number;
+  /** boss dalgasında boss türü */
+  boss?: number;
 }
+
+/** Türlerin ilk görüldüğü dalga (SPAWN_KINDS sırası) */
+const INTRO_WAVE = [1, 2, 3, 4, 7, 9, 12, 6];
 
 export interface DirectorMods {
   speed: number;
@@ -32,8 +37,10 @@ export class Director {
   bossSpawned = false;
   escortT = 0;
   goldenBonus = 0;
-  /** atmosfer eğilimi: normal, hızlı, zırhlı, bölünen ağırlık çarpanları */
-  bias: [number, number, number, number] = [1, 1, 1, 1];
+  /** atmosfer eğilimi: SPAWN_KINDS sırasıyla ağırlık çarpanları */
+  bias: number[] = [1, 1, 1, 1, 1, 1, 1, 1];
+  /** bu dalganın boss türü */
+  bossType = 0;
 
   constructor(
     seed: number,
@@ -48,7 +55,8 @@ export class Director {
 
   baseSpeed(H: number): number {
     const w = this.wave;
-    const s = 195 + 12 * Math.min(w, 25) + 4 * Math.max(0, w - 25);
+    // ilk dalgalar öğretici hızda; 10. dalgadan sonra tempo biraz daha artar
+    const s = 195 + 12 * Math.min(w, 10) + 13.5 * Math.max(0, Math.min(w, 28) - 10) + 4 * Math.max(0, w - 28);
     return s * (H / 1280) * this.mods.speed;
   }
 
@@ -57,15 +65,17 @@ export class Director {
     const r = this.rng;
     const golden = (w >= 2 ? 0.035 : 0) * this.mods.golden + this.goldenBonus;
     if (r.chance(golden)) return MK.Golden;
-    const ww = this.mods.chaos ? Math.max(w, 8) : w;
-    const weights = [
-      1,
-      ww >= 2 ? Math.min(0.45, 0.16 + 0.02 * ww) : 0,
-      ww >= 3 ? Math.min(0.3, 0.1 + 0.012 * ww) : 0,
-      ww >= 4 ? Math.min(0.28, 0.1 + 0.01 * ww) : 0,
-    ];
-    for (let i = 0; i < 4; i++) weights[i] *= this.bias[i];
-    return r.weighted(weights) as MK;
+    const ww = this.mods.chaos ? Math.max(w, 14) : w;
+    // her tür tanıtıldığı dalgada hafif başlar, zamanla bir tavana kadar artar
+    const cap = [1, 0.45, 0.3, 0.28, 0.22, 0.22, 0.2, 0.18];
+    const weights = SPAWN_KINDS.map((_, i) => {
+      if (i === 0) return 1;
+      const since = ww - INTRO_WAVE[i];
+      if (since < 0) return 0;
+      return Math.min(cap[i], 0.1 + 0.02 * since) * (this.bias[i] ?? 1);
+    });
+    weights[0] *= this.bias[0] ?? 1;
+    return SPAWN_KINDS[r.weighted(weights)];
   }
 
   /** Dalga planla. groundY: şehir çatı hizası, H: dünya yüksekliği */
@@ -90,12 +100,25 @@ export class Director {
     };
     const add = (t: number, kind: MK, x: number, vx: number, vy: number, yOff = 0): void => {
       const rr = KINDS[kind].r * this.mods.size;
+      if (kind === MK.Comet) {
+        // kuyruklu yıldız: bir köşeden girip şehrin öbür yanına çapraz dalar
+        const left = r.chance(0.5);
+        const sx = left ? r.range(30, 160) : r.range(560, 690);
+        const tx = left ? r.range(420, 690) : r.range(30, 300);
+        const dx = tx - sx;
+        const dy = groundY + 40;
+        const L = Math.hypot(dx, dy);
+        const sp = speed * KINDS[kind].speed * r.range(0.95, 1.08);
+        this.queue.push({ t, kind, x: sx, y: -rr - 12 - yOff, vx: (dx / L) * sp, vy: (dy / L) * sp });
+        return;
+      }
       this.queue.push({ t, kind, x, y: -rr - 12 - yOff, vx, vy });
     };
 
     if (this.bossWave) {
-      // Boss dalgası: 1.2 sn sonra boss, önünde küçük bir öncü akın
-      this.queue.push({ t: 1.2, kind: MK.Boss, x: 360, y: -110, vx: 0, vy: 0 });
+      // Boss dalgası: 1.2 sn sonra boss, önünde küçük bir öncü akın. Her 5 dalgada farklı boss.
+      this.bossType = (Math.round(wave / 5) - 1) % BOSS_TYPES;
+      this.queue.push({ t: 1.2, kind: MK.Boss, x: 360, y: -110, vx: 0, vy: 0, boss: this.bossType });
       let t = 3;
       for (let i = 0; i < 4 + Math.floor(wave / 5); i++) {
         const kind = this.pickKind();
@@ -121,6 +144,7 @@ export class Director {
         pw(4, 0.35), // küme
         pw(5, 0.3), // V
         pw(6, 0.28), // yağmur
+        pw(8, 0.22), // kuyruklu yıldız sağanağı
       ]);
       let n = 1;
       if (pattern === 0) {
@@ -164,13 +188,17 @@ export class Director {
           const off = i - 2;
           add(t, MK.Normal, cx + off * 58, vx, vy, Math.abs(off) * 48);
         }
-      } else {
+      } else if (pattern === 6) {
         n = r.int(5, 7);
         for (let i = 0; i < n; i++) {
           const x = r.range(40, 680);
           const [vx, vy] = aim(x, MK.Shard, speed * 1.05);
           add(t + i * 0.13, MK.Shard, x, vx, vy);
         }
+      } else {
+        // aynı köşeden art arda üç kuyruklu yıldız
+        n = 3;
+        for (let i = 0; i < n; i++) add(t + i * 0.42, MK.Comet, 0, 0, 0);
       }
       count += n;
       const gap = Math.max(0.45, 1.45 - wave * 0.07) + n * 0.18 + r.range(-0.15, 0.2);
@@ -179,12 +207,22 @@ export class Director {
     this.queue.sort((a, b) => a.t - b.t);
   }
 
-  /** Boss hayattayken periyodik eskort meteorları */
+  /** Boss hayattayken periyodik eskort meteorları (boss türüne özgü tür ağırlıklı) */
   escort(dt: number, H: number, groundY: number): Spawn | null {
     this.escortT -= dt;
     if (this.escortT > 0) return null;
     this.escortT = Math.max(1.6, 3.2 - this.wave * 0.05);
-    const kind = this.pickKind();
+    const signature = [MK.Normal, MK.Comet, MK.Ice, MK.Phantom, MK.Nova][this.bossType] ?? MK.Normal;
+    const kind = this.bossType > 0 && this.rng.chance(0.5) ? signature : this.pickKind();
+    if (kind === MK.Comet) {
+      const left = this.rng.chance(0.5);
+      const sx = left ? 60 : 660;
+      const dx = (left ? 1 : -1) * this.rng.range(250, 500);
+      const dy = groundY + 40;
+      const L = Math.hypot(dx, dy);
+      const s = this.baseSpeed(H) * KINDS[kind].speed * 0.95;
+      return { t: 0, kind, x: sx, y: -KINDS[kind].r - 12, vx: (dx / L) * s, vy: (dy / L) * s };
+    }
     const x = this.rng.range(50, 670);
     const tx = clamp(x + this.rng.range(-200, 200), 40, 680);
     const dx = tx - x;

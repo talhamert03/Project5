@@ -84,6 +84,25 @@ export function metaBonus(save: SaveData): MetaBonus {
   };
 }
 
+// ───────────────────────── YETENEKLER ─────────────────────────
+
+export interface SkillDef {
+  id: 'nova' | 'warp' | 'aegis' | 'starfall';
+  price: number;
+  icon: string;
+  color: string;
+}
+
+/** Oyun içi aktif yetenekler: düşmanları yok ettikçe dolar, tek dokunuşla tetiklenir */
+export const SKILLS: SkillDef[] = [
+  { id: 'nova', price: 0, icon: 'burst', color: '#FFFFFF' },
+  { id: 'warp', price: 1800, icon: 'clock', color: '#6EC8FF' },
+  { id: 'aegis', price: 3200, icon: 'shield', color: '#3EF0E0' },
+  { id: 'starfall', price: 5000, icon: 'stars', color: '#FFC857' },
+];
+
+export const SKILL_BY_ID = new Map(SKILLS.map((s) => [s.id as string, s]));
+
 // ───────────────────────── GÜNLÜK MEYDAN OKUMA ─────────────────────────
 
 export const DAILY_MODS: DailyMod[] = [

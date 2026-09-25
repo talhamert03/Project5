@@ -18,22 +18,28 @@ Parmağını sürükle, ışıldayan bir mürekkep çizgisi çiz. Meteorlar çiz
 Çizerken zaman yavaşlar ve nişan almak kolaylaşır. Ama mürekkebin sınırlı: kısa ve doğru açılı çizgiler kazandırır.
 
 ★ HER OYUN FARKLI
-Her dalga sonunda 3 güçten birini seç: Ayna, Zincir Şimşek, Kara Delik, Anka Kuşu ve dahası. 19 güç, 4 nadirlik seviyesi.
+Her dalga sonunda 3 güçten birini seç: Mıknatıs Uç, Koruyucu Uydu, Zincir Şimşek, Kara Delik, Anka Kuşu ve dahası. 27 güç, 4 nadirlik seviyesi.
 
-★ KIZIL DEV
-Her beş dalgada bir dev bir meteor gelir. Minyonlarını ona geri sektirerek yık.
+★ YETENEKLER
+Meteor patlattıkça yetenek halkan dolar. Tek dokunuşla Yıldız Patlaması, Zaman Kırılması, Aegis Kalkanı ya da Yıldız Yağmuru'nu serbest bırak.
 
-★ ALTI DÜNYA
-Her bölüm sonunda sahne tamburu döner, arkasından yeni bir dünya çıkar: Gece, Alacakaranlık, Kuzey Işıkları, Kızıl Kıyamet, Kozmos ve Ebru Rüyası. Her dünyanın kendi gökyüzü, müziği ve sürprizi var.
+★ BEŞ BOSS, SEVİMLİ AMA ÇETİN
+Kaya Titanı, Kuyruklu Kraliçe, Buz Kalesi, Tekillik ve İkiz Yıldızlar. Her birinin kendi taktiği var.
+
+★ YENİ METEORLAR
+Çapraz dalan kuyruklu yıldızlar, çizgini donduran buz kristalleri, saydamlaşıp çizgilerden geçen hayaletler ve dev zincir başlatan nova çekirdekleri.
+
+★ DOKUZ UZAY DÜNYASI
+Her bölüm sonunda sahne tamburu döner, arkasından yeni bir dünya çıkar: Gece, Alacakaranlık, Kuzey Işıkları, Kızıl Kıyamet, Kozmos, Orion Bulutsusu, Satürn Halkaları, Olay Ufku ve Süpernova. Her dünyanın kendi gökyüzü, müziği ve sürprizi var.
 
 ★ REKABET
 Çıraklıktan Efsane'ye uzanan hat sanatı rütbeleri. Her gün herkesin aynı meteorlarla oynadığı günlük meydan okuma, 7 günlük hediye takvimi, günlük seri bonusu, görevler ve rekor tablosu.
 
-★ İSTANBUL'UN GECESİ
+★ ŞEHRİN GECESİ
 Ebru desenli bir gökyüzü, Boğaz Köprüsü'nün ışıkları, apartmanlar ve cumbalı evler. Hicaz makamında üretken müzik ve her sekmede yükselen melodik sesler.
 
-★ İNTERNETSİZ, REKLAMSIZ
-Oyun tamamen çevrimdışı çalışır. Hiçbir kişisel veri toplanmaz.
+★ ADİL VE ÜCRETSİZ
+Zorunlu reklam yok. Yalnızca istersen video izleyip devam et, altınlarını ikiye katla. Reklamları tamamen kaldırmak için Reklamsız paketi.
 
 ## English (en-US)
 
@@ -53,31 +59,39 @@ Drag your finger to draw a glowing ink line. Meteors bounce off it. Deflect one 
 Time slows while you draw so you can aim. But ink is limited: short, well-angled lines win.
 
 ★ EVERY RUN IS DIFFERENT
-After each wave pick one of three powers: Mirror, Chain Lightning, Black Hole, Phoenix and more. 19 powers across 4 rarities.
+After each wave pick one of three powers: Magnet Nib, Guardian Satellite, Chain Lightning, Black Hole, Phoenix and more. 27 powers across 4 rarities.
 
-★ THE RED GIANT
-Every fifth wave a giant meteor arrives. Bounce its minions back into it to bring it down.
+★ SKILLS
+Destroying meteors charges your skill ring. Unleash Starburst, Time Fracture, Aegis Shield or Starfall with a single tap.
 
-★ SIX WORLDS
-At the end of each chapter the stage turns and a new world appears behind it: Night, Dusk, Northern Lights, Crimson Doom, Cosmos and Ebru Dream. Each has its own sky, music and twist.
+★ FIVE BOSSES, CUTE BUT TOUGH
+Rock Titan, Comet Queen, Frost Citadel, Singularity and Twin Stars, each with its own tactics.
+
+★ NEW METEORS
+Diving comets, ice crystals that freeze your lines, phantoms that fade through them and nova cores that set off giant chains.
+
+★ NINE SPACE WORLDS
+At the end of each chapter the stage turns and a new world appears behind it: Night, Dusk, Northern Lights, Crimson Doom, Cosmos, Orion Nebula, Saturn's Rings, Event Horizon and Supernova. Each has its own sky, music and twist.
 
 ★ COMPETITION
 Calligraphy ranks from Apprentice to Legend. A daily challenge where everyone plays the same meteors, a 7-day gift calendar, daily streak bonus, missions and records.
 
-★ ISTANBUL AT NIGHT
+★ THE CITY AT NIGHT
 A marbled ebru sky, the lights of the Bosphorus Bridge, apartment blocks and wooden bay-window houses. Generative music in the Hicaz maqam, with melodic notes that climb with every bounce.
 
-★ OFFLINE, NO ADS
-Plays fully offline. No personal data is collected.
+★ FAIR AND FREE
+No forced ads. Watch a video only when you want to continue or double your gold. Remove ads entirely with the No Ads pack.
 
 ## Kategori ve etiketler
 
 - Kategori: Oyun → Arcade
-- Etiketler: Arcade, Tek oyunculu, Çevrimdışı, Stilize
+- Etiketler: Arcade, Tek oyunculu, Stilize, Uzay
+- Reklam içerir: Evet (yalnızca isteğe bağlı ödüllü video)
+- Uygulama içi satın alma: Evet
 - İletişim e-postası: (Play Console'da kendi adresini gir)
 
-## Sürüm notları (1.1.0)
+## Sürüm notları (1.2.0)
 
-**TR:** Altı dünya ve dönen sahne geçişleri, HD ebru gökyüzü, yenilenen ana menü, günlük hediye, altınla devam, "Son anda" bonusu.
+**TR:** Üç yeni uzay dünyası (Satürn Halkaları, Olay Ufku, Süpernova), beş farklı boss, dört yeni meteor türü, aktif yetenekler, 8 yeni güç kartı ve denge ayarları, mağaza ve video izleyerek devam.
 
-**EN:** Six worlds with a turning-stage transition, HD ebru sky, redesigned home screen, daily gift, continue with gold, close-call bonus.
+**EN:** Three new space worlds (Saturn's Rings, Event Horizon, Supernova), five distinct bosses, four new meteor types, active skills, 8 new power cards and balance changes, a shop and continue by watching a video.

@@ -25,6 +25,12 @@ export class HudView {
   private bossFill!: HTMLElement;
   private hintEl!: HTMLElement;
   private fpsEl!: HTMLElement;
+  private skillBtn!: HTMLButtonElement;
+  private skillRing!: SVGCircleElement;
+  private skillIc!: HTMLElement;
+  private bossLabel!: HTMLElement;
+  private lastSkill = -1;
+  private lastSkillReady = false;
 
   private shownScore = 0;
   private lastScoreText = '';
@@ -74,10 +80,15 @@ export class HudView {
         <div class="count" id="h-count"></div>
       </div>
       <div class="boss-bar" id="h-boss" hidden>
-        <div class="label">${t('hud.boss')}</div>
+        <div class="label" id="h-bosslabel">${t('hud.boss')}</div>
         <div class="bar"><i id="h-bossfill" style="--w:100%"></i></div>
       </div>
       <div class="hint" id="h-hint" hidden></div>
+      <button class="skill-btn interactive" data-a="skill" id="h-skill" aria-label="skill">
+        <svg class="skill-ring" viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="28"/><circle class="fg" id="h-skillring" cx="32" cy="32" r="28"/></svg>
+        <span class="skill-ic" id="h-skillic"></span>
+        <span class="skill-ready">${t('hud.skillReady')}</span>
+      </button>
       <div class="fps" id="h-fps" hidden></div>`;
     const $ = <T extends HTMLElement>(id: string): T => this.root.querySelector('#' + id) as T;
     this.score = $('h-score');
@@ -95,6 +106,10 @@ export class HudView {
     this.bossFill = $('h-bossfill');
     this.hintEl = $('h-hint');
     this.fpsEl = $('h-fps');
+    this.skillBtn = $('h-skill') as HTMLButtonElement;
+    this.skillRing = this.root.querySelector('#h-skillring') as SVGCircleElement;
+    this.skillIc = $('h-skillic');
+    this.bossLabel = $('h-bosslabel');
     this.invalidate();
   }
 
@@ -107,6 +122,25 @@ export class HudView {
     this.lastWave = -1;
     this.lastBoss = -2;
     this.lastCoins = -1;
+    this.lastSkill = -1;
+    this.lastSkillReady = false;
+  }
+
+  /** Eğitimde yetenek düğmesi gizlenir */
+  showSkill(on: boolean): void {
+    this.skillBtn.hidden = !on;
+  }
+
+  /** Turun yeteneği: ikon ve renk */
+  setSkill(iconName: string, color: string): void {
+    this.skillIc.innerHTML = icon(iconName);
+    this.skillBtn.style.setProperty('--sc', color);
+    this.lastSkill = -1;
+  }
+
+  /** Boss barının etiketi (boss adı) */
+  setBossName(name: string): void {
+    this.bossLabel.textContent = name;
   }
 
   show(on: boolean): void {
@@ -235,6 +269,20 @@ export class HudView {
         if (wasHidden) this.boss.style.animation = '';
       }
       if (changed) this.onLayout?.();
+    }
+
+    // yetenek halkası: dolum oranı (her %1'de bir güncelle)
+    const sk = Math.round(Math.min(1, h.skill) * 100);
+    const ready = sk >= 100 && !h.skillActive;
+    if (sk !== this.lastSkill || ready !== this.lastSkillReady) {
+      this.lastSkill = sk;
+      this.skillRing.style.strokeDashoffset = String(176 * (1 - sk / 100));
+      if (ready !== this.lastSkillReady) {
+        this.lastSkillReady = ready;
+        this.skillBtn.classList.toggle('ready', ready);
+        if (ready) pulse(this.skillBtn, 1.3);
+      }
+      this.skillBtn.classList.toggle('active', h.skillActive);
     }
 
     if (h.coins !== this.lastCoins) {

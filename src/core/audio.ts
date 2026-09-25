@@ -470,6 +470,63 @@ export class AudioEngine {
     this.tone({ type: 'sine', freq: mtof(base - 12), dur: 1.4, vol: 0.25 });
   }
 
+  /** Buz kristali çizgiyi dondurdu */
+  freeze(): void {
+    if (!this.gate('freeze', 0.1)) return;
+    this.tone({ type: 'sine', freq: 2400, freqEnd: 1200, dur: 0.3, vol: 0.06, reverb: 0.4 });
+    this.noiseBurst({ type: 'highpass', freq: 5000, dur: 0.25, vol: 0.08 });
+  }
+
+  /** Yetenek doldu: kısa, parlak bir yükseliş */
+  skillReady(): void {
+    if (!this.ctx || !this.sfxOn) return;
+    const t = this.ctx.currentTime;
+    [0, 4, 7, 12].forEach((s, i) => {
+      this.tone({ type: 'triangle', freq: mtof(74 + s), dur: 0.3, vol: 0.06, when: t + i * 0.05, reverb: 0.5 });
+    });
+  }
+
+  /** Yıldız Patlaması: derin gümbürtü + yükselen parıltı */
+  skillNova(): void {
+    if (!this.ctx || !this.sfxOn) return;
+    this.tone({ type: 'sine', freq: 90, freqEnd: 30, dur: 1.2, vol: 0.5 });
+    this.noiseBurst({ type: 'lowpass', freq: 4000, freqEnd: 200, dur: 1.4, vol: 0.4, reverb: 0.6 });
+    this.tone({ type: 'sawtooth', freq: 220, freqEnd: 1760, dur: 0.9, vol: 0.06, lp: 3000, reverb: 0.5 });
+  }
+
+  /** Zaman Kırılması: geri sarılan saat tiki */
+  skillWarp(): void {
+    if (!this.ctx || !this.sfxOn) return;
+    const t = this.ctx.currentTime;
+    this.tone({ type: 'sine', freq: 1600, freqEnd: 200, dur: 1.2, vol: 0.12, reverb: 0.7 });
+    for (let i = 0; i < 6; i++) this.tone({ type: 'square', freq: 3000 - i * 300, dur: 0.03, vol: 0.03, when: t + i * 0.12, lp: 5000 });
+  }
+
+  /** Aegis Kalkanı: parlayan uğultu */
+  skillAegis(): void {
+    if (!this.ctx || !this.sfxOn) return;
+    this.tone({ type: 'sawtooth', freq: 110, freqEnd: 220, dur: 1.2, vol: 0.08, attack: 0.3, lp: 1400, reverb: 0.6 });
+    this.tone({ type: 'triangle', freq: mtof(74), dur: 1.4, vol: 0.08, attack: 0.2, reverb: 0.8 });
+    this.tone({ type: 'triangle', freq: mtof(81), dur: 1.4, vol: 0.06, attack: 0.3, reverb: 0.8 });
+  }
+
+  /** Yıldız Yağmuru: art arda çınlayan yükselişler */
+  skillStar(): void {
+    if (!this.ctx || !this.sfxOn) return;
+    const t = this.ctx.currentTime;
+    for (let i = 0; i < 8; i++) {
+      this.tone({ type: 'triangle', freq: mtof(hicaz(i * 2, 74)), dur: 0.35, vol: 0.05, when: t + i * 0.08, reverb: 0.6 });
+    }
+  }
+
+  /** Satın alma / ödül: kasa çınlaması */
+  purchase(): void {
+    if (!this.ctx || !this.sfxOn) return;
+    const t = this.ctx.currentTime;
+    for (let i = 0; i < 6; i++) this.tone({ type: 'sine', freq: 2000 + i * 260, dur: 0.14, vol: 0.05, when: t + i * 0.05 });
+    [0, 4, 7, 12].forEach((s, i) => this.tone({ type: 'triangle', freq: mtof(69 + s), dur: 0.6, vol: 0.07, when: t + 0.1 + i * 0.06, reverb: 0.5 }));
+  }
+
   // ───────────────────────── MÜZİK ─────────────────────────
 
   /** Atmosfer müziği: bir sonraki ölçüden itibaren yeni ton ve tempo */

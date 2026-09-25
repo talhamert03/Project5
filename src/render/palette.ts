@@ -28,4 +28,11 @@ export const METEOR_COLORS = {
   golden: '#FFD866',
   shard: '#FF7F4F',
   boss: '#FF3355',
+  comet: '#7FFFE0',
+  ice: '#A8E6FF',
+  phantom: '#C79BFF',
+  nova: '#FF4FD8',
 } as const;
+
+/** Boss türlerine göre ışıma rengi: Kaya Titanı, Kuyruklu Kraliçe, Buz Kalesi, Tekillik, İkiz Yıldızlar */
+export const BOSS_COLORS = ['#FF3355', '#7FFFE0', '#8FE8FF', '#B066FF', '#FFB030'] as const;

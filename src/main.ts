@@ -1,5 +1,6 @@
 import './styles/main.css';
 import './ui/strings';
+import './ui/strings2';
 import { App } from './app';
 
 function boot(): void {

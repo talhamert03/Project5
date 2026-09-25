@@ -56,6 +56,15 @@ export interface SaveData {
   menuAtm: number;
   /** günlük hediye: son alınan gün ve 7 günlük döngüdeki sıra */
   gift: { last: string; day: number };
+  /** Reklamsız paket: ödüllü videoların ödülü anında verilir */
+  noAds: boolean;
+  /** başlangıç paketi (tek sefer) alındı mı */
+  starter: boolean;
+  /** açılan yetenekler ve takılı olan */
+  skills: string[];
+  skill: string;
+  /** günlük ücretsiz altın videoları */
+  adCoins: { date: string; n: number };
 }
 
 const KEY = 'murekkep-kalkani/save/v1';
@@ -93,6 +102,11 @@ export function defaultSave(): SaveData {
     maxAtm: 0,
     menuAtm: 0,
     gift: { last: '', day: 0 },
+    noAds: false,
+    starter: false,
+    skills: ['nova'],
+    skill: 'nova',
+    adCoins: { date: '', n: 0 },
   };
 }
 
@@ -110,6 +124,8 @@ export function loadSave(): SaveData {
       daily: { ...def.daily, ...(parsed.daily ?? {}) },
       streak: { ...def.streak, ...(parsed.streak ?? {}) },
       gift: { ...def.gift, ...(parsed.gift ?? {}) },
+      adCoins: { ...def.adCoins, ...(parsed.adCoins ?? {}) },
+      skills: Array.isArray(parsed.skills) && parsed.skills.length ? parsed.skills : def.skills,
       workshop: { ...(parsed.workshop ?? {}) },
       missionTiers: { ...(parsed.missionTiers ?? {}) },
       pens: Array.isArray(parsed.pens) && parsed.pens.length ? parsed.pens : def.pens,

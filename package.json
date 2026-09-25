@@ -1,6 +1,6 @@
 {
   "name": "inkfall",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Mürekkep Kalkanı — çizerek meteorları sektirdiğin, İstanbul'u koruduğun mobil arcade oyunu.",
   "scripts": {
     "dev": "vite --host",
@@ -30,11 +30,13 @@
     "vite-plugin-singlefile": "^2.3.3"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^8.1.0",
     "@capacitor/android": "^8.5.2",
     "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.5.2",
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/status-bar": "^8.0.3",
+    "@capgo/native-purchases": "^8.8.1",
     "@fontsource-variable/rubik": "^5.3.0",
     "@fontsource-variable/unbounded": "^5.3.0"
   },

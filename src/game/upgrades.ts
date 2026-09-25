@@ -23,6 +23,22 @@ export interface Stats {
   scoreMult: number;
   coinMult: number;
   phoenix: number;
+  /** dost meteorların düşmana yönelme gücü */
+  magnet: number;
+  /** sekmede çevredeki düşmanları yavaşlatma (sn) */
+  frost: number;
+  /** dost meteor tavandan kaç kez geri seker */
+  ricochet: number;
+  /** koruyucu uydu seviyesi (0 = yok) */
+  guardian: number;
+  /** altın meteor başına ek altın */
+  luckyCoins: number;
+  /** her 10 komboda dolan mürekkep */
+  inkSurge: number;
+  /** yetenek dolum hızı çarpanı */
+  charge: number;
+  /** mahalle yıkılınca mürekkep dolar + ağır çekim */
+  secondWind: number;
 }
 
 export function baseStats(): Stats {
@@ -49,6 +65,14 @@ export function baseStats(): Stats {
     scoreMult: 1,
     coinMult: 1,
     phoenix: 0,
+    magnet: 0,
+    frost: 0,
+    ricochet: 0,
+    guardian: 0,
+    luckyCoins: 0,
+    inkSurge: 0,
+    charge: 1,
+    secondWind: 0,
   };
 }
 
@@ -71,9 +95,10 @@ export interface UpgradeDef {
 }
 
 export const UPGRADES: UpgradeDef[] = [
-  { id: 'ink_regen', rarity: Rarity.Common, max: 5, icon: 'drop', apply: (s) => (s.inkRegen *= 1.3), value: () => '30' },
-  { id: 'ink_max', rarity: Rarity.Common, max: 5, icon: 'well', apply: (s) => (s.maxInk += 25), value: () => '25' },
-  { id: 'line_life', rarity: Rarity.Common, max: 4, icon: 'hourglass', apply: (s) => (s.lineLife *= 1.35), value: () => '35' },
+  // ── Sıradan: temel ekonomi, küçük ama güvenilir adımlar
+  { id: 'ink_regen', rarity: Rarity.Common, max: 5, icon: 'drop', apply: (s) => (s.inkRegen *= 1.2), value: () => '20' },
+  { id: 'ink_max', rarity: Rarity.Common, max: 5, icon: 'well', apply: (s) => (s.maxInk += 22), value: () => '22' },
+  { id: 'line_life', rarity: Rarity.Common, max: 4, icon: 'hourglass', apply: (s) => (s.lineLife *= 1.3), value: () => '30' },
   {
     id: 'bounce',
     rarity: Rarity.Common,
@@ -84,18 +109,27 @@ export const UPGRADES: UpgradeDef[] = [
       s.deflectScoreMult += 0.5;
     },
   },
-  { id: 'blast', rarity: Rarity.Common, max: 4, icon: 'blast', apply: (s) => (s.explosionR *= 1.2), value: () => '20' },
+  { id: 'blast', rarity: Rarity.Common, max: 4, icon: 'blast', apply: (s) => (s.explosionR *= 1.18), value: () => '18' },
   { id: 'repair', rarity: Rarity.Common, max: 99, icon: 'house', apply: () => undefined },
+  {
+    id: 'lucky',
+    rarity: Rarity.Common,
+    max: 3,
+    icon: 'star',
+    apply: (s) => (s.luckyCoins += 3),
+  },
+  { id: 'ink_surge', rarity: Rarity.Common, max: 3, icon: 'wave', apply: (s) => (s.inkSurge += 18), value: (l) => String(l * 18) },
+  // ── Nadir: oynanışı değiştiren araçlar
   { id: 'extra_line', rarity: Rarity.Rare, max: 2, icon: 'lines', apply: (s) => (s.maxLines += 1) },
-  { id: 'leech', rarity: Rarity.Rare, max: 2, icon: 'leech', apply: (s) => (s.inkPerKill *= 2) },
+  { id: 'leech', rarity: Rarity.Rare, max: 2, icon: 'leech', apply: (s) => (s.inkPerKill *= 1.8) },
   {
     id: 'timewarp',
     rarity: Rarity.Rare,
     max: 2,
     icon: 'clock',
     apply: (s) => {
-      s.slowmo *= 0.68;
-      s.drawCost *= 0.85;
+      s.slowmo *= 0.7;
+      s.drawCost *= 0.87;
     },
   },
   {
@@ -110,10 +144,18 @@ export const UPGRADES: UpgradeDef[] = [
   },
   { id: 'comet', rarity: Rarity.Rare, max: 3, icon: 'comet', apply: (s) => (s.cometBurst += 1) },
   { id: 'dome', rarity: Rarity.Rare, max: 3, icon: 'dome', apply: (s) => (s.domePerWave += 1) },
+  { id: 'magnet', rarity: Rarity.Rare, max: 2, icon: 'magnet', apply: (s) => (s.magnet += 1) },
+  { id: 'frost', rarity: Rarity.Rare, max: 2, icon: 'snow', apply: (s) => (s.frost += 1.4), value: (l) => (l * 1.4).toFixed(1) },
+  { id: 'ricochet', rarity: Rarity.Rare, max: 2, icon: 'ricochet', apply: (s) => (s.ricochet += 1), value: (l) => String(l) },
+  { id: 'overcharge', rarity: Rarity.Rare, max: 3, icon: 'battery', apply: (s) => (s.charge += 0.25), value: (l) => String(l * 25) },
+  { id: 'second_wind', rarity: Rarity.Rare, max: 1, icon: 'wind', apply: (s) => (s.secondWind = 1) },
+  // ── Destansı: güçlü kombinasyonlar
   { id: 'mirror', rarity: Rarity.Epic, max: 2, icon: 'mirror', apply: (s) => (s.mirror += 1) },
   { id: 'chain', rarity: Rarity.Epic, max: 3, icon: 'bolt', apply: (s) => (s.chain += 1), value: (l) => String(l) },
-  { id: 'fire', rarity: Rarity.Epic, max: 3, icon: 'flame', apply: (s) => (s.fireChance += 0.22), value: (l) => String(l * 22) },
+  { id: 'fire', rarity: Rarity.Epic, max: 3, icon: 'flame', apply: (s) => (s.fireChance += 0.15), value: (l) => String(l * 15) },
   { id: 'pierce', rarity: Rarity.Epic, max: 3, icon: 'arrow', apply: (s) => (s.pierce += 1), value: (l) => String(l) },
+  { id: 'guardian', rarity: Rarity.Epic, max: 2, icon: 'satellite', apply: (s) => (s.guardian += 1), value: (l) => (l >= 2 ? '4' : '7') },
+  // ── Efsanevi: tur kazandıran nadir güçler
   { id: 'blackhole', rarity: Rarity.Legendary, max: 1, icon: 'hole', apply: (s) => (s.blackHole += 1) },
   {
     id: 'midas',
@@ -121,8 +163,8 @@ export const UPGRADES: UpgradeDef[] = [
     max: 2,
     icon: 'crown',
     apply: (s) => {
-      s.scoreMult += 0.5;
-      s.coinMult += 0.5;
+      s.scoreMult += 0.4;
+      s.coinMult += 0.4;
     },
   },
   { id: 'phoenix', rarity: Rarity.Legendary, max: 1, icon: 'phoenix', apply: (s) => (s.phoenix += 1) },

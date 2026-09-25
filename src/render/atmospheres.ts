@@ -4,8 +4,8 @@
  * müzik tonu ve küçük bir oynanış farkı vardır.
  */
 
-export type Celestial = 'crescent' | 'sun' | 'fullmoon' | 'bloodmoon' | 'planet' | 'twin';
-export type Ambient = 'none' | 'petals' | 'snow' | 'embers' | 'stardust' | 'ink';
+export type Celestial = 'crescent' | 'sun' | 'fullmoon' | 'bloodmoon' | 'planet' | 'twin' | 'belt' | 'saturn' | 'blackhole' | 'supernova';
+export type Ambient = 'none' | 'petals' | 'snow' | 'embers' | 'stardust' | 'ink' | 'crystals' | 'spiral' | 'sparks';
 
 export interface Atmosphere {
   id: string;
@@ -38,8 +38,8 @@ export interface Atmosphere {
   music: { root: number; bpm: number };
   /** düşman meteorlara yatay rüzgâr ivmesi (birim/sn²) */
   wind: number;
-  /** meteor türü ağırlık çarpanları: normal, hızlı, zırhlı, bölünen */
-  bias: [number, number, number, number];
+  /** meteor türü ağırlık çarpanları: normal, hızlı, zırhlı, bölünen, kuyruklu, buz, hayalet, nova */
+  bias: number[];
   /** arayüz vurgu rengi */
   accent: string;
 }
@@ -77,7 +77,7 @@ export const ATMOSPHERES: Atmosphere[] = [
     lightning: false,
     music: { root: 0, bpm: 104 },
     wind: 0,
-    bias: [1, 1, 1, 1],
+    bias: [1, 1, 1, 1, 1, 1, 1, 1],
     accent: '#3EF0E0',
   },
   {
@@ -112,7 +112,7 @@ export const ATMOSPHERES: Atmosphere[] = [
     lightning: false,
     music: { root: 2, bpm: 100 },
     wind: 20,
-    bias: [1, 1, 1, 1.3],
+    bias: [1, 1, 1, 1.3, 1, 1, 1, 1],
     accent: '#FFB45E',
   },
   {
@@ -146,7 +146,7 @@ export const ATMOSPHERES: Atmosphere[] = [
     lightning: false,
     music: { root: -5, bpm: 96 },
     wind: 0,
-    bias: [1, 1.7, 1, 1],
+    bias: [1, 1.7, 1, 1, 1.2, 1.6, 1, 1],
     accent: '#7DFFC4',
   },
   {
@@ -180,7 +180,7 @@ export const ATMOSPHERES: Atmosphere[] = [
     lightning: true,
     music: { root: -2, bpm: 112 },
     wind: 0,
-    bias: [1, 1, 1.5, 1.6],
+    bias: [1, 1, 1.5, 1.6, 1, 1, 1, 1.4],
     accent: '#FF5A3A',
   },
   {
@@ -213,11 +213,11 @@ export const ATMOSPHERES: Atmosphere[] = [
     lightning: false,
     music: { root: -3, bpm: 92 },
     wind: 0,
-    bias: [1, 1.2, 1.4, 1],
+    bias: [1, 1.2, 1.4, 1, 1.4, 1, 1.3, 1],
     accent: '#B57BFF',
   },
   {
-    id: 'ebru',
+    id: 'orion',
     sky: [
       [0, '#0A0A2A'],
       [0.4, '#1A1060'],
@@ -229,8 +229,8 @@ export const ATMOSPHERES: Atmosphere[] = [
     veins: ['#FF4F8B', '#FFC857', '#3DF58A', '#3EF0E0', '#A77BFF'],
     veinCount: 190,
     stars: 1.2,
-    celestial: 'twin',
-    celestialPos: [0.76, 0.14],
+    celestial: 'belt',
+    celestialPos: [0.64, 0.15],
     glows: ['#FFC857', '#3EF0E0', '#FF4F8B'],
     skyline: {
       top: '#2E2270',
@@ -246,14 +246,116 @@ export const ATMOSPHERES: Atmosphere[] = [
     lightning: false,
     music: { root: 5, bpm: 108 },
     wind: 0,
-    bias: [1, 1.3, 1.3, 1.3],
+    bias: [1, 1.3, 1.3, 1.3, 1.2, 1.2, 1.2, 1.2],
     accent: '#FFC857',
+  },
+  {
+    id: 'saturn',
+    sky: [
+      [0, '#0B0A1E'],
+      [0.4, '#1E1A3E'],
+      [0.68, '#3A2E4E'],
+      [0.86, '#8A6A5A'],
+      [1, '#D9B48A'],
+    ],
+    nebula: ['#4A3A6A', '#8A6A3A'],
+    nebulaAlpha: 0.34,
+    veins: ['#FFE0A8', '#FFD08A', '#BFE8FF', '#FFF2D0'],
+    veinCount: 90,
+    stars: 1.2,
+    celestial: 'saturn',
+    celestialPos: [0.36, 0.25],
+    glows: ['#FFD08A', '#BFE8FF', '#FF9A6A'],
+    skyline: {
+      top: '#3A2E48',
+      bottom: '#120E1E',
+      rim: 'rgba(255,220,170,0.45)',
+      windows: ['#FFE0A0', '#CFEFFF'],
+      bridge: '#2E2440',
+      bridgeLights: '#FFE8B0',
+    },
+    house: { tint: '#FFE2C4', glow: '#FFC870' },
+    ambient: 'crystals',
+    aurora: false,
+    lightning: false,
+    music: { root: 7, bpm: 98 },
+    wind: 0,
+    bias: [1, 1, 1, 1, 1.2, 1.9, 1, 1],
+    accent: '#FFD08A',
+  },
+  {
+    id: 'horizon',
+    sky: [
+      [0, '#020104'],
+      [0.45, '#0A0616'],
+      [0.75, '#1A0A22'],
+      [0.92, '#3A1420'],
+      [1, '#6A2A1A'],
+    ],
+    nebula: ['#3A1A4A', '#6A2A1A'],
+    nebulaAlpha: 0.4,
+    veins: ['#FFB04A', '#FF7A3A', '#FFE0A0', '#B070FF'],
+    veinCount: 120,
+    stars: 1.8,
+    celestial: 'blackhole',
+    celestialPos: [0.6, 0.22],
+    glows: ['#FF9A3D', '#B066FF', '#FF4F8B'],
+    skyline: {
+      top: '#2A1020',
+      bottom: '#0A0408',
+      rim: 'rgba(255,150,80,0.45)',
+      windows: ['#FFB060', '#FFD8A0'],
+      bridge: '#24101C',
+      bridgeLights: '#FFA060',
+    },
+    house: { tint: '#E8B8B0', glow: '#FF9A4A' },
+    ambient: 'spiral',
+    aurora: false,
+    lightning: false,
+    music: { root: -4, bpm: 116 },
+    wind: 0,
+    bias: [1, 1.2, 1.2, 1, 1.2, 1, 1.9, 1.3],
+    accent: '#FF9A3D',
+  },
+  {
+    id: 'nova',
+    sky: [
+      [0, '#03060F'],
+      [0.4, '#0A1830'],
+      [0.7, '#1A1040'],
+      [0.9, '#4A1450'],
+      [1, '#8A2A60'],
+    ],
+    nebula: ['#1A6A8A', '#8A1A7A'],
+    nebulaAlpha: 0.6,
+    veins: ['#7FFFE0', '#FF4FD8', '#FFFFFF', '#6EC8FF', '#FFC857'],
+    veinCount: 200,
+    stars: 2,
+    celestial: 'supernova',
+    celestialPos: [0.5, 0.17],
+    glows: ['#7FFFE0', '#FF4FD8', '#6EC8FF'],
+    skyline: {
+      top: '#1C1648',
+      bottom: '#080618',
+      rim: 'rgba(160,255,240,0.45)',
+      windows: ['#9FFFE8', '#FFB8F0'],
+      bridge: '#18123E',
+      bridgeLights: '#9FFFE8',
+    },
+    house: { tint: '#D8C8FF', glow: '#7FFFE0' },
+    ambient: 'sparks',
+    aurora: false,
+    lightning: false,
+    music: { root: 3, bpm: 120 },
+    wind: 0,
+    bias: [1, 1.3, 1.3, 1.3, 1.4, 1.3, 1.3, 1.7],
+    accent: '#7FFFE0',
   },
 ];
 
 export const ATM_BY_ID = new Map(ATMOSPHERES.map((a) => [a.id, a]));
 
-/** Her 5 dalga bir bölüm: 1-5 Gece, 6-10 Alacakaranlık ... 26+ Ebru Rüyası */
+/** Her 5 dalga bir bölüm: 1-5 Gece, 6-10 Alacakaranlık ... 41+ Süpernova */
 export function atmosphereIndexForWave(wave: number): number {
   return Math.min(ATMOSPHERES.length - 1, Math.floor(Math.max(0, wave - 1) / 5));
 }

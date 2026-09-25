@@ -5,7 +5,7 @@ import { Loop } from './core/loop';
 import { type Quality, type SaveData, defaultSave, loadSave, writeSave } from './core/storage';
 import { PENS, PEN_BY_ID, type Pen } from './game/pens';
 import { Rarity } from './game/upgrades';
-import { type RunOptions, type RunResult, World, type WorldEvent } from './game/world';
+import { type RunOptions, type RunResult, type SkillId, World, type WorldEvent } from './game/world';
 import { setLang, t } from './i18n';
 import {
   WORKSHOP,
@@ -17,9 +17,24 @@ import {
   rankIndex,
   rankProgress,
   reviveCost,
+  SKILLS,
+  SKILL_BY_ID,
   settleRun,
 } from './meta/progression';
-import { canFullscreen, exitApp, initNative, keepAwake, toggleFullscreen } from './platform';
+import {
+  FREE_COINS,
+  FREE_COINS_PER_DAY,
+  SHOP_BY_ID,
+  STARTER_SKILL,
+  type ShopItem,
+  buyNative,
+  hasNativeStore,
+  initMonetization,
+  loadPrices,
+  ownedNonConsumables,
+  showRewardedAd,
+} from './monetize';
+import { canFullscreen, exitApp, initNative, isNative, keepAwake, toggleFullscreen } from './platform';
 import { ATMOSPHERES, atmosphereIndexForWave } from './render/atmospheres';
 import { Background } from './render/background';
 import { Sprites } from './render/sprites';
@@ -29,6 +44,7 @@ import { HudView } from './ui/hud';
 import { icon } from './ui/icons';
 import {
   type TabName,
+  adHTML,
   bannerHTML,
   bootHTML,
   dailyHTML,
@@ -41,6 +57,8 @@ import {
   recordsHTML,
   reviveHTML,
   settingsHTML,
+  shopHTML,
+  skillsHTML,
   tabbarHTML,
   toastHTML,
   upgradeHTML,
@@ -48,10 +66,10 @@ import {
   worldsHTML,
 } from './ui/screens';
 
-export const VERSION = '1.1.1';
+export const VERSION = '1.2.0';
 
 type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'revive' | 'over';
-type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds';
+type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds' | 'shop' | 'skills';
 
 interface Timer {
   t: number;
@@ -60,7 +78,9 @@ interface Timer {
 
 const QUALITY_LEVEL: Record<Quality, number> = { high: 1, balanced: 0.75, saver: 0.45 };
 const TAB_PANELS: PanelName[] = ['pens', 'workshop', 'missions', 'records'];
-const REVIVE_SECONDS = 7;
+const REVIVE_SECONDS = 9;
+/** Boss türlerinin afiş rengi */
+const BOSS_UI_COLORS = ['var(--crimson)', '#7FFFE0', '#8FE8FF', '#B066FF', '#FFB030'];
 
 /** Tarayıcı boştayken çalıştır (animasyon karelerini bölmesin) */
 function whenIdle(fn: () => void): void {
@@ -89,6 +109,13 @@ export class App {
   private bannerEl: HTMLElement;
   private modalEl: HTMLElement;
   private toastEl: HTMLElement;
+  private adEl: HTMLElement;
+  private adBusy = false;
+  private adResolve: (() => void) | null = null;
+  private buying = false;
+  private reviveCount = 0;
+  private lastRunCoins = 0;
+  private doubled = false;
 
   state: State = 'boot';
   private panel: PanelName | null = null;
@@ -121,10 +148,8 @@ export class App {
     this.world = new World(this.view, this.sprites, this.bg, this.currentPen());
     this.world.setQuality(QUALITY_LEVEL[this.save.settings.quality]);
     this.world.onEvent = (e) => this.onWorld(e);
-    this.world.reviveCost = () => {
-      const c = reviveCost(this.world.wave);
-      return this.save.coins >= c ? c : 0;
-    };
+    // ilk düşüşte video (ya da altın) ile devam; ikincisinde yalnızca altınla (iki kat bedel)
+    this.world.canRevive = (count) => count === 0 || this.save.coins >= reviveCost(this.world.wave) * (count + 1);
     this.input = new Input(canvas, this.view);
     this.input.sink = this.world;
 
@@ -136,6 +161,7 @@ export class App {
     this.bannerEl = this.layer('banner-layer');
     this.modalEl = this.layer('modal-layer');
     this.toastEl = this.layer('toasts');
+    this.adEl = this.layer('ad-layer');
 
     audio.setMusic(this.save.settings.music);
     audio.setSfx(this.save.settings.sfx);
@@ -193,6 +219,12 @@ export class App {
     };
     boot?.addEventListener('pointerdown', go, { once: true });
     boot?.addEventListener('keydown', go, { once: true });
+    // reklam SDK'sı, izin formu ve Play fiyatları; kalıcı ürünleri sessizce geri yükle
+    void initMonetization().then(async () => {
+      if (!isNative) return;
+      await loadPrices();
+      await this.restore(true);
+    });
   }
 
   private unlockAudio(): void {
@@ -342,6 +374,12 @@ export class App {
       case 'worlds':
         html = worldsHTML(s, this.thumbs, this.save.menuAtm);
         break;
+      case 'shop':
+        html = shopHTML(s, isNative && hasNativeStore());
+        break;
+      case 'skills':
+        html = skillsHTML(s);
+        break;
       default:
         html = '';
     }
@@ -410,7 +448,7 @@ export class App {
   // ───────────────────────── HEDİYE ─────────────────────────
 
   private openGift(): void {
-    this.modalEl.innerHTML = giftHTML(giftState(this.save));
+    this.modalEl.innerHTML = giftHTML(giftState(this.save), this.save.noAds);
   }
 
   private closeModal(): void {
@@ -420,15 +458,22 @@ export class App {
     window.setTimeout(() => (this.modalEl.innerHTML = ''), 220);
   }
 
-  private claimGift(btn: HTMLElement): void {
-    const reward = claimGift(this.save);
+  private async claimGift(btn: HTMLElement, double = false): Promise<void> {
+    if (double) {
+      if (!giftState(this.save).ready || !(await this.watchAd())) return;
+    }
+    let reward = claimGift(this.save);
     if (!reward) return;
+    if (double) {
+      this.save.coins += reward;
+      reward *= 2;
+    }
     this.commit();
     audio.record();
     haptics.success();
     const from = (this.modalEl.querySelector('.gday.today') as HTMLElement | null) ?? btn;
     this.flyCoins(from, reward);
-    this.modalEl.innerHTML = giftHTML(giftState(this.save));
+    this.modalEl.innerHTML = giftHTML(giftState(this.save), this.save.noAds);
     this.modalEl.querySelector('.modal')?.setAttribute('style', 'animation:none');
     this.modalEl.querySelector('.modal-card')?.setAttribute('style', 'animation:none');
     window.setTimeout(() => this.closeModal(), 1500);
@@ -499,8 +544,12 @@ export class App {
       tutorial: !this.save.tutorialDone && !daily,
       best: this.save.best,
       pen: this.currentPen(),
+      skill: ((SKILL_BY_ID.get(this.save.skill) ?? SKILLS[0]).id as SkillId),
     };
     this.hud.reset(this.save.best);
+    const sk = SKILL_BY_ID.get(opts.skill) ?? SKILLS[0];
+    this.hud.setSkill(sk.icon, sk.color);
+    this.hud.showSkill(!opts.tutorial);
     this.world.startRun(opts);
     this.hud.setBossWave(false);
     this.hud.show(true);
@@ -608,16 +657,210 @@ export class App {
     this.toMenu();
   }
 
-  // ── altınla devam
-  private offerRevive(cost: number): void {
+  // ── devam: ödüllü video (turda bir kez) ya da altın
+  private offerRevive(count: number): void {
     this.state = 'revive';
-    this.pendingRevive = cost;
+    this.reviveCount = count;
+    this.pendingRevive = reviveCost(this.world.wave) * (count + 1);
     this.input.cancel();
-    this.setScreen(reviveHTML(cost, this.save.coins, REVIVE_SECONDS));
+    this.setScreen(
+      reviveHTML({ video: count === 0, noAds: this.save.noAds, cost: this.pendingRevive, bank: this.save.coins, seconds: REVIVE_SECONDS }),
+    );
     this.timers = [];
     this.after(REVIVE_SECONDS, () => {
-      if (this.state === 'revive') this.giveUp();
+      if (this.state === 'revive' && !this.adBusy) this.giveUp();
     });
+  }
+
+  private async reviveVideo(): Promise<void> {
+    if (this.state !== 'revive' || this.adBusy) return;
+    // video oynarken geri sayım durur
+    this.timers = [];
+    const ok = await this.watchAd();
+    if (this.state !== 'revive') return;
+    if (!ok) {
+      this.offerRevive(this.reviveCount);
+      return;
+    }
+    this.setScreen('');
+    this.state = 'game';
+    this.world.revive();
+  }
+
+  // ───────────────────────── REKLAM & MAĞAZA ─────────────────────────
+
+  /** Ödüllü video: reklamsız pakette ödül anında, yerelde AdMob, web'de demo */
+  private async watchAd(): Promise<boolean> {
+    if (this.adBusy) return false;
+    if (this.save.noAds) {
+      this.toast('noads', t('toast.noAds'));
+      return true;
+    }
+    this.adBusy = true;
+    try {
+      if (isNative) {
+        audio.suspend();
+        const r = await showRewardedAd();
+        audio.resume();
+        if (r === 'rewarded') return true;
+        this.toast('video', r === 'unavailable' ? t('toast.adFail') : t('toast.adSkip'));
+        return false;
+      }
+      return await this.demoAd();
+    } finally {
+      this.adBusy = false;
+    }
+  }
+
+  /** Web/önizleme: gerçek reklam yerine 5 sn'lik temsili video */
+  private demoAd(): Promise<boolean> {
+    return new Promise((resolve) => {
+      const secs = 5;
+      this.adEl.innerHTML = adHTML(secs);
+      let left = secs;
+      const count = this.adEl.querySelector('#ad-count') as HTMLElement | null;
+      const iv = window.setInterval(() => {
+        left--;
+        if (count) count.textContent = String(Math.max(0, left));
+        if (left <= 0) {
+          window.clearInterval(iv);
+          const close = this.adEl.querySelector('#ad-close') as HTMLElement | null;
+          if (close) close.hidden = false;
+          if (count) count.innerHTML = icon('check');
+        }
+      }, 1000);
+      this.adResolve = () => {
+        window.clearInterval(iv);
+        this.adResolve = null;
+        this.adEl.innerHTML = '';
+        resolve(true);
+      };
+    });
+  }
+
+  private async buy(id: string): Promise<void> {
+    const item = SHOP_BY_ID.get(id);
+    if (!item || this.buying) return;
+    if ((item.kind === 'starter' && this.save.starter) || (item.kind === 'noads' && this.save.noAds)) return;
+    this.buying = true;
+    try {
+      if (isNative) {
+        if (!hasNativeStore()) {
+          this.toast('bag', t('toast.storeOff'));
+          return;
+        }
+        const r = await buyNative(item);
+        if (r !== 'ok') {
+          if (r === 'error') this.toast('bag', t('toast.buyFail'));
+          return;
+        }
+      } else {
+        this.toast('bag', t('toast.demoBuy'));
+      }
+      this.grant(item);
+    } finally {
+      this.buying = false;
+    }
+  }
+
+  private grant(item: ShopItem): void {
+    this.save.coins += item.coins;
+    if (item.kind === 'starter') {
+      this.save.starter = true;
+      if (!this.save.skills.includes(STARTER_SKILL)) this.save.skills.push(STARTER_SKILL);
+    }
+    if (item.kind === 'noads') this.save.noAds = true;
+    this.commit();
+    audio.purchase();
+    haptics.success();
+    if (item.kind === 'noads') this.toast('noads', t('toast.noAdsOn'));
+    else this.toast('coin', t('toast.bought', { n: fmt(item.coins) }));
+    this.refreshCoins();
+  }
+
+  /** Kalıcı ürünleri geri yükle (altın yeniden verilmez) */
+  private async restore(silent: boolean): Promise<void> {
+    const owned = await ownedNonConsumables();
+    let n = 0;
+    for (const id of owned) {
+      const it = SHOP_BY_ID.get(id);
+      if (it?.kind === 'noads' && !this.save.noAds) {
+        this.save.noAds = true;
+        n++;
+      }
+      if (it?.kind === 'starter' && !this.save.starter) {
+        this.save.starter = true;
+        if (!this.save.skills.includes(STARTER_SKILL)) this.save.skills.push(STARTER_SKILL);
+        n++;
+      }
+    }
+    if (n) this.commit();
+    if (!silent) this.toast('check', n ? t('toast.restored') : t('toast.nothing'));
+    if (n || !silent) this.refreshCoins();
+  }
+
+  private async freeCoins(): Promise<void> {
+    const today = new Date().toISOString().slice(0, 10);
+    if (this.save.adCoins.date !== today) this.save.adCoins = { date: today, n: 0 };
+    if (this.save.adCoins.n >= FREE_COINS_PER_DAY) {
+      haptics.error();
+      return;
+    }
+    if (!(await this.watchAd())) return;
+    this.save.adCoins.n++;
+    this.save.coins += FREE_COINS;
+    this.commit();
+    audio.purchase();
+    haptics.success();
+    this.toast('coin', t('toast.bought', { n: fmt(FREE_COINS) }));
+    this.refreshCoins();
+  }
+
+  /** Oyun sonu: video izle, kazanılan altınlar iki katına çıksın */
+  private async doubleCoins(btn: HTMLElement): Promise<void> {
+    if (this.doubled || this.lastRunCoins <= 0 || this.state !== 'over') return;
+    if (!(await this.watchAd())) return;
+    if (this.doubled) return;
+    this.doubled = true;
+    this.save.coins += this.lastRunCoins;
+    this.commit();
+    audio.purchase();
+    haptics.success();
+    btn.classList.add('done');
+    btn.setAttribute('disabled', '');
+    const coinEl = this.screenEl.querySelector('#o-coins') as HTMLElement | null;
+    if (coinEl) this.countUps.push({ el: coinEl, from: this.lastRunCoins, to: this.lastRunCoins * 2, t: 0, dur: 0.9, tick: true });
+  }
+
+  /** Açık panel ve menüdeki altın sayısını tazele */
+  private refreshCoins(): void {
+    if (this.panel) this.renderPanel();
+    for (const el of this.ui.querySelectorAll('.coin-count, #m-coins')) el.textContent = fmt(this.save.coins);
+  }
+
+  private buySkill(id: string): void {
+    const k = SKILL_BY_ID.get(id);
+    if (!k || this.save.skills.includes(id)) return;
+    if (this.save.coins < k.price) {
+      audio.inkEmpty();
+      haptics.error();
+      this.toast('coin', t('toast.needCoins'));
+      return;
+    }
+    this.save.coins -= k.price;
+    this.save.skills.push(id);
+    this.save.skill = id;
+    this.commit();
+    audio.select();
+    haptics.success();
+    this.renderPanel();
+  }
+
+  private equipSkill(id: string): void {
+    if (!this.save.skills.includes(id)) return;
+    this.save.skill = id;
+    this.commit();
+    this.renderPanel();
   }
 
   private doRevive(): void {
@@ -648,7 +891,9 @@ export class App {
     this.bannerEl.innerHTML = '';
     void keepAwake(false);
     const today = this.save.daily.date === dailyInfo().key ? this.save.daily.best : 0;
-    this.setScreen(overHTML(r, st, this.save.best, today));
+    this.lastRunCoins = st.coins;
+    this.doubled = false;
+    this.setScreen(overHTML(r, st, this.save.best, today, true, this.save.noAds));
     const scoreEl = this.screenEl.querySelector('#o-score') as HTMLElement | null;
     const coinEl = this.screenEl.querySelector('#o-coins') as HTMLElement | null;
     if (scoreEl) this.countUps.push({ el: scoreEl, from: 0, to: r.score, t: 0, dur: 1.3, tick: false });
@@ -681,7 +926,11 @@ export class App {
     switch (e.type) {
       case 'wave':
         this.hud.setBossWave(e.boss);
-        if (e.boss) this.showBanner(t('banner.boss'), t('banner.bossSub'), true, 'var(--crimson)');
+        if (e.boss) {
+          const name = t('boss.' + e.bossType);
+          this.hud.setBossName(name);
+          this.showBanner(name, t('boss.' + e.bossType + '.d'), true, BOSS_UI_COLORS[e.bossType] ?? 'var(--crimson)');
+        }
         else this.showBanner(t('banner.wave', { n: e.wave }), e.wave === 1 ? t('banner.ready') : '', false);
         break;
       case 'waveClear': {
@@ -730,7 +979,7 @@ export class App {
         break;
       }
       case 'revive':
-        this.offerRevive(e.cost);
+        this.offerRevive(e.count);
         break;
       case 'gameOver':
         this.gameOver(e.result);
@@ -742,6 +991,7 @@ export class App {
         this.hud.hint(t('tut.' + e.step), e.step < 2 ? t('tut.skip') : undefined);
         break;
       case 'tutorialDone':
+        this.hud.showSkill(true);
         this.save.tutorialDone = true;
         this.commit();
         this.hud.hint(null);
@@ -757,7 +1007,7 @@ export class App {
     const el = (ev.target as Element).closest('[data-a]') as HTMLElement | null;
     if (!el) return;
     const a = el.dataset.a!;
-    const quiet = a === 'pick' || a === 'pause' || a === 'claimGift';
+    const quiet = a === 'pick' || a === 'pause' || a === 'claimGift' || a === 'skill';
     if (!quiet) {
       audio.ui();
       haptics.light();
@@ -783,7 +1033,40 @@ export class App {
         this.openGift();
         break;
       case 'claimGift':
-        this.claimGift(el);
+        void this.claimGift(el);
+        break;
+      case 'claimGift2x':
+        void this.claimGift(el, true);
+        break;
+      case 'reviveVideo':
+        void this.reviveVideo();
+        break;
+      case 'adClose':
+        this.adResolve?.();
+        break;
+      case 'shop':
+        this.openPanel('shop');
+        break;
+      case 'buy':
+        void this.buy(el.dataset.id!);
+        break;
+      case 'restore':
+        void this.restore(false);
+        break;
+      case 'freeCoins':
+        void this.freeCoins();
+        break;
+      case 'double':
+        void this.doubleCoins(el);
+        break;
+      case 'skill':
+        if (this.state === 'game') this.world.activateSkill();
+        break;
+      case 'buySkill':
+        this.buySkill(el.dataset.id!);
+        break;
+      case 'equipSkill':
+        this.equipSkill(el.dataset.id!);
         break;
       case 'closeModal':
         this.closeModal();
@@ -843,6 +1126,7 @@ export class App {
         this.commit();
         this.hud.hint(null);
         this.world.skipTutorial();
+        this.hud.showSkill(true);
         break;
       case 'tutorial':
         this.save.tutorialDone = false;

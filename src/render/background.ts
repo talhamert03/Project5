@@ -395,7 +395,189 @@ function drawCelestial(g: CanvasRenderingContext2D, atm: Atmosphere, x: number, 
       crescent(x2, y2, r * 0.5, '#FFE0F0', '#FF8FC0');
       break;
     }
+    case 'belt': {
+      // Orion kuşağı: çapraz dizilmiş üç mavi-beyaz dev yıldız, altında pembe bulutsu
+      halo(g, x - 40 * k, y + 120 * k, 150 * k, '#FF7AC0', 0.3);
+      halo(g, x - 30 * k, y + 110 * k, 70 * k, '#FFB0E0', 0.35);
+      for (let i = 0; i < 3; i++) {
+        const sx = x + (i - 1) * 62 * k;
+        const sy = y + (i - 1) * 26 * k;
+        starFlare(g, sx, sy, (i === 1 ? 7 : 6) * k, '#BFE0FF');
+      }
+      starFlare(g, x - 150 * k, y - 60 * k, 5 * k, '#FFB58A');
+      starFlare(g, x + 140 * k, y + 170 * k, 5.5 * k, '#CFE8FF');
+      break;
+    }
+    case 'saturn': {
+      const r = 104 * k;
+      halo(g, x, y, r * 4, '#FFD08A', 0.25);
+      const rings = (front: boolean): void => {
+        g.save();
+        g.translate(x, y);
+        g.rotate(-0.22);
+        g.scale(1, 0.24);
+        // çok katlı halka: Cassini boşluğu ile iki ana bant
+        const bands: Array<[number, number, string]> = [
+          [1.28, 0.16, 'rgba(255,230,190,0.5)'],
+          [1.5, 0.22, 'rgba(255,215,160,0.75)'],
+          [1.78, 0.2, 'rgba(240,220,200,0.55)'],
+          [2.02, 0.1, 'rgba(200,210,230,0.35)'],
+        ];
+        for (const [rr, w, col] of bands) {
+          g.strokeStyle = col;
+          g.lineWidth = r * w;
+          g.beginPath();
+          if (front) g.arc(0, 0, r * rr, 0, Math.PI);
+          else g.arc(0, 0, r * rr, Math.PI, TAU);
+          g.stroke();
+        }
+        g.restore();
+      };
+      rings(false);
+      disc(r, '#FFF0CC', '#8A5A2A');
+      g.save();
+      g.beginPath();
+      g.arc(x, y, r, 0, TAU);
+      g.clip();
+      const bandCols = ['rgba(255,240,210,0.16)', 'rgba(140,80,30,0.22)', 'rgba(255,220,170,0.12)', 'rgba(120,70,40,0.18)'];
+      for (let i = 0; i < 9; i++) {
+        g.fillStyle = bandCols[i % bandCols.length];
+        g.fillRect(x - r, y - r + i * r * 0.23, r * 2, r * (0.1 + (i % 3) * 0.04));
+      }
+      // gölge tarafı
+      const sh = g.createLinearGradient(x - r, y - r, x + r, y + r);
+      sh.addColorStop(0.45, 'rgba(0,0,0,0)');
+      sh.addColorStop(1, 'rgba(10,6,20,0.65)');
+      g.fillStyle = sh;
+      g.fillRect(x - r, y - r, r * 2, r * 2);
+      g.restore();
+      rings(true);
+      // uydular
+      disc2(g, x + 190 * k, y - 70 * k, 9 * k, '#E8F4FF', '#6A7A9A');
+      disc2(g, x - 170 * k, y + 60 * k, 6 * k, '#FFE8C8', '#8A6A4A');
+      break;
+    }
+    case 'blackhole': {
+      // Olay ufku: bükülmüş ışık halkası, parlak toplanma diski, zifiri çekirdek
+      const r = 46 * k;
+      halo(g, x, y, r * 7, '#FF8A3D', 0.28);
+      const disk = (front: boolean): void => {
+        g.save();
+        g.translate(x, y);
+        g.rotate(-0.12);
+        g.scale(1, 0.2);
+        for (const [w, a, col] of [
+          [r * 1.6, 0.25, '#FF7A2A'],
+          [r * 0.9, 0.6, '#FFB050'],
+          [r * 0.35, 0.95, '#FFF0C8'],
+        ] as const) {
+          g.strokeStyle = col;
+          g.globalAlpha = a;
+          g.lineWidth = w;
+          g.beginPath();
+          if (front) g.arc(0, 0, r * 2.3, 0, Math.PI);
+          else g.arc(0, 0, r * 2.3, Math.PI, TAU);
+          g.stroke();
+        }
+        g.restore();
+        g.globalAlpha = 1;
+      };
+      disk(false);
+      // kütleçekimsel mercek: diskin arka yüzü ufkun üstünden kıvrılır
+      for (const [w, a, col] of [
+        [r * 0.7, 0.25, '#FF8A3D'],
+        [r * 0.3, 0.7, '#FFC870'],
+        [r * 0.1, 0.95, '#FFF6E0'],
+      ] as const) {
+        g.strokeStyle = col;
+        g.globalAlpha = a;
+        g.lineWidth = w;
+        g.beginPath();
+        g.ellipse(x, y, r * 1.45, r * 1.3, 0, Math.PI * 1.02, Math.PI * 1.98);
+        g.stroke();
+      }
+      g.globalAlpha = 1;
+      g.fillStyle = '#000000';
+      g.beginPath();
+      g.arc(x, y, r, 0, TAU);
+      g.fill();
+      g.strokeStyle = 'rgba(255,220,170,0.9)';
+      g.lineWidth = 2 * k;
+      g.beginPath();
+      g.arc(x, y, r * 1.03, 0, TAU);
+      g.stroke();
+      disk(true);
+      break;
+    }
+    case 'supernova': {
+      // patlayan yıldız: beyaz çekirdek, renkli şok kabuğu ve uzun kırınım ışınları
+      const r = 18 * k;
+      halo(g, x, y, r * 16, '#FF4FD8', 0.25);
+      halo(g, x, y, r * 9, '#7FFFE0', 0.35);
+      const shell = new Rng(11);
+      for (let i = 0; i < 90; i++) {
+        const a = (i / 90) * TAU;
+        const rr = r * (6.5 + shell.range(-0.6, 0.6));
+        const px = x + Math.cos(a) * rr;
+        const py = y + Math.sin(a) * rr * 0.92;
+        halo(g, px, py, r * shell.range(0.8, 1.8), i % 3 ? '#FF7AE0' : '#8FFFF0', 0.35);
+      }
+      g.save();
+      g.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * TAU + 0.2;
+        const L = r * (i % 3 === 0 ? 14 : 7);
+        const gr = g.createLinearGradient(x, y, x + Math.cos(a) * L, y + Math.sin(a) * L);
+        gr.addColorStop(0, 'rgba(255,255,255,0.9)');
+        gr.addColorStop(1, 'rgba(160,255,240,0)');
+        g.strokeStyle = gr;
+        g.lineWidth = (i % 3 === 0 ? 3 : 1.6) * k;
+        g.beginPath();
+        g.moveTo(x, y);
+        g.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L);
+        g.stroke();
+      }
+      g.restore();
+      halo(g, x, y, r * 3, '#FFFFFF', 0.9);
+      disc(r, '#FFFFFF', '#CFFFF6');
+      break;
+    }
   }
+}
+
+/** Parıltılı yıldız: hale + dört kollu kırınım ışını */
+function starFlare(g: CanvasRenderingContext2D, x: number, y: number, r: number, col: string): void {
+  halo(g, x, y, r * 7, col, 0.45);
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * TAU + Math.PI / 4;
+    const L = r * (i % 2 ? 6 : 9);
+    const gr = g.createLinearGradient(x, y, x + Math.cos(a) * L, y + Math.sin(a) * L);
+    gr.addColorStop(0, 'rgba(255,255,255,0.9)');
+    gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.strokeStyle = gr;
+    g.lineWidth = r * 0.35;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L);
+    g.stroke();
+  }
+  g.restore();
+  g.fillStyle = '#FFFFFF';
+  g.beginPath();
+  g.arc(x, y, r * 0.8, 0, TAU);
+  g.fill();
+}
+
+function disc2(g: CanvasRenderingContext2D, x: number, y: number, r: number, c0: string, c1: string): void {
+  const gr = g.createRadialGradient(x - r * 0.3, y - r * 0.3, 0, x, y, r);
+  gr.addColorStop(0, c0);
+  gr.addColorStop(1, c1);
+  g.fillStyle = gr;
+  g.beginPath();
+  g.arc(x, y, r, 0, TAU);
+  g.fill();
 }
 
 // ───────────────────────── SİLÜET ─────────────────────────
@@ -675,7 +857,24 @@ export class Background {
     }
     this.motes = [];
     const kind = this.atm.ambient;
-    const n = kind === 'none' ? 0 : kind === 'snow' ? 70 : kind === 'petals' ? 26 : kind === 'embers' ? 44 : kind === 'stardust' ? 60 : 34;
+    const n =
+      kind === 'none'
+        ? 0
+        : kind === 'snow'
+          ? 70
+          : kind === 'petals'
+            ? 26
+            : kind === 'embers'
+              ? 44
+              : kind === 'stardust'
+                ? 60
+                : kind === 'crystals'
+                  ? 48
+                  : kind === 'spiral'
+                    ? 70
+                    : kind === 'sparks'
+                      ? 46
+                      : 34;
     for (let i = 0; i < n; i++) this.motes.push(this.spawnMote(rng.range(-40, H)));
     // kuzey ışığı perdeleri: tek parça, pürüzsüz doku (canlıda kaydırılır)
     this.curtains = [];
@@ -716,13 +915,41 @@ export class Background {
 
   private spawnMote(y: number): Mote {
     const kind = this.atm.ambient;
+    if (kind === 'spiral' || kind === 'sparks') {
+      // gök cismi etrafında: vx = yarıçap/hız, vy = açısal hız
+      const cx = this.atm.celestialPos[0] * WORLD_W;
+      const cy = this.atm.celestialPos[1] * this.view.H;
+      const a = Math.random() * TAU;
+      const spiral = kind === 'spiral';
+      const r = spiral ? 90 + Math.random() * 380 : 20 + Math.random() * 40;
+      return {
+        x: cx + Math.cos(a) * r,
+        y: cy + Math.sin(a) * r * (spiral ? 0.32 : 1),
+        vx: spiral ? r : Math.cos(a) * (50 + Math.random() * 110),
+        vy: spiral ? 0.5 + Math.random() * 0.6 : Math.sin(a) * (50 + Math.random() * 110),
+        s: spiral ? 2.5 + Math.random() * 4 : 3 + Math.random() * 5,
+        ph: Math.random() * TAU,
+        rot: a,
+        vr: 0,
+        col: Math.floor(Math.random() * 3),
+      };
+    }
     const up = kind === 'embers' || kind === 'ink';
     return {
       x: Math.random() * (WORLD_W + 80) - 40,
       y: up ? this.view.H - Math.random() * 120 + (y > 0 ? -y * 0.9 : 0) : y,
       vx: kind === 'petals' ? 30 + Math.random() * 40 : (Math.random() - 0.5) * 20,
-      vy: kind === 'snow' ? 30 + Math.random() * 40 : kind === 'petals' ? 40 + Math.random() * 30 : up ? -(20 + Math.random() * 50) : (Math.random() - 0.5) * 8,
-      s: kind === 'snow' ? 3 + Math.random() * 5 : kind === 'petals' ? 5 + Math.random() * 4 : kind === 'embers' ? 4 + Math.random() * 7 : 3 + Math.random() * 6,
+      vy:
+        kind === 'snow'
+          ? 30 + Math.random() * 40
+          : kind === 'crystals'
+            ? 14 + Math.random() * 22
+            : kind === 'petals'
+              ? 40 + Math.random() * 30
+              : up
+                ? -(20 + Math.random() * 50)
+                : (Math.random() - 0.5) * 8,
+      s: kind === 'snow' ? 3 + Math.random() * 5 : kind === 'crystals' ? 4 + Math.random() * 6 : kind === 'petals' ? 5 + Math.random() * 4 : kind === 'embers' ? 4 + Math.random() * 7 : 3 + Math.random() * 6,
       ph: Math.random() * TAU,
       rot: Math.random() * TAU,
       vr: (Math.random() - 0.5) * 3,
@@ -783,9 +1010,26 @@ export class Background {
       if (kind === 'petals') {
         m.x += (m.vx + Math.sin(m.ph * 1.7) * 25) * dt;
         m.y += (m.vy + Math.cos(m.ph * 1.3) * 12) * dt;
-      } else if (kind === 'snow') {
+      } else if (kind === 'snow' || kind === 'crystals') {
         m.x += (m.vx + Math.sin(m.ph * 1.1 + m.s) * 14) * dt;
         m.y += m.vy * dt;
+      } else if (kind === 'spiral') {
+        // kara deliğe doğru daralan sarmal
+        const cx = this.atm.celestialPos[0] * WORLD_W;
+        const cy = this.atm.celestialPos[1] * H;
+        m.vx -= 16 * dt;
+        m.rot += m.vy * dt * (160 / Math.max(40, m.vx));
+        m.x = cx + Math.cos(m.rot) * m.vx;
+        m.y = cy + Math.sin(m.rot) * m.vx * 0.32;
+        if (m.vx < 52) Object.assign(m, this.spawnMote(0), { vx: 440 });
+        continue;
+      } else if (kind === 'sparks') {
+        m.x += m.vx * dt;
+        m.y += m.vy * dt;
+        const cx = this.atm.celestialPos[0] * WORLD_W;
+        const cy = this.atm.celestialPos[1] * H;
+        if ((m.x - cx) ** 2 + (m.y - cy) ** 2 > 480 * 480) Object.assign(m, this.spawnMote(0));
+        continue;
       } else {
         m.x += (m.vx + Math.sin(m.ph * 0.9) * 8) * dt;
         m.y += m.vy * dt;
@@ -911,6 +1155,8 @@ export class Background {
       }
     }
 
+    this.renderCelestialLive(g, H, t);
+
     // parıldayan yıldızlar
     const cols = ['#FFFFFF', atm.glows[0], atm.glows[1], atm.glows[2]];
     for (const s of this.twinkles) {
@@ -961,6 +1207,80 @@ export class Background {
     }
   }
 
+  /** Gök cisminin canlı katmanı (additive, dünya uzayı) */
+  private renderCelestialLive(g: CanvasRenderingContext2D, H: number, t: number): void {
+    const atm = this.atm;
+    const cx = atm.celestialPos[0] * WORLD_W;
+    const cy = atm.celestialPos[1] * H;
+    switch (atm.celestial) {
+      case 'blackhole': {
+        // diskte dönen sıcak noktalar + nabız gibi atan foton halkası
+        const hot = this.sprites.glow('#FFC870', true);
+        const cr = Math.cos(-0.12);
+        const sr = Math.sin(-0.12);
+        for (let i = 0; i < 9; i++) {
+          const a = t * (0.9 + (i % 3) * 0.25) + (i / 9) * TAU;
+          const rx = 106 + (i % 3) * 8;
+          const ex = Math.cos(a) * rx;
+          const ey = Math.sin(a) * rx * 0.2;
+          const x = cx + ex * cr - ey * sr;
+          const y = cy + ex * sr + ey * cr;
+          // disk önündeyken parlak, arkadayken sönük
+          g.globalAlpha = Math.sin(a) > 0 ? 0.55 : 0.2;
+          const s = 22 + (i % 2) * 10;
+          g.drawImage(hot, x - s / 2, y - s / 2, s, s);
+        }
+        g.globalAlpha = 0.25 + 0.15 * Math.sin(t * 2.2);
+        const rs = 118;
+        g.drawImage(this.sprites.ring, cx - rs / 2, cy - rs / 2, rs, rs);
+        break;
+      }
+      case 'supernova': {
+        for (let i = 0; i < 2; i++) {
+          const p = (t * 0.22 + i * 0.5) % 1;
+          g.globalAlpha = (1 - p) * 0.45;
+          const rs = 90 + p * 420;
+          g.drawImage(this.sprites.ring, cx - rs / 2, cy - rs / 2, rs, rs);
+        }
+        g.globalAlpha = 0.5 + 0.3 * Math.sin(t * 5);
+        const cs = 90 + 16 * Math.sin(t * 5);
+        g.drawImage(this.sprites.glow('#FFFFFF', true), cx - cs / 2, cy - cs / 2, cs, cs);
+        break;
+      }
+      case 'saturn': {
+        const sp = this.sprites.sparkle;
+        const cr = Math.cos(-0.22);
+        const sr = Math.sin(-0.22);
+        for (let i = 0; i < 12; i++) {
+          const a = t * 0.12 + (i / 12) * TAU;
+          const rx = 104 * (1.5 + (i % 3) * 0.14);
+          const ex = Math.cos(a) * rx;
+          const ey = Math.sin(a) * rx * 0.24;
+          const x = cx + ex * cr - ey * sr;
+          const y = cy + ex * sr + ey * cr;
+          g.globalAlpha = (Math.sin(a) > 0 ? 0.7 : 0.18) * (0.5 + 0.5 * Math.sin(t * 3 + i));
+          const s = 14 + (i % 3) * 5;
+          g.drawImage(sp, x - s / 2, y - s / 2, s, s);
+        }
+        break;
+      }
+      case 'belt': {
+        for (let i = 0; i < 3; i++) {
+          const x = cx + (i - 1) * 62;
+          const y = cy + (i - 1) * 26;
+          const tw = 0.5 + 0.5 * Math.sin(t * 2.4 + i * 2);
+          g.globalAlpha = 0.35 + tw * 0.5;
+          const s = 34 + tw * 20;
+          g.drawImage(this.sprites.sparkle, x - s / 2, y - s / 2, s, s);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+    g.globalAlpha = 1;
+  }
+
   /** Ortam parçacıkları: evlerin önünde, meteorların arkasında */
   renderAmbient(g: CanvasRenderingContext2D, k: number, tx: number, ty: number): void {
     const kind = this.atm.ambient;
@@ -997,6 +1317,23 @@ export class Background {
         col = this.atm.glows[m.col];
         a = 0.4 + 0.6 * Math.abs(Math.sin(t * 2 + m.ph));
         s *= 0.8;
+      } else if (kind === 'crystals') {
+        col = '#E8F6FF';
+        a = 0.3 + 0.7 * Math.abs(Math.sin(t * 2.6 + m.ph));
+        if (m.col === 0) {
+          g.globalAlpha = a * 0.8;
+          const ss = s * 3.2;
+          g.drawImage(this.sprites.sparkle, m.x - ss / 2, m.y - ss / 2, ss, ss);
+          continue;
+        }
+      } else if (kind === 'spiral') {
+        col = this.atm.glows[m.col];
+        a = 0.25 + 0.6 * clamp(1 - m.vx / 440, 0, 1);
+      } else if (kind === 'sparks') {
+        col = m.col === 0 ? '#7FFFE0' : m.col === 1 ? '#FF7AE0' : '#FFFFFF';
+        const cx = this.atm.celestialPos[0] * WORLD_W;
+        const cy = this.atm.celestialPos[1] * this.view.H;
+        a = 0.9 * clamp(1 - Math.hypot(m.x - cx, m.y - cy) / 480, 0, 1);
       } else {
         col = this.atm.veins[m.col % this.atm.veins.length];
         a = 0.55;

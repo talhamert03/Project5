@@ -50,6 +50,21 @@ export const ICONS: Record<string, string> = {
   planet: s('<circle cx="12" cy="12" r="5.6" fill="currentColor" fill-opacity=".22"/><path d="M3.2 15.6c-1.4 2.4 3.4 2.2 9.2-.9s9.4-6.9 8.4-8.9c-.6-1.2-3-1-6 .1"/>'),
   gift: s('<rect x="3.6" y="8.4" width="16.8" height="4.4" rx="1.2" fill="currentColor" fill-opacity=".2"/><path d="M5 12.8v7.4h14v-7.4M12 8.4v11.8"/><path d="M12 8.4c-1.2-3.8-5.8-4.6-5.8-1.6 0 1.6 2.8 1.6 5.8 1.6zM12 8.4c1.2-3.8 5.8-4.6 5.8-1.6 0 1.6-2.8 1.6-5.8 1.6z"/>'),
   flameUp: s('<path d="M12 2.8c1.1 3.6 5.2 5.6 5.2 10.2a5.2 5.2 0 01-10.4 0c0-2.3 1-3.8 2.3-5 .2 1.7 1 2.7 2.1 3.1-.1-3 .2-5.6.8-8.3z" fill="currentColor" fill-opacity=".2"/>'),
+  magnet: s('<path d="M6 4.5h4v7a2 2 0 004 0v-7h4v7a6 6 0 01-12 0z"/><path d="M6 8h4M14 8h4"/>'),
+  snow: s('<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/><path d="M9.6 4.6L12 6.4l2.4-1.8M9.6 19.4L12 17.6l2.4 1.8"/>'),
+  ricochet: s('<path d="M4 18.5L10 6l4 9 6-10.5"/><path d="M16.8 4.4h3.4v3.4"/>'),
+  battery: s('<rect x="3.5" y="7" width="15" height="10" rx="2"/><path d="M20.5 10.2v3.6"/><path d="M11.8 8.8l-2.6 3.6h3.6l-2.6 3.6" fill="currentColor" fill-opacity=".25"/>'),
+  wind: s('<path d="M3 9h11a3 3 0 10-3-3M3 13h15a3 3 0 11-3 3M3 17h7"/>'),
+  satellite: s('<rect x="9.4" y="9.4" width="5.2" height="5.2" rx="1" transform="rotate(45 12 12)"/><path d="M8.2 8.2L4.4 4.4M15.8 15.8l3.8 3.8M5.6 3.2L3.2 5.6M18.4 20.8l2.4-2.4"/><path d="M15.4 5.2a5 5 0 013.4 3.4"/>'),
+  wave: s('<path d="M3 15c2.4 0 2.4-3 4.8-3s2.4 3 4.8 3 2.4-3 4.8-3 2.4 3 3.6 3"/><path d="M12 3.5c1.8 2.7 3.6 4.5 3.6 6.3a3.6 3.6 0 01-7.2 0c0-1.8 1.8-3.6 3.6-6.3z" fill="currentColor" fill-opacity=".2"/>'),
+  burst: s('<circle cx="12" cy="12" r="3.4" fill="currentColor" fill-opacity=".3"/><path d="M12 2.8v3.4M12 17.8v3.4M2.8 12h3.4M17.8 12h3.4M5.5 5.5l2.4 2.4M16.1 16.1l2.4 2.4M5.5 18.5l2.4-2.4M16.1 7.9l2.4-2.4"/>'),
+  shield: s('<path d="M12 3l7.5 3v5.6c0 4.4-3.1 8.1-7.5 9.4-4.4-1.3-7.5-5-7.5-9.4V6z" fill="currentColor" fill-opacity=".15"/><path d="M8.6 12l2.3 2.3 4.5-4.6"/>'),
+  stars: s('<path d="M9 3.5l1.6 4.1 4.1 1.6-4.1 1.6L9 14.9l-1.6-4.1-4.1-1.6 4.1-1.6z" fill="currentColor" fill-opacity=".2"/><path d="M17 12.5l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z"/>'),
+  bag: s('<path d="M5 8h14l-1.2 11.2a2 2 0 01-2 1.8H8.2a2 2 0 01-2-1.8z" fill="currentColor" fill-opacity=".15"/><path d="M9 10.5V7a3 3 0 016 0v3.5"/>'),
+  video: s('<rect x="3.2" y="5.5" width="17.6" height="13" rx="2.6"/><path d="M10.2 9.3v5.4l4.6-2.7z" fill="currentColor"/>'),
+  noads: s('<rect x="3.2" y="5.5" width="17.6" height="13" rx="2.6"/><path d="M5 20.5L19 3.5"/>'),
+  gem: s('<path d="M7 4h10l4 5-9 11L3 9z" fill="currentColor" fill-opacity=".18"/><path d="M3 9h18M9.5 4L8 9l4 11 4-11-1.5-5"/>'),
+  x2: s('<path d="M4 8l6 8M10 8l-6 8"/><path d="M13.5 9.2a2.8 2.8 0 015.3 1.2c0 2.3-5.3 3.6-5.3 5.6h5.6"/>'),
 };
 
 export const icon = (name: string): string => ICONS[name] ?? ICONS.star;

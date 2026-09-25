@@ -15,12 +15,13 @@ Sektirdiğin meteoru başka bir meteora çarptırırsan ikisi de patlar. Zincirl
 | Ağır çekim | Çizerken zaman yavaşlar, nişan almak kolaylaşır. Parmağını basılı tutmak mürekkep harcar. |
 | Mürekkep | Sınırlı; zamanla dolar, patlattığın meteorlar mürekkep damlası bırakır. |
 | Kombo ve zincir | Sekme ve patlamalar komboyu artırır (x5'e kadar çarpan). Kümelenmiş meteorlar zincirleme patlar. |
-| Meteorlar | Normal, hızlı (buz), zırhlı (ilk çarpmada çizgiyi kırar), bölünen, altın (altın kazandırır). |
-| Kızıl Dev | Her 5 dalgada bir boss. Minyonlarını ona geri sektirerek yenersin. |
-| Güçler | Her dalga sonunda 3 karttan biri: 19 güç, 4 nadirlik (Ayna, Zincir Şimşek, Kara Delik, Anka Kuşu...). |
+| Meteorlar | Normal, hızlı, zırhlı (ilk çarpmada çizgiyi kırar), bölünen, altın; **kuyruklu yıldız** (köşeden çapraz ve çok hızlı, sektirince fazladan deler), **buz kristali** (dokunduğu çizgiyi dondurup kırar, patlayınca çevresini yavaşlatır), **hayalet** (aralıklarla saydamlaşıp çizgilerden geçer), **nova çekirdeği** (şehre 2 hasar; patlatınca dev zincir). |
+| Bosslar | Her 5 dalgada sırayla beş farklı boss: **Kaya Titanı** (parça yağdırır), **Kuyruklu Kraliçe** (hızlı süzülür, kuyruklu yıldız fırlatır), **Buz Kalesi** (önce yörüngedeki üç kristali kır), **Tekillik** (dost meteorları kendine çeker, daralan halka dolunca çizgileri kırar), **İkiz Yıldızlar** (birbirinin etrafında dans eder, biri düşünce diğeri öfkelenir). Her döngüde daha dayanıklı. |
+| Güçler | Her dalga sonunda 3 karttan biri: 27 güç, 4 nadirlik. Yeni: Mıknatıs Uç, Kırağı, Sekme Ustası, Koruyucu Uydu, Aşırı Yük, İkinci Nefes, Şans Yıldızı, Mürekkep Dalgası. |
+| Yetenekler | Meteor patlattıkça halka dolar, sağ alttaki düğmeyle tetiklenir: **Yıldız Patlaması** (ücretsiz), **Zaman Kırılması**, **Aegis Kalkanı**, **Yıldız Yağmuru** (altınla açılır). |
 | Şehir | Beş mahalle, her biri iki can. Mahalleler yıkıldıkça uzak silüetin (apartmanlar ve Boğaz Köprüsü) ışıkları söner. |
 | Son anda | Şehre çok yakınken yapılan sektirme "SON ANDA!" bonusu kazandırır. |
-| Devam et | Şehir düşünce bir kez altınla üç mahalleyi yeniden kurup kaldığın yerden sürdürebilirsin. |
+| Devam et | Şehir düşünce **ödüllü video izleyerek** (turda bir kez) ya da altınla üç mahalleyi yeniden kurup sürdürebilirsin; ikinci düşüşte yalnızca altınla (iki kat bedel). |
 
 ### Dünyalar (atmosferler)
 
@@ -33,7 +34,10 @@ Her 5 dalgada sahne tamburu 360° sağa döner ve arkasındaki yeni dünya ortay
 | 3 | Kuzey Işıkları | 11–15 | Kuzey ışığı perdeleri, kar; buz meteorları çoğalır |
 | 4 | Kızıl Kıyamet | 16–20 | Kan ayı, şimşekler, yükselen korlar; zırhlı ve bölünen meteorlar artar |
 | 5 | Kozmos | 21–25 | Halkalı gezegen, yıldız tozu; ağır meteorlar |
-| 6 | Ebru Rüyası | 26+ | Rengârenk ebru, iki ay; son dünya |
+| 6 | Orion Bulutsusu | 26–30 | Avcı'nın kuşağı, pembe yıldız doğumevi |
+| 7 | Satürn Halkaları | 31–35 | Dev halkalı gezegen ve uyduları, buz kristali yağmuru; buz meteorları |
+| 8 | Olay Ufku | 36–40 | Işık diski dönen kara delik, içine akan sarmal toz; hayaletler çoğalır |
+| 9 | Süpernova | 41+ | Patlayan yıldız, yayılan şok halkaları, kıvılcımlar; son ve sonsuz dünya |
 
 Açılan dünyalar menüdeki **Dünyalar** galerisinde görünür ve menü arka planı yapılabilir.
 
@@ -48,6 +52,22 @@ Açılan dünyalar menüdeki **Dünyalar** galerisinde görünür ve menü arka 
 - **Rekorlar:** En iyi 10 oyun ve istatistikler. Oyun sırasında rekor kırılınca kutlama yapılır.
 - **Günlük hediye:** 7 günlük takvim; arka arkaya gelen günlerde ödül büyür, 7. gün büyük hediye.
 - **Mobil oyun menüsü:** Profil (rütbe) kartı, altın kasası, yan hızlı butonlar, alt sekme çubuğu, mürekkep fırçası geçişleri.
+
+### Gelir modeli
+
+- **Ödüllü video (AdMob):** Şehir düşünce "Video izle, devam et", oyun sonunda "altınları 2 katına çıkar", günlük hediyeyi 2 kat alma ve mağazada günde 5 kez ücretsiz 80 altın. Reklam her zaman isteğe bağlıdır; zorunlu (araya giren) reklam yoktur.
+- **Uygulama içi satın alma (Google Play Billing):** Altın paketleri (1.000 / 2.750 / 6.000 / 14.000), tek seferlik **Başlangıç Paketi** (3.000 altın + Zaman Kırılması) ve **Reklamsız** (tüm video ödülleri anında).
+- Altının harcandığı yerler: kalemler, atölye, yetenekler, altınla devam.
+
+**Yayın öncesi yapılacaklar:**
+
+1. [AdMob](https://admob.google.com) hesabında uygulamayı ve bir **Ödüllü** reklam birimi oluştur.
+2. `android/app/src/main/AndroidManifest.xml` içindeki `APPLICATION_ID` değerini ve `src/monetize.ts` içindeki `REWARDED_AD_ID`'yi kendi kimliklerinle değiştir, `ADS_TESTING`'i `false` yap.
+3. AdMob'da AB kullanıcıları için izin (GDPR) mesajını etkinleştir; uygulama formu kendisi gösterir.
+4. Play Console → Para kazanma → Ürünler → **Uygulama içi ürünler** altında şu kimliklerle ürünleri oluştur:
+   `inkfall_coins_1000`, `inkfall_coins_2750`, `inkfall_coins_6000`, `inkfall_coins_14000`, `inkfall_starter`, `inkfall_noads`.
+   Fiyatlar mağazadan otomatik okunur ve kullanıcının para biriminde gösterilir.
+5. Satın almaları test etmek için Play Console'da lisans test kullanıcıları ekle (test kartıyla ücret alınmaz).
 
 ## Teknik yapı
 
@@ -136,8 +156,8 @@ keytool -genkey -v -keystore upload.jks -keyalg RSA -keysize 2048 -validity 1000
 - [ ] Uygulama oluştur: ad **Inkfall: Meteor Defense**, paket adı `com.talhamert.inkfall`
 - [ ] Mağaza girişi: metinler `store/listing.md`, ikon `store/icon-512.png`, tanıtım görseli `store/feature-graphic-tr.jpg`, ekran görüntüleri `store/screenshots/`
 - [ ] Gizlilik politikası: `docs/privacy-policy.md` dosyasını herkese açık bir adreste yayınla (örneğin GitHub Pages) ve adresini gir
-- [ ] Veri güvenliği formu: veri toplanmıyor, paylaşılmıyor (oyun yalnızca cihazda yerel kayıt tutar)
-- [ ] İçerik derecelendirmesi anketi: şiddet yok (yalnızca soyut meteor patlamaları), kullanıcılar arası etkileşim yok, reklam yok
+- [ ] Veri güvenliği formu: oyun kendi sunucusuna veri göndermez; **AdMob reklam kimliği ve cihaz verisi toplar** (reklam ve analiz amaçlı), Google Play Billing ödeme bilgisini işler. Formda "Reklam kimliği" ve "Uygulama etkileşimleri" beyan edilmeli.
+- [ ] İçerik derecelendirmesi anketi: şiddet yok (yalnızca soyut meteor patlamaları), kullanıcılar arası etkileşim yok, **reklam var**, **uygulama içi satın alma var**
 - [ ] Hedef kitle: 13+ önerilir (çocuklara yönelik "Aileler" politikası ek gereksinim getirir)
 - [ ] Kapalı test: yeni kişisel hesaplarda üretime geçmeden önce en az 12 test kullanıcısıyla 14 günlük kapalı test gerekir
 - [ ] İmzalı AAB'yi yükle, Play App Signing'i kabul et
@@ -146,8 +166,8 @@ keytool -genkey -v -keystore upload.jks -keyalg RSA -keysize 2048 -validity 1000
 
 - **Küresel skor tablosu:** Google Play Games Services liderlik tablosu (rekabet için en güçlü adım)
 - **Bulut kaydı:** Play Games ile ilerlemenin cihazlar arası taşınması
-- **Gelir:** Ödüllü reklam (oyun sonunda "2 kat altın") ve kozmetik kalem paketleri
-- **İçerik:** Her dünyaya özel boss, mevsimlik günlük kurallar, başarımlar
+- **Gelir:** Kozmetik kalem paketleri, sezonluk etkinlik kartı
+- **İçerik:** Mevsimlik günlük kurallar, başarımlar, yeni yetenekler
 
 ## Lisanslar
 

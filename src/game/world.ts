@@ -6,7 +6,7 @@ import { Rng, fx } from '../core/rng';
 import { t } from '../i18n';
 import { ATMOSPHERES, type Atmosphere } from '../render/atmospheres';
 import type { Background } from '../render/background';
-import { C, METEOR_COLORS } from '../render/palette';
+import { BOSS_COLORS, C, METEOR_COLORS } from '../render/palette';
 import { Particles, Shape } from '../render/particles';
 import type { Sprites } from '../render/sprites';
 import { WORLD_W, type View } from '../render/view';
@@ -14,7 +14,7 @@ import { BLOCKS, BLOCK_W, City } from './city';
 import { Director, type DirectorMods } from './director';
 import { Effects } from './effects';
 import { type InkLine, LineManager } from './lines';
-import { KINDS, MK, Meteor, renderBossRing, renderMeteors } from './meteors';
+import { BT, KINDS, MK, Meteor, renderBossRing, renderMeteors, shieldPos } from './meteors';
 import type { Pen } from './pens';
 import { type Stats, UPGRADES, UPGRADE_BY_ID, baseStats, Rarity } from './upgrades';
 
@@ -48,7 +48,13 @@ export interface RunOptions {
   tutorial: boolean;
   best: number;
   pen: Pen;
+  /** donanımlı aktif yetenek */
+  skill: SkillId;
 }
+
+export type SkillId = 'nova' | 'warp' | 'aegis' | 'starfall';
+/** Yeteneğin dolması için gereken enerji (öldürme = 1, sekme = 0.4) */
+const SKILL_NEED = 34;
 
 export interface RunResult {
   score: number;
@@ -68,7 +74,7 @@ export interface RunResult {
 }
 
 export type WorldEvent =
-  | { type: 'wave'; wave: number; boss: boolean }
+  | { type: 'wave'; wave: number; boss: boolean; bossType: number }
   | { type: 'waveClear'; wave: number; bonus: number; perfect: boolean }
   | { type: 'bossDown' }
   | { type: 'record' }
@@ -80,8 +86,10 @@ export type WorldEvent =
   | { type: 'tutorialDone' }
   | { type: 'phoenix' }
   | { type: 'atmosphere'; index: number }
-  | { type: 'revive'; cost: number }
-  | { type: 'nearMiss' };
+  | { type: 'revive'; count: number }
+  | { type: 'nearMiss' }
+  | { type: 'skillReady' }
+  | { type: 'skill'; id: SkillId };
 
 export type Phase = 'attract' | 'tutorial' | 'intro' | 'play' | 'cleared' | 'transition' | 'revive' | 'dying' | 'over';
 
@@ -109,6 +117,9 @@ export interface Hud {
   comboT: number;
   bossHp: number;
   coins: number;
+  /** yetenek dolumu 0..1 */
+  skill: number;
+  skillActive: boolean;
 }
 
 interface Pending {
@@ -194,7 +205,26 @@ export class World implements PointerSink {
   private chainT = 0;
   private chainX = 360;
   private chainY = 400;
-  private boss: Meteor | null = null;
+  /** sahnedeki bosslar (İkiz Yıldızlar'da iki tane) */
+  private bosses: Meteor[] = [];
+  /** İkiz Yıldızlar: ikisinin döndüğü ortak merkez */
+  private twinC = { x: 360, y: -110, vy: 0, base: 0, spin: 0.9 };
+
+  // aktif yetenek
+  skillId: SkillId = 'nova';
+  private energy = 0;
+  private skillReadyShown = false;
+  private novaR = -1;
+  private novaHit = new Set<Meteor>();
+  private warpT = 0;
+  private aegisT = 0;
+  private starfallN = 0;
+  private starfallT = 0;
+  /** düşman meteorların zaman ölçeği (Zaman Kırılması) */
+  private hostileScale = 1;
+  // koruyucu uydu
+  private droneT = 3;
+  private droneA = 0;
 
   // attract (menü demosu)
   private attractT = 0;
@@ -234,6 +264,8 @@ export class World implements PointerSink {
     comboT: 0,
     bossHp: -1,
     coins: 0,
+    skill: 0,
+    skillActive: false,
   };
 
   constructor(
@@ -256,9 +288,10 @@ export class World implements PointerSink {
   private trans: DrumTransition | null = null;
   private snapA: HTMLCanvasElement | null = null;
   private snapB: HTMLCanvasElement | null = null;
-  /** Oyun sonunda altınla devam: uygulama belirler (yeterli altın var mı) */
-  reviveCost: (() => number) | null = null;
-  private revived = false;
+  /** Şehir düşünce devam teklifi: uygulama belirler (video hakkı / yeterli altın) */
+  canRevive: ((count: number) => boolean) | null = null;
+  /** bu turda kaç kez devam edildi */
+  revives = 0;
 
   get atm(): Atmosphere {
     return ATMOSPHERES[this.atmIndex];
@@ -346,7 +379,13 @@ export class World implements PointerSink {
     this.fx.clear();
     this.pending.length = 0;
     this.holes.length = 0;
-    this.boss = null;
+    this.bosses = [];
+    this.novaR = -1;
+    this.novaHit.clear();
+    this.warpT = 0;
+    this.aegisT = 0;
+    this.starfallN = 0;
+    this.hostileScale = 1;
     this.drawing = false;
     this.timeScale = 1;
     this.hitstop = 0;
@@ -417,7 +456,11 @@ export class World implements PointerSink {
     this.maxLineDeflect = 0;
     this.recordBroken = false;
     this.phoenixUsed = 0;
-    this.revived = false;
+    this.revives = 0;
+    this.skillId = opts.skill;
+    this.energy = 0;
+    this.skillReadyShown = false;
+    this.droneT = 3;
     if (this.atmIndex !== 0) this.applyAtmosphere(0);
     this.director.bias = this.atm.bias;
     this.hud.best = opts.best;
@@ -439,12 +482,13 @@ export class World implements PointerSink {
 
   startWave(n: number): void {
     this.wave = n;
+    this.bosses = [];
     this.director.plan(n, this.view.H, this.groundY);
     this.phase = 'intro';
     this.introT = 1.35;
     this.waveDamaged = false;
     this.city.domeCharges = Math.max(this.city.domeCharges, this.stats.domePerWave);
-    this.onEvent({ type: 'wave', wave: n, boss: this.director.bossWave });
+    this.onEvent({ type: 'wave', wave: n, boss: this.director.bossWave, bossType: this.director.bossType });
     audio.setIntensity(this.director.bossWave ? 4 : n >= 7 ? 3 : n >= 3 ? 2 : 1);
     audio.waveStart();
   }
@@ -465,6 +509,7 @@ export class World implements PointerSink {
     if (this.stats.maxInk > prevMax) this.ink += this.stats.maxInk - prevMax;
     if (id === 'repair') this.repairOne();
     if (id === 'dome') this.city.domeCharges = Math.max(this.city.domeCharges, this.stats.domePerWave);
+    if (id === 'lucky') this.director.goldenBonus += 0.015;
   }
 
   private repairOne(): void {
@@ -624,7 +669,7 @@ export class World implements PointerSink {
         if (this.introT <= 0) this.phase = 'play';
         break;
       case 'play':
-        this.updateSpawns(sdt);
+        this.updateSpawns(sdt * this.hostileScale);
         break;
       case 'transition':
         this.updateTransition(realDt);
@@ -656,7 +701,7 @@ export class World implements PointerSink {
           this.inkEmptyFx();
         }
       } else {
-        this.ink = Math.min(this.stats.maxInk, this.ink + this.stats.inkRegen * sdt);
+        this.ink = Math.min(this.stats.maxInk, this.ink + this.stats.inkRegen * sdt * (this.warpT > 0 ? 2.5 : 1));
       }
       // kombo zamanlayıcı
       if (this.combo > 0) {
@@ -665,10 +710,12 @@ export class World implements PointerSink {
       }
     }
 
+    this.updateSkill(sdt, realDt);
     this.updateMeteors(sdt);
     this.updateCollisions();
     this.updatePending(sdt);
     this.updateHoles(sdt);
+    this.updateFrozenLines(sdt);
     this.lines.update(sdt, (l) => this.dissolveLine(l));
     this.city.update(sdt, (x, y, rubble) => this.fireFx(x, y, rubble));
     this.parts.update(sdt);
@@ -693,8 +740,16 @@ export class World implements PointerSink {
     h.combo = this.combo;
     h.mult = this.mult;
     h.comboT = this.combo > 0 ? clamp(this.comboT / COMBO_WINDOW, 0, 1) : 0;
-    h.bossHp = this.boss && this.boss.active ? this.boss.hp / this.boss.maxHp : -1;
+    let hp = 0;
+    let max = 0;
+    for (const b of this.bosses) {
+      max += b.maxHp;
+      if (b.active && b.kind === MK.Boss) hp += Math.max(0, b.hp);
+    }
+    h.bossHp = hp > 0 ? hp / max : -1;
     h.coins = this.coins;
+    h.skill = this.energy / SKILL_NEED;
+    h.skillActive = this.novaR >= 0 || this.warpT > 0 || this.aegisT > 0 || this.starfallN > 0;
   }
 
   private updateSpawns(sdt: number): void {
@@ -702,9 +757,10 @@ export class World implements PointerSink {
     d.time += sdt;
     while (d.qi < d.queue.length && d.queue[d.qi].t <= d.time) {
       const s = d.queue[d.qi++];
-      this.spawn(s.kind, s.x, s.y, s.vx, s.vy);
+      if (s.kind === MK.Boss) this.spawnBoss(s.boss ?? 0);
+      else this.spawn(s.kind, s.x, s.y, s.vx, s.vy);
     }
-    if (d.bossWave && this.boss && this.boss.active) {
+    if (d.bossWave && this.bossAlive) {
       const e = d.escort(sdt, this.view.H, this.groundY);
       if (e) this.spawn(e.kind, e.x, e.y, e.vx, e.vy);
     }
@@ -744,19 +800,63 @@ export class World implements PointerSink {
     if (!m) return null;
     const size = this.opts?.mod?.size ?? 1;
     m.spawn(kind, x, y, vx, vy, kind === MK.Boss ? 1 : size);
-    if (kind === MK.Boss) {
-      const n = Math.max(1, Math.round(this.wave / 5));
-      m.hp = m.maxHp = 14 + 8 * (n - 1);
+    if (kind === MK.Phantom) {
+      // yüzü hep dik dursun
+      m.rot = 0;
+      m.spin = 0;
+    }
+    return m;
+  }
+
+  get bossAlive(): boolean {
+    for (const b of this.bosses) if (b.active && b.kind === MK.Boss) return true;
+    return false;
+  }
+
+  /** Boss türüne göre sahneye çıkış */
+  private spawnBoss(type: number): void {
+    const n = Math.max(1, Math.round(this.wave / 5));
+    // her tam döngüde (5 boss) daha dayanıklı
+    const hp = 14 + 7 * (n - 1);
+    this.bosses = [];
+    const make = (x: number, y: number, r: number, hpv: number): Meteor | null => {
+      const m = this.spawn(MK.Boss, x, y, 0, 0);
+      if (!m) return null;
+      m.bossType = type;
+      m.r = r;
+      m.hp = m.maxHp = hpv;
       m.baseV = 30 * this.speedScale;
       m.vy = m.baseV;
       m.minionT = 2.5;
-      m.spin = 0.25;
-      this.boss = m;
-      audio.bossAppear();
-      this.fx.shake(0.35);
-      haptics.heavy();
+      m.rot = 0;
+      // yüzü olan bosslar dönmez, yalnızca hafifçe sallanır
+      m.spin = 0;
+      this.bosses.push(m);
+      return m;
+    };
+    if (type === BT.Twins) {
+      const c = this.twinC;
+      c.x = 360;
+      c.y = -120;
+      c.base = 26 * this.speedScale;
+      c.vy = c.base;
+      c.spin = 0.9;
+      for (let i = 0; i < 2; i++) {
+        const t = make(360, -120, 58, Math.round(hp * 0.52));
+        if (t) {
+          t.twin = i;
+          t.minionT = 2 + i * 1.2;
+        }
+      }
+    } else {
+      const m = make(360, -110, type === BT.Queen ? 70 : 80, type === BT.Frost ? Math.round(hp * 0.85) : hp);
+      if (m && type === BT.Frost) m.shields = 3;
+      if (m && type === BT.Singularity) m.pulseT = 5;
+      if (m && type === BT.Queen) m.baseV = 24 * this.speedScale;
     }
-    return m;
+    audio.bossAppear();
+    this.fx.shake(0.35);
+    haptics.heavy();
   }
 
   private updateMeteors(dt: number): void {
@@ -766,32 +866,50 @@ export class World implements PointerSink {
     }
     const W = WORLD_W;
     const ground = this.groundY;
+    const inGame = this.phase !== 'attract';
     for (const m of this.meteors) {
       if (!m.active) continue;
-      m.age += dt;
+      // düşmanlar: ayaz ve Zaman Kırılması onları yavaşlatır
+      let mdt = dt;
+      if (!m.friendly && inGame) {
+        if (m.slowT > 0) {
+          m.slowT -= dt;
+          mdt *= 0.45;
+        }
+        mdt *= this.hostileScale;
+      }
+      m.age += mdt;
       m.flash = Math.max(0, m.flash - dt);
       m.lineCd -= dt;
 
-      if (!m.friendly && m.kind !== MK.Boss && this.atm.wind !== 0 && this.phase !== 'attract') {
-        m.vx += this.atm.wind * this.speedScale * dt;
+      if (!m.friendly && m.kind !== MK.Boss && this.atm.wind !== 0 && inGame) {
+        m.vx += this.atm.wind * this.speedScale * mdt;
       }
       if (m.kind === MK.Golden && !m.friendly) {
         m.vx = m.baseV + Math.sin(m.age * 2.4 + m.swayPh) * 90 * this.speedScale;
       }
+      if (m.kind === MK.Phantom) {
+        // hayalet: ~2.3 sn'lik döngüde kısa süre saydamlaşır; şehre yaklaşınca hep görünür (adil olsun)
+        const ph = (m.age + m.swayPh) % 2.3;
+        const target = !m.friendly && ph > 1.45 && m.y < this.groundY - 190 ? 1 : 0;
+        m.fade += (target - m.fade) * Math.min(1, dt * 9);
+        m.rot = Math.sin(m.age * 3 + m.swayPh) * 0.18;
+      }
       if (m.kind !== MK.Boss) {
         // zırhı kırılıp yukarı seken düşman meteor yeniden düşer; ekran dışında kaybolup dalgayı kilitlemesin
-        if (!m.friendly && m.vy < 90 * this.speedScale) m.vy += 520 * this.speedScale * dt;
+        if (!m.friendly && m.vy < 90 * this.speedScale) m.vy += 520 * this.speedScale * mdt;
         // güvenlik ağı: çok uzun yaşayan (sıkışmış) meteorları sessizce kaldır
         if (m.age > 45) {
           m.active = false;
           continue;
         }
       }
-      if (m.kind === MK.Boss) this.updateBoss(m, dt);
+      if (m.kind === MK.Boss) this.updateBoss(m, mdt);
+      if (m.friendly && inGame) this.steerFriendly(m, dt);
 
       const sp = Math.hypot(m.vx, m.vy);
-      const steps = clamp(Math.ceil((sp * dt) / 7), 1, 10);
-      const h = dt / steps;
+      const steps = clamp(Math.ceil((sp * mdt) / 7), 1, 10);
+      const h = mdt / steps;
       for (let s = 0; s < steps && m.active; s++) {
         m.x += m.vx * h;
         m.y += m.vy * h;
@@ -805,7 +923,7 @@ export class World implements PointerSink {
         }
       }
       if (!m.active) continue;
-      m.rot += m.spin * dt;
+      m.rot += m.spin * mdt;
       m.trailAcc += dt;
       if (m.trailAcc >= 1 / 60) {
         m.trailAcc = 0;
@@ -827,6 +945,11 @@ export class World implements PointerSink {
       }
 
       if (!m.friendly) {
+        // Aegis yeteneği: şehrin üstündeki kalkan meteorları mürekkebe çevirip geri fırlatır
+        if (this.aegisT > 0 && m.y + m.r >= this.aegisY(m.x) && m.vy > 0) {
+          this.aegisReflect(m);
+          continue;
+        }
         // kubbe kalkanı
         if (this.city.domeCharges > 0 && m.kind !== MK.Boss && m.y + m.r >= this.city.domeY(m.x) && this.phase !== 'attract') {
           this.domeBlock(m);
@@ -837,6 +960,16 @@ export class World implements PointerSink {
           continue;
         }
       } else {
+        // sekme ustası: dost meteor tavandan geri döner
+        if (m.y < m.r + 6 && m.vy < 0 && m.topBounces < this.stats.ricochet && inGame) {
+          m.topBounces++;
+          m.y = m.r + 6;
+          m.vy = -m.vy;
+          m.flash = 0.2;
+          this.fx.ring(m.x, m.y, 6, 80, 0.4, this.inkColor, 6);
+          audio.deflect(this.combo);
+          if (this.stats.cometBurst > 0) this.cometBurstAt(m.x, m.y);
+        }
         if (m.y < -m.r - 30) {
           this.exitTop(m);
           continue;
@@ -855,30 +988,169 @@ export class World implements PointerSink {
   }
 
   private updateBoss(m: Meteor, dt: number): void {
+    if (m.bossType === BT.Twins) {
+      this.updateTwin(m, dt);
+      return;
+    }
+    const enraged = m.hp < m.maxHp * 0.5;
     m.vy += (m.baseV - m.vy) * Math.min(1, dt * 1.1);
     // yatay konum sabit bir salınım: çizgiler boss'u yana itemez
-    const targetX = 360 + Math.sin(m.age * 0.45) * 150;
+    let targetX: number;
+    switch (m.bossType) {
+      case BT.Queen:
+        targetX = 360 + Math.sin(m.age * 0.8) * 230 + Math.sin(m.age * 2.1) * 40;
+        break;
+      case BT.Frost:
+        targetX = 360 + Math.sin(m.age * 0.35) * 120;
+        break;
+      case BT.Singularity:
+        targetX = 360 + Math.sin(m.age * 0.5) * 170;
+        break;
+      default:
+        targetX = 360 + Math.sin(m.age * 0.45) * 150;
+    }
     m.vx = (targetX - m.x) * 3;
+    m.rot = Math.sin(m.age * 1.3) * 0.1;
     // geri itilince HUD'un altına kaçmasın
     const minY = this.topInset + m.r * 0.6;
     if (m.y < minY && m.vy < 0) m.vy = 0;
+
+    // Buz Kalesi: kırılan kristaller zamanla yeniden büyür
+    if (m.bossType === BT.Frost && m.shields !== 7) {
+      m.shieldT += dt;
+      // tümü kırılınca uzun bir açık pencere: hasar verme fırsatı
+      if (m.shieldT > (m.shields === 0 ? 8.5 : 6)) {
+        m.shieldT = 0;
+        for (let i = 0; i < 3; i++) {
+          if (!((m.shields >> i) & 1)) {
+            m.shields |= 1 << i;
+            const [x, y] = shieldPos(m, i, this.realT);
+            this.fx.ring(x, y, 4, 60, 0.4, BOSS_COLORS[BT.Frost], 5);
+            break;
+          }
+        }
+      }
+    }
+    // Tekillik: çizgileri kıran nabız (önce daralan uyarı halkası)
+    if (m.bossType === BT.Singularity && m.y > 40) {
+      m.pulseT -= dt;
+      if (m.pulseT <= -1) {
+        m.pulseT = enraged ? 4 : 6;
+        for (const l of this.lines.pool) if (l.alive && l.collidable) this.shatterLine(l);
+        if (this.drawing) this.endLine();
+        this.fx.ring(m.x, m.y, m.r, 900, 0.8, BOSS_COLORS[BT.Singularity], 24);
+        this.fx.flash(BOSS_COLORS[BT.Singularity], 0.25);
+        this.fx.shake(0.4);
+        audio.blackHole();
+        haptics.heavy();
+      }
+    }
+
     m.minionT -= dt;
     if (m.minionT <= 0 && m.y > 40) {
-      const enraged = m.hp < m.maxHp * 0.5;
-      m.minionT = enraged ? 1.5 : 2.3;
       const spd = this.director.baseSpeed(this.view.H) * 1.05;
-      for (const a of enraged ? [-0.55, 0, 0.55] : [-0.45, 0.45]) {
-        const ang = Math.PI / 2 + a;
-        const s = this.spawn(MK.Shard, m.x + Math.cos(ang) * m.r * 0.8, m.y + Math.sin(ang) * m.r * 0.8, Math.cos(ang) * spd, Math.sin(ang) * spd);
-        if (s) s.flash = 0.3;
+      const col = BOSS_COLORS[m.bossType] ?? C.crimson;
+      const fan = (kind: MK, angs: number[], speedMul = 1): void => {
+        for (const a of angs) {
+          const ang = Math.PI / 2 + a;
+          const s = this.spawn(kind, m.x + Math.cos(ang) * m.r * 0.8, m.y + Math.sin(ang) * m.r * 0.8, Math.cos(ang) * spd * speedMul, Math.sin(ang) * spd * speedMul);
+          if (s) s.flash = 0.3;
+        }
+      };
+      switch (m.bossType) {
+        case BT.Queen:
+          m.minionT = enraged ? 2.1 : 3;
+          fan(MK.Comet, enraged ? [-0.6, 0, 0.6] : [-0.45, 0.45], 0.62);
+          break;
+        case BT.Frost:
+          m.minionT = enraged ? 2.2 : 3;
+          fan(MK.Ice, enraged ? [-0.5, 0, 0.5] : [-0.35, 0.35], 0.9);
+          break;
+        case BT.Singularity:
+          m.minionT = enraged ? 2 : 2.8;
+          fan(MK.Phantom, enraged ? [-0.4, 0.4] : [0.001], 0.9);
+          break;
+        default:
+          m.minionT = enraged ? 1.5 : 2.3;
+          fan(MK.Shard, enraged ? [-0.55, 0, 0.55] : [-0.45, 0.45]);
       }
-      this.parts.burst(m.x, m.y + m.r * 0.7, Math.round(16 * this.q), this.sp.crimson, 60, 260, 0.6, 26, { drag: 3 });
+      this.parts.burst(m.x, m.y + m.r * 0.7, Math.round(16 * this.q), this.parts.register('hot:' + col, this.sprites.glow(col, true)), 60, 260, 0.6, 26, { drag: 3 });
     }
+  }
+
+  /** İkiz Yıldızlar: ortak merkez etrafında dans eder; biri düşünce diğeri öfkelenir */
+  private updateTwin(m: Meteor, dt: number): void {
+    const c = this.twinC;
+    const alive = this.bosses.filter((b) => b.active && b.kind === MK.Boss);
+    const lead = alive[0] === m;
+    if (lead) {
+      c.vy += (c.base - c.vy) * Math.min(1, dt * 1.1);
+      c.y += c.vy * dt;
+      const minY = this.topInset + 80;
+      if (c.y < minY && c.vy < 0) {
+        c.y = minY;
+        c.vy = 0;
+      }
+      c.x = 360 + Math.sin(m.age * 0.5) * 140;
+      if (alive.length === 1) c.spin = 1.7;
+    }
+    const a = m.age * c.spin + m.twin * Math.PI;
+    const R = alive.length === 1 ? 70 : 125;
+    const tx = c.x + Math.cos(a) * R;
+    const ty = c.y + Math.sin(a) * R * 0.55;
+    m.vx = (tx - m.x) / Math.max(dt, 1e-3);
+    m.vy = (ty - m.y) / Math.max(dt, 1e-3);
+    m.rot = Math.sin(m.age * 2 + m.twin) * 0.12;
+    m.minionT -= dt;
+    if (m.minionT <= 0 && m.y > 40) {
+      m.minionT = alive.length === 1 ? 2.2 : 3.4;
+      const spd = this.director.baseSpeed(this.view.H) * 0.85;
+      const s = this.spawn(MK.Nova, m.x, m.y + m.r * 0.8, fx.r(-60, 60) * this.speedScale, spd);
+      if (s) s.flash = 0.3;
+    }
+  }
+
+  /** Dost meteor yönlendirme: mıknatıs kartı, yıldız yağmuru ve Tekillik çekimi */
+  private steerFriendly(m: Meteor, dt: number): void {
+    for (const b of this.bosses) {
+      if (!b.active || b.kind !== MK.Boss || b.bossType !== BT.Singularity) continue;
+      const dx = b.x - m.x;
+      const dy = b.y - m.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 460 && d > 1) {
+        const f = 900 * this.speedScale * (1 - d / 460) * dt;
+        m.vx += (dx / d) * f;
+        m.vy += (dy / d) * f;
+      }
+    }
+    const turn = m.homing > 0 ? m.homing : this.stats.magnet > 0 ? 1.4 + this.stats.magnet * 1.3 : 0;
+    if (turn <= 0) return;
+    let best: Meteor | null = null;
+    let bd = 520 * 520;
+    for (const o of this.meteors) {
+      if (!o.active || o.friendly || o.ghost) continue;
+      const d2 = (o.x - m.x) ** 2 + (o.y - m.y) ** 2;
+      if (d2 < bd) {
+        bd = d2;
+        best = o;
+      }
+    }
+    if (!best) return;
+    const sp = Math.hypot(m.vx, m.vy) || 1;
+    const cur = Math.atan2(m.vy, m.vx);
+    const want = Math.atan2(best.y - m.y, best.x - m.x);
+    let d = want - cur;
+    while (d > Math.PI) d -= TAU;
+    while (d < -Math.PI) d += TAU;
+    const na = cur + clamp(d, -turn * dt, turn * dt);
+    m.vx = Math.cos(na) * sp;
+    m.vy = Math.sin(na) * sp;
   }
 
   // ───────────────────────── ÇARPIŞMALAR ─────────────────────────
 
   private collideLines(m: Meteor): void {
+    if (m.ghost) return;
     const lw = this.stats.lineWidth * 0.5;
     const rad = m.r + lw;
     for (const l of this.lines.pool) {
@@ -936,7 +1208,8 @@ export class World implements PointerSink {
   private onLineHit(m: Meteor, l: InkLine, px: number, py: number, nx: number, ny: number, s: number, rad: number): void {
     if (m.kind === MK.Boss) {
       this.shatterLine(l);
-      m.vy = -150 * this.speedScale;
+      if (m.bossType === BT.Twins) this.twinC.vy = -150 * this.speedScale;
+      else m.vy = -150 * this.speedScale;
       m.flash = 0.25;
       this.fx.shake(0.2);
       audio.bossHit();
@@ -995,6 +1268,19 @@ export class World implements PointerSink {
     const wasHostile = !m.friendly;
     m.friendly = true;
     m.deflectedBy = l.id;
+    m.fade = 0;
+    if (wasHostile) {
+      this.gainEnergy(0.4);
+      // buz kristali dokunduğu çizgiyi dondurur: kısa süre sonra kırılır
+      if (m.kind === MK.Ice && l.frozen <= 0 && this.phase !== 'attract') {
+        l.frozen = 0.42;
+        this.parts.burst(px, py, Math.round(14 * this.q), this.sp.ice, 60, 260, 0.6, 12, { drag: 3, shape: Shape.Streak });
+        this.fx.text(t('w.frozen'), px, py - 34, 20, C.ice);
+        audio.freeze();
+      }
+      // kırağı kartı: sekme noktasındaki düşmanları yavaşlatır
+      if (this.stats.frost > 0) this.frostNova(px, py, 170, this.stats.frost, false);
+    }
 
     // görsel geri bildirim
     const col = this.inkColor;
@@ -1099,9 +1385,11 @@ export class World implements PointerSink {
     for (let i = 0; i < list.length; i++) {
       const a = list[i];
       if (!a.active || !a.friendly) continue;
+      // Buz Kalesi kristalleri dost meteorları durdurur
+      if (this.hitShield(a)) continue;
       for (let j = 0; j < list.length; j++) {
         const b = list[j];
-        if (!b.active || b.friendly || b === a) continue;
+        if (!b.active || b.friendly || b === a || b.ghost) continue;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const rr = a.r + b.r;
@@ -1134,7 +1422,8 @@ export class World implements PointerSink {
 
   /** Dost meteor çarpışmadan sonra ya deler geçer ya da patlar */
   private consumeFriendly(a: Meteor, x: number, y: number): void {
-    if (a.pierce < this.stats.pierce) {
+    // kuyruklu yıldız bir hedefi fazladan deler
+    if (a.pierce < this.stats.pierce + (a.kind === MK.Comet ? 1 : 0)) {
       a.pierce++;
       a.vx *= 0.9;
       a.vy *= 0.9;
@@ -1142,27 +1431,92 @@ export class World implements PointerSink {
       return;
     }
     a.active = false;
+    if (a.kind === MK.Nova) {
+      // sektirilen nova çekirdeği dev bir patlamayla zincir başlatır
+      this.queueExplosion(x, y, this.stats.explosionR * 1.9, a.chainDepth + 1, 0);
+      this.explosionFx(x, y, METEOR_COLORS.nova, 1.4);
+      this.fx.ring(x, y, 20, this.stats.explosionR * 2.2, 0.5, METEOR_COLORS.nova, 14);
+      this.fx.shake(0.3);
+      return;
+    }
     this.queueExplosion(x, y, this.stats.explosionR, a.chainDepth + 1, 0);
     this.explosionFx(x, y, this.inkColor, 0.7);
   }
 
+  /** Dost meteor bir buz kristaline çarptıysa kristal kırılır, meteor tükenir */
+  private hitShield(a: Meteor): boolean {
+    for (const b of this.bosses) {
+      if (!b.active || b.kind !== MK.Boss || b.bossType !== BT.Frost || b.shields === 0) continue;
+      for (let i = 0; i < 3; i++) {
+        if (!((b.shields >> i) & 1)) continue;
+        const [x, y] = shieldPos(b, i, this.realT);
+        const rr = a.r + 24;
+        if ((a.x - x) ** 2 + (a.y - y) ** 2 > rr * rr) continue;
+        b.shields &= ~(1 << i);
+        b.shieldT = 0;
+        this.parts.burst(x, y, Math.round(20 * this.q), this.sp.ice, 80, 380, 0.8, 14, { shape: Shape.Streak, drag: 2.5, gravity: 200 });
+        this.fx.ring(x, y, 6, 110, 0.45, BOSS_COLORS[BT.Frost], 8);
+        this.fx.text(t('w.shieldBreak'), x, y - 36, 22, C.ice);
+        this.addScore(60, x, y, false);
+        this.bumpCombo();
+        audio.shatter();
+        haptics.medium();
+        a.active = false;
+        this.explosionFx(x, y, BOSS_COLORS[BT.Frost], 0.6);
+        return true;
+      }
+    }
+    return false;
+  }
+
   private bossDamage(boss: Meteor, a: Meteor, x: number, y: number): void {
     a.active = false;
-    boss.hp -= 1;
-    boss.flash = 0.2;
-    this.explosionFx(x, y, C.crimson, 0.9);
+    const col = BOSS_COLORS[boss.bossType] ?? C.crimson;
+    if (boss.bossType === BT.Frost && boss.shields !== 0) {
+      // kristaller yerindeyken kale hasar almaz
+      this.explosionFx(x, y, col, 0.6);
+      this.fx.text(t('w.shielded'), x, y - 30, 22, C.ice);
+      audio.shatter();
+      return;
+    }
+    this.hurtBoss(boss, a.kind === MK.Nova ? 2 : 1, x, y);
     this.queueExplosion(x, y, this.stats.explosionR * 0.8, 1, 0);
-    this.addScore(40, x, y, true);
+  }
+
+  /** Boss'a doğrudan hasar (dost meteor, yıldız patlaması) */
+  private hurtBoss(boss: Meteor, dmg: number, x: number, y: number): void {
+    if (!boss.active || boss.hp <= 0) return;
+    const col = BOSS_COLORS[boss.bossType] ?? C.crimson;
+    boss.hp -= dmg;
+    boss.flash = 0.2;
+    this.explosionFx(x, y, col, 0.9);
+    this.addScore(40 * dmg, x, y, true);
     this.bumpCombo();
+    this.gainEnergy(1.5);
     this.fx.shake(0.18);
     audio.bossHit();
     haptics.medium();
-    if (boss.hp <= 0) this.bossDeath(boss);
+    if (boss.hp > 0) return;
+    const others = this.bosses.some((b) => b !== boss && b.active && b.kind === MK.Boss && b.hp > 0);
+    if (others) {
+      // ikizlerden biri düştü: diğeri öfkelenir
+      boss.active = false;
+      this.explosionFx(boss.x, boss.y, col, 1.8);
+      this.fx.ring(boss.x, boss.y, 20, 360, 0.9, col, 18);
+      this.fx.text(t('w.twinDown'), boss.x, boss.y - 80, 34, C.gold, true, 1.4);
+      this.addScore(600, boss.x, boss.y, true);
+      this.hitstop = 0.1;
+      audio.bossDie();
+      haptics.heavy();
+      return;
+    }
+    this.bossDeath(boss);
   }
 
   private bossDeath(b: Meteor): void {
     b.active = false;
-    this.boss = null;
+    for (const o of this.bosses) o.active = false;
+    this.bosses = [];
     this.bossKills++;
     const n = Math.max(1, Math.round(this.wave / 5));
     this.addScore(1500 * n, b.x, b.y - 60, true);
@@ -1171,10 +1525,11 @@ export class World implements PointerSink {
     this.slowOverrideT = 1.1;
     this.fx.shake(1);
     this.fx.flash('#FFFFFF', 0.9);
-    this.fx.ring(b.x, b.y, 20, 520, 1.1, C.crimson, 22);
+    const bcol = BOSS_COLORS[b.bossType] ?? C.crimson;
+    this.fx.ring(b.x, b.y, 20, 520, 1.1, bcol, 22);
     this.fx.ring(b.x, b.y, 10, 340, 0.8, C.gold, 12);
     for (let i = 0; i < 6; i++) {
-      this.explosionFx(b.x + fx.r(-70, 70), b.y + fx.r(-70, 70), i % 2 ? C.crimson : C.gold, 1.6);
+      this.explosionFx(b.x + fx.r(-70, 70), b.y + fx.r(-70, 70), i % 2 ? bcol : C.gold, 1.6);
     }
     this.parts.burst(b.x, b.y, Math.round(40 * this.q), this.sp.rock, 200, 700, 1.4, 18, {
       shape: Shape.Chip,
@@ -1187,7 +1542,7 @@ export class World implements PointerSink {
       if (m.active && !m.friendly) this.queueExplosion(m.x, m.y, 10, 2, 0.2 + Math.random() * 0.4, m);
     }
     this.rewardCoins(b.x, b.y, 20 * n);
-    this.fx.text(t('w.bossDown'), 360, this.view.H * 0.35, 46, C.gold, true, 2);
+    this.fx.text(t('w.bossDown.' + b.bossType), 360, this.view.H * 0.35, 44, C.gold, true, 2);
     audio.bossDie();
     haptics.success();
     this.onEvent({ type: 'bossDown' });
@@ -1245,9 +1600,10 @@ export class World implements PointerSink {
       this.addScore(pts, m.x, m.y, true);
       this.ink = Math.min(this.stats.maxInk, this.ink + this.stats.inkPerKill);
       this.fx.home(m.x, m.y, this.hudInk.x, this.hudInk.y, this.pen.color, 18, 0.55);
+      this.gainEnergy(1);
     }
     const col = METEOR_COLORS[def.key];
-    const scale = m.kind === MK.Heavy ? 1.3 : m.kind === MK.Shard ? 0.6 : 1;
+    const scale = m.kind === MK.Heavy ? 1.3 : m.kind === MK.Shard ? 0.6 : m.kind === MK.Nova ? 1.5 : m.kind === MK.Comet ? 0.8 : 1;
     this.explosionFx(m.x, m.y, col, scale);
     audio.explode(depth === 0 ? scale : scale * 0.8);
     this.fx.shake(depth === 0 ? 0.13 : 0.08);
@@ -1255,8 +1611,15 @@ export class World implements PointerSink {
 
     if (m.kind === MK.Golden) {
       this.golden++;
-      this.rewardCoins(m.x, m.y, 5);
+      this.rewardCoins(m.x, m.y, 5 + this.stats.luckyCoins);
     }
+    if (m.kind === MK.Nova) {
+      // nova çekirdeği: dev patlama halkası, yakındakileri de götürür
+      this.fx.ring(m.x, m.y, 20, this.stats.explosionR * 2.4, 0.6, METEOR_COLORS.nova, 16);
+      this.queueExplosion(m.x, m.y, this.stats.explosionR * 1.9, depth + 1, 0.04);
+      this.fx.shake(0.3);
+    }
+    if (m.kind === MK.Ice && inGame) this.frostNova(m.x, m.y, 190, 2, true);
     if (m.kind === MK.Splitter) {
       const spd = this.director.baseSpeed(this.view.H) * 1.1;
       for (const a of [-0.7, 0, 0.7]) {
@@ -1333,6 +1696,10 @@ export class World implements PointerSink {
     this.comboT = COMBO_WINDOW;
     this.mult = 1 + Math.min(this.combo, 100) * 0.04;
     if (this.combo > this.maxCombo) this.maxCombo = this.combo;
+    if (this.stats.inkSurge > 0 && this.combo % 10 === 0) {
+      this.ink = Math.min(this.stats.maxInk, this.ink + this.stats.inkSurge);
+      this.fx.home(360, this.view.H * 0.45, this.hudInk.x, this.hudInk.y, this.pen.color, 26, 0.5);
+    }
     const mi = MILESTONES.indexOf(this.combo);
     if (mi >= 0) {
       this.fx.text(t('w.combo.' + this.combo), 360, this.view.H * 0.42, 44 + mi * 4, COMBO_WORD_COLORS[mi], true, 1.3);
@@ -1387,12 +1754,14 @@ export class World implements PointerSink {
     if (this.phase === 'attract') return;
     this.addScore(15, m.x, 40, false);
     this.parts.burst(m.x, 6, Math.round(8 * this.q), this.sp.penHot, 40, 160, 0.5, 16, { drag: 3 });
-    if (this.stats.cometBurst > 0) {
-      const r = 70 + this.stats.cometBurst * 40;
-      this.fx.ring(m.x, 20, 10, r, 0.5, this.inkColor, 8);
-      this.queueExplosion(m.x, 20, r, 1, 0);
-      audio.explode(0.6);
-    }
+    if (this.stats.cometBurst > 0) this.cometBurstAt(m.x, 20);
+  }
+
+  private cometBurstAt(x: number, y: number): void {
+    const r = 70 + this.stats.cometBurst * 40;
+    this.fx.ring(x, y, 10, r, 0.5, this.inkColor, 8);
+    this.queueExplosion(x, y, r, 1, 0);
+    audio.explode(0.6);
   }
 
   private domeBlock(m: Meteor): void {
@@ -1428,7 +1797,9 @@ export class World implements PointerSink {
       this.fx.text(t('w.escaped'), x, y - 40, 20, C.gold);
       return;
     }
-    const dmg = m.kind === MK.Boss ? 2 : 1;
+    const dmg = m.kind === MK.Boss || m.kind === MK.Nova ? 2 : 1;
+    // şehre çarpan boss listeden çıkar (havuzdaki nesne başka meteor olarak yeniden kullanılabilir)
+    if (m.kind === MK.Boss) this.bosses = this.bosses.filter((b) => b !== m);
     for (let k = 0; k < dmg; k++) {
       const bi = this.city.targetBlock(k === 0 ? x : x + (x < 360 ? BLOCK_W : -BLOCK_W));
       if (bi < 0) break;
@@ -1439,6 +1810,7 @@ export class World implements PointerSink {
       const bx = bi * BLOCK_W + BLOCK_W / 2;
       if (b.hp <= 0) {
         b.collapseT = 0;
+        if (this.stats.secondWind > 0) this.secondWind(bx);
         this.parts.burst(bx, this.view.H - 100, Math.round(26 * this.q), this.sp.wood, 100, 420, 1.3, 14, {
           shape: Shape.Chip,
           additive: false,
@@ -1461,8 +1833,7 @@ export class World implements PointerSink {
         }
       }
     }
-    if (m.kind === MK.Boss) this.boss = null;
-    this.explosionFx(x, y, C.ember, m.kind === MK.Boss ? 2.2 : 1.5);
+    this.explosionFx(x, y, m.kind === MK.Nova ? METEOR_COLORS.nova : C.ember, m.kind === MK.Boss ? 2.2 : m.kind === MK.Nova ? 1.9 : 1.5);
     this.fx.ring(x, y, 10, 220, 0.6, C.ember, 14);
     this.fx.shake(m.kind === MK.Boss ? 1 : 0.6);
     this.fx.flash(C.crimson, 0.22);
@@ -1498,13 +1869,13 @@ export class World implements PointerSink {
       return;
     }
     if (this.drawing) this.endLine();
-    const cost = !this.revived && this.opts && !this.opts.tutorial && this.reviveCost ? this.reviveCost() : 0;
-    if (cost > 0) {
+    const can = !!this.opts && !this.opts.tutorial && this.revives < 2 && !!this.canRevive?.(this.revives);
+    if (can) {
       this.phase = 'revive';
       this.fx.shake(0.8);
       audio.cityHit();
       haptics.error();
-      this.onEvent({ type: 'revive', cost });
+      this.onEvent({ type: 'revive', count: this.revives });
       return;
     }
     this.fall();
@@ -1521,14 +1892,15 @@ export class World implements PointerSink {
   /** Altınla devam: üç mahalle yeniden yükselir, sahnedeki düşmanlar patlar */
   revive(): void {
     if (this.phase !== 'revive') return;
-    this.revived = true;
+    this.revives++;
     for (const i of [1, 2, 3]) {
       const b = this.city.blocks[i];
       b.hp = b.maxHp;
       b.repairT = 0;
     }
     for (const m of this.meteors) if (m.active && !m.friendly && m.kind !== MK.Boss) this.queueExplosion(m.x, m.y, 10, 2, Math.random() * 0.4, m);
-    if (this.boss && this.boss.active) this.boss.vy = -260 * this.speedScale;
+    for (const b of this.bosses) if (b.active && b.kind === MK.Boss) b.vy = -260 * this.speedScale;
+    this.twinC.vy = -260 * this.speedScale;
     this.phase = 'play';
     this.slowOverride = 0.25;
     this.slowOverrideT = 1;
@@ -1568,6 +1940,283 @@ export class World implements PointerSink {
   abandon(): RunResult {
     this.phase = 'over';
     return this.result();
+  }
+
+  // ───────────────────────── AKTİF YETENEK ─────────────────────────
+
+  get skillReady(): boolean {
+    return this.energy >= SKILL_NEED;
+  }
+
+  private get skillBusy(): boolean {
+    return this.novaR >= 0 || this.warpT > 0 || this.aegisT > 0 || this.starfallN > 0;
+  }
+
+  private gainEnergy(v: number): void {
+    if (this.phase === 'attract' || this.phase === 'tutorial' || !this.opts || this.opts.tutorial) return;
+    if (this.skillBusy) return;
+    this.energy = Math.min(SKILL_NEED, this.energy + v * this.stats.charge);
+    if (this.energy >= SKILL_NEED && !this.skillReadyShown) {
+      this.skillReadyShown = true;
+      audio.skillReady();
+      haptics.light();
+      this.onEvent({ type: 'skillReady' });
+    }
+  }
+
+  /** Yetenek butonu: dolu ise tetikle */
+  activateSkill(): boolean {
+    if (!this.skillReady || this.skillBusy) return false;
+    if (this.phase !== 'play' && this.phase !== 'intro') return false;
+    this.energy = 0;
+    this.skillReadyShown = false;
+    const H = this.view.H;
+    const col = this.inkColor;
+    switch (this.skillId) {
+      case 'nova':
+        this.novaR = 0;
+        this.novaHit.clear();
+        this.hitstop = 0.08;
+        this.fx.flash('#FFFFFF', 0.55);
+        this.fx.shake(0.7);
+        this.parts.burst(360, this.groundY, Math.round(70 * this.q), this.sp.penHot, 200, 900, 1.2, 22, { drag: 1.6, shape: Shape.Streak });
+        audio.skillNova();
+        break;
+      case 'warp':
+        this.warpT = 5.5;
+        this.fx.flash('#6EC8FF', 0.35);
+        this.fx.ring(360, H * 0.45, 20, 700, 0.9, '#6EC8FF', 18);
+        audio.skillWarp();
+        break;
+      case 'aegis':
+        this.aegisT = 7;
+        this.fx.flash(col, 0.3);
+        this.parts.burst(360, this.groundY - 60, Math.round(60 * this.q), this.sp.penHot, 100, 600, 1, 18, { drag: 2, gravity: -60 });
+        audio.skillAegis();
+        break;
+      case 'starfall':
+        this.starfallN = 12;
+        this.starfallT = 0;
+        this.fx.flash(C.gold, 0.3);
+        audio.skillStar();
+        break;
+    }
+    this.fx.text(t('skill.' + this.skillId), 360, H * 0.4, 46, col, true, 1.3);
+    haptics.success();
+    this.onEvent({ type: 'skill', id: this.skillId });
+    return true;
+  }
+
+  private updateSkill(sdt: number, realDt: number): void {
+    const H = this.view.H;
+    // Yıldız Patlaması: şehirden yükselen şok dalgası
+    if (this.novaR >= 0) {
+      this.novaR += realDt * 1500 * this.speedScale;
+      const ox = 360;
+      const oy = this.groundY;
+      for (const m of this.meteors) {
+        if (!m.active || m.friendly || this.novaHit.has(m)) continue;
+        const d = Math.hypot(m.x - ox, m.y - oy);
+        if (d > this.novaR + m.r) continue;
+        this.novaHit.add(m);
+        if (m.kind === MK.Boss) {
+          this.hurtBoss(m, 3, m.x, m.y + m.r * 0.5);
+          m.vy = -220 * this.speedScale;
+          if (m.bossType === BT.Twins) this.twinC.vy = -220 * this.speedScale;
+          if (m.bossType === BT.Frost) m.shields = 0;
+        } else {
+          m.armor = 0;
+          this.killMeteor(m, 1);
+        }
+      }
+      if (this.novaR > H + 300) {
+        this.novaR = -1;
+        this.novaHit.clear();
+      }
+    }
+    // Zaman Kırılması: düşmanlar ağırlaşır, mürekkep hızlı dolar
+    if (this.warpT > 0) this.warpT -= realDt;
+    const hs = this.warpT > 0 ? 0.28 : 1;
+    this.hostileScale += (hs - this.hostileScale) * Math.min(1, realDt * 6);
+    if (this.aegisT > 0) this.aegisT -= realDt;
+    // Yıldız Yağmuru: şehirden yukarı güdümlü yıldızlar
+    if (this.starfallN > 0) {
+      this.starfallT -= realDt;
+      if (this.starfallT <= 0) {
+        this.starfallT = 0.09;
+        this.starfallN--;
+        const x = fx.r(90, 630);
+        const m = this.spawn(MK.Comet, x, this.groundY - 20, fx.r(-160, 160) * this.speedScale, -950 * this.speedScale);
+        if (m) {
+          m.friendly = true;
+          m.homing = 6;
+          m.flash = 0.2;
+          m.chainDepth = 1;
+          this.parts.burst(x, this.groundY - 20, Math.round(10 * this.q), this.sp.goldHot, 60, 260, 0.5, 14, { drag: 3 });
+          audio.deflect(this.combo + 3);
+        }
+      }
+    }
+    // koruyucu uydu: şehrin üstünde döner, en alçaktaki düşmanı lazerle vurur
+    if (this.stats.guardian > 0 && this.phase !== 'attract') {
+      this.droneA += realDt * 1.1;
+      if (this.phase === 'play') {
+        this.droneT -= sdt;
+        if (this.droneT <= 0) {
+          let target: Meteor | null = null;
+          for (const m of this.meteors) {
+            if (!m.active || m.friendly || m.kind === MK.Boss || m.ghost || m.y < H * 0.25) continue;
+            if (!target || m.y > target.y) target = m;
+          }
+          if (target) {
+            const [dx, dy] = this.dronePos();
+            this.fx.bolt(dx, dy, target.x, target.y, C.turkuaz);
+            this.fx.ring(dx, dy, 4, 40, 0.3, C.turkuaz, 5);
+            target.armor = 0;
+            this.killMeteor(target, 1);
+            audio.zap();
+            this.droneT = this.stats.guardian >= 2 ? 4 : 7;
+          } else {
+            this.droneT = 0.4;
+          }
+        }
+      }
+    }
+  }
+
+  private dronePos(): [number, number] {
+    return [360 + Math.cos(this.droneA) * 270, this.groundY - 80 + Math.sin(this.droneA * 2) * 16];
+  }
+
+  /** Aegis kalkanının x noktasındaki yüksekliği (elips kubbe) */
+  private aegisY(x: number): number {
+    const u = clamp((x - 360) / 430, -1, 1);
+    return this.groundY + 40 - 175 * Math.sqrt(1 - u * u);
+  }
+
+  private aegisReflect(m: Meteor): void {
+    if (m.kind === MK.Boss) {
+      if (m.bossType === BT.Twins) this.twinC.vy = -200 * this.speedScale;
+      else m.vy = -200 * this.speedScale;
+      m.flash = 0.3;
+      this.fx.ring(m.x, m.y + m.r, 10, 200, 0.5, this.inkColor, 12);
+      audio.dome();
+      return;
+    }
+    const sp = Math.max(560 * this.speedScale, Math.hypot(m.vx, m.vy) * 1.1);
+    const a = -Math.PI / 2 + clamp((m.x - 360) / 430, -1, 1) * 0.5 + fx.r(-0.15, 0.15);
+    m.vx = Math.cos(a) * sp;
+    m.vy = Math.sin(a) * sp;
+    m.y = this.aegisY(m.x) - m.r - 2;
+    m.friendly = true;
+    m.fade = 0;
+    m.armor = 0;
+    m.homing = 2.5;
+    m.flash = 0.25;
+    this.deflects++;
+    this.bumpCombo();
+    this.addScore(10, m.x, m.y, false);
+    this.fx.ring(m.x, m.y + m.r, 6, 90, 0.4, this.inkColor, 8);
+    audio.deflect(this.combo);
+    haptics.light();
+  }
+
+  /** Ayaz dalgası: çevredeki düşmanları yavaşlatır */
+  private frostNova(x: number, y: number, r: number, dur: number, big: boolean): void {
+    for (const m of this.meteors) {
+      if (!m.active || m.friendly || m.kind === MK.Boss) continue;
+      if ((m.x - x) ** 2 + (m.y - y) ** 2 < r * r) m.slowT = Math.max(m.slowT, dur);
+    }
+    this.fx.ring(x, y, 8, r, big ? 0.6 : 0.4, '#BFF6FF', big ? 10 : 6);
+    if (big) this.parts.burst(x, y, Math.round(16 * this.q), this.sp.ice, 60, 300, 0.8, 10, { drag: 2.5, shape: Shape.Streak });
+  }
+
+  /** Buz tutan çizgiler kısa süre sonra kırılır */
+  private updateFrozenLines(dt: number): void {
+    for (const l of this.lines.pool) {
+      if (!l.alive || l.frozen <= 0) continue;
+      l.frozen -= dt;
+      if (l.frozen <= 0 && l.collidable) {
+        const p = l.pts;
+        for (let i = 0; i < l.n; i += 3) {
+          this.parts.spawn({ x: p[i * 2], y: p[i * 2 + 1], vx: fx.r(-120, 120), vy: fx.r(-160, 60), life: fx.r(0.4, 0.8), size: fx.r(6, 10), sprite: this.sp.ice, shape: Shape.Streak, gravity: 500, drag: 1.5 });
+        }
+        this.shatterLine(l);
+      }
+    }
+  }
+
+  /** İkinci nefes: bir mahalle düşünce mürekkep dolar, zaman bir an yavaşlar */
+  private secondWind(x: number): void {
+    this.ink = this.stats.maxInk;
+    this.slowOverride = 0.35;
+    this.slowOverrideT = 1.8;
+    this.fx.text(t('w.secondWind'), x, this.view.H * 0.55, 30, this.pen.color, true, 1.3);
+    this.fx.home(x, this.view.H - 160, this.hudInk.x, this.hudInk.y, this.pen.color, 30, 0.6);
+  }
+
+  /** Yetenek ve kart görselleri (dünya dönüşümü altında) */
+  private renderSkillFx(g: CanvasRenderingContext2D): void {
+    const col = this.inkColor;
+    g.globalCompositeOperation = 'lighter';
+    if (this.novaR >= 0) {
+      const a = clamp(1 - this.novaR / (this.view.H + 300), 0, 1);
+      g.strokeStyle = col;
+      g.globalAlpha = 0.28 * a;
+      g.lineWidth = 60;
+      g.beginPath();
+      g.arc(360, this.groundY, this.novaR, Math.PI, TAU);
+      g.stroke();
+      g.strokeStyle = '#FFFFFF';
+      g.globalAlpha = 0.85 * a;
+      g.lineWidth = 7;
+      g.beginPath();
+      g.arc(360, this.groundY, this.novaR, Math.PI, TAU);
+      g.stroke();
+    }
+    if (this.aegisT > 0) {
+      const a = Math.min(1, this.aegisT * 2) * (this.aegisT < 1.5 ? 0.6 + 0.4 * Math.sin(this.realT * 30) : 1);
+      const cy = this.groundY + 40;
+      for (const [w, al, c] of [
+        [34, 0.14, col],
+        [10, 0.4, col],
+        [3, 0.9, '#FFFFFF'],
+      ] as const) {
+        g.strokeStyle = c;
+        g.globalAlpha = al * a;
+        g.lineWidth = w;
+        g.beginPath();
+        g.ellipse(360, cy, 430, 175, 0, Math.PI, TAU);
+        g.stroke();
+      }
+      // kubbe üzerinde kayan altıgen parıltılar
+      const glow = this.sprites.glow(col, true);
+      for (let i = 0; i < 9; i++) {
+        const u = ((i / 9 + this.realT * 0.08) % 1) * Math.PI;
+        const x = 360 - Math.cos(u) * 430;
+        const y = cy - Math.sin(u) * 175;
+        g.globalAlpha = 0.5 * a;
+        g.drawImage(glow, x - 14, y - 14, 28, 28);
+      }
+    }
+    if (this.stats.guardian > 0 && this.phase !== 'attract') {
+      const [x, y] = this.dronePos();
+      const ready = this.droneT <= 1;
+      g.globalAlpha = 0.6;
+      const s = ready ? 60 : 44;
+      g.drawImage(this.sprites.glow(C.turkuaz), x - s / 2, y - s / 2, s, s);
+      g.globalAlpha = 1;
+      g.drawImage(this.sprites.glow('#FFFFFF', true), x - 9, y - 9, 18, 18);
+      g.globalAlpha = 0.5;
+      g.strokeStyle = C.turkuaz;
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(x - 16, y);
+      g.lineTo(x + 16, y);
+      g.stroke();
+    }
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
   }
 
   // ───────────────────────── KARA DELİK ─────────────────────────
@@ -2051,7 +2700,8 @@ export class World implements PointerSink {
     this.renderHoles(g);
     this.lines.render(g, this.pen, this.stats.lineWidth);
     renderMeteors(g, this.meteors, this.sprites, this.inkColor, k, tx, ty, this.realT);
-    if (this.boss && this.boss.active) renderBossRing(g, this.boss, this.realT);
+    for (const b of this.bosses) if (b.active && b.kind === MK.Boss) renderBossRing(g, b, this.realT);
+    this.renderSkillFx(g);
     this.parts.render(g, k, tx, ty);
     this.fx.renderRings(g);
     this.renderGhost(g);
@@ -2068,6 +2718,13 @@ export class World implements PointerSink {
       g.globalCompositeOperation = 'lighter';
       g.globalAlpha = slow * 0.18;
       g.drawImage(this.sprites.vignetteOf(this.pen.color), 0, 0, W, Hp);
+      g.globalCompositeOperation = 'source-over';
+    }
+    const warp = 1 - this.hostileScale;
+    if (warp > 0.02) {
+      g.globalCompositeOperation = 'lighter';
+      g.globalAlpha = warp * 0.5;
+      g.drawImage(this.sprites.vignetteOf('#6EC8FF'), 0, 0, W, Hp);
       g.globalCompositeOperation = 'source-over';
     }
     if (this.fx.damageA > 0) {

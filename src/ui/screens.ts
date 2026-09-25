@@ -10,10 +10,12 @@ import {
   type GiftState,
   RANKS,
   type RankProgress,
+  SKILLS,
   type Settlement,
   WORKSHOP,
   rankProgress,
 } from '../meta/progression';
+import { FREE_COINS, FREE_COINS_PER_DAY, SHOP, priceOf } from '../monetize';
 import { fmt, fmtDuration, fmtTime, roman } from './format';
 import { icon } from './icons';
 
@@ -81,7 +83,7 @@ export function menuHTML(d: MenuData): string {
           </span>
         </button>
         <div class="top-right">
-          <button class="currency" data-a="tab" data-p="workshop">${icon('coin')}<b class="coin-count" id="m-coins">${fmt(s.coins)}</b><span class="plus">+</span></button>
+          <button class="currency" data-a="shop">${icon('coin')}<b class="coin-count" id="m-coins">${fmt(s.coins)}</b><span class="plus">+</span></button>
           <button class="icon-btn sm" data-a="panel" data-p="settings" aria-label="${t('menu.settings')}">${icon('gear')}</button>
         </div>
       </header>
@@ -102,12 +104,20 @@ export function menuHTML(d: MenuData): string {
             <span class="fab-label">${t('menu.daily')}</span>
             <small class="fab-sub">${t('mod.' + d.daily.mod.id)}</small>
           </button>
+          <button class="fab shop-fab" data-a="shop" style="--ac:var(--gold)">
+            <span class="fab-ic">${icon('bag')}${!s.starter ? '<i class="dot">%</i>' : ''}</span>
+            <span class="fab-label">${t('menu.shop')}</span>
+          </button>
         </div>
         <div class="side right">
           <button class="fab" data-a="panel" data-p="worlds" style="--ac:${ATMOSPHERES[Math.min(unlocked, ATMOSPHERES.length) - 1].accent}">
             <span class="fab-ic">${icon('planet')}</span>
             <span class="fab-label">${t('menu.worlds')}</span>
             <small class="fab-sub">${unlocked}/${ATMOSPHERES.length}</small>
+          </button>
+          <button class="fab" data-a="panel" data-p="skills" style="--ac:${(SKILLS.find((k) => k.id === s.skill) ?? SKILLS[0]).color}">
+            <span class="fab-ic">${icon((SKILLS.find((k) => k.id === s.skill) ?? SKILLS[0]).icon)}</span>
+            <span class="fab-label">${t('menu.skills')}</span>
           </button>
         </div>
       </div>
@@ -167,7 +177,7 @@ export function worldsHTML(save: SaveData, thumbs: string[], current: number): s
 }
 
 /** Günlük hediye penceresi (7 günlük takvim) */
-export function giftHTML(g: GiftState): string {
+export function giftHTML(g: GiftState, noAds = false): string {
   const days = GIFT_REWARDS.map((r, i) => {
     const done = g.ready ? i < g.day : i <= g.day;
     const today = g.ready && i === g.day;
@@ -188,29 +198,146 @@ export function giftHTML(g: GiftState): string {
         <div class="gift-grid">${days}</div>
         ${
           g.ready
-            ? `<button class="btn-play gold" data-a="claimGift">${icon('coin')}${t('gift.claim', { n: fmt(GIFT_REWARDS[g.day]) })}</button>`
+            ? `<button class="btn-play gold btn-video" data-a="claimGift2x">${icon(noAds ? 'x2' : 'video')}${t('gift.claim2x', { n: fmt(GIFT_REWARDS[g.day] * 2) })}</button>
+               <button class="btn-ghost wide" data-a="claimGift">${icon('coin')}${t('gift.claim', { n: fmt(GIFT_REWARDS[g.day]) })}</button>`
             : `<button class="btn-ghost wide" data-a="closeModal">${t('gift.tomorrow')}</button>`
         }
       </div>
     </section>`;
 }
 
-/** Şehir düşerken: altınla devam et */
-export function reviveHTML(cost: number, bank: number, seconds: number): string {
+export interface ReviveOffer {
+  /** video ile devam hakkı var mı (turda bir kez) */
+  video: boolean;
+  noAds: boolean;
+  cost: number;
+  bank: number;
+  seconds: number;
+}
+
+/** Şehir düşerken: video izleyerek (ya da altınla) devam et */
+export function reviveHTML(o: ReviveOffer): string {
+  const canCoins = o.cost > 0 && o.bank >= o.cost;
   return `
     <section class="screen modal revive" id="revive-modal">
       <div class="modal-card revive-card">
-        <div class="revive-timer" style="--dur:${seconds}s">
+        <div class="revive-timer" style="--dur:${o.seconds}s">
           <svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="28"/><circle class="fg" cx="32" cy="32" r="28"/></svg>
           <span>${icon('house')}</span>
         </div>
         <h2>${t('revive.title')}</h2>
         <p>${t('revive.desc')}</p>
-        <button class="btn-play gold" data-a="revive">${icon('coin')}${fmt(cost)} · ${t('revive.go')}</button>
+        ${
+          o.video
+            ? `<button class="btn-play gold btn-video" data-a="reviveVideo">${icon(o.noAds ? 'play' : 'video')}<span>${o.noAds ? t('revive.free') : t('revive.video')}</span></button>`
+            : ''
+        }
+        ${
+          canCoins
+            ? `<button class="${o.video ? 'btn-ghost wide coin-alt' : 'btn-play gold'}" data-a="revive">${icon('coin')}${fmt(o.cost)} · ${t('revive.go')}</button>`
+            : ''
+        }
         <button class="btn-ghost wide" data-a="giveup">${t('revive.no')}</button>
-        <small class="bank">${t('revive.bank', { n: fmt(bank) })}</small>
+        ${o.cost > 0 ? `<small class="bank">${t('revive.bank', { n: fmt(o.bank) })}</small>` : ''}
       </div>
     </section>`;
+}
+
+/** Web demo reklamı (gerçek uygulamada burada AdMob videosu oynar) */
+export function adHTML(seconds: number): string {
+  return `
+    <section class="screen modal ad-demo" id="ad-demo">
+      <div class="ad-card">
+        <div class="ad-top"><span class="ad-tag">${t('ad.tag')}</span><span class="ad-count" id="ad-count">${seconds}</span></div>
+        <div class="ad-stage">
+          <div class="ad-logo">${icon('video')}</div>
+          <b>${t('ad.title')}</b>
+          <p>${t('ad.desc')}</p>
+        </div>
+        <div class="ad-bar"><i style="--dur:${seconds}s"></i></div>
+        <button class="btn-ghost wide" data-a="adClose" id="ad-close" hidden>${t('ad.close')}</button>
+      </div>
+    </section>`;
+}
+
+/** Mağaza: altın paketleri, başlangıç paketi, reklamsız ve günlük ücretsiz altın */
+export function shopHTML(save: SaveData, native: boolean): string {
+  const lang = getLang();
+  const today = new Date().toISOString().slice(0, 10);
+  const used = save.adCoins.date === today ? save.adCoins.n : 0;
+  const left = Math.max(0, FREE_COINS_PER_DAY - used);
+  const free = `
+    <div class="shop-free" style="--d:0">
+      <div class="ic">${icon('video')}</div>
+      <div><h4>${t('shop.free', { n: FREE_COINS })}</h4><p>${t('shop.freeLeft', { n: left, max: FREE_COINS_PER_DAY })}</p></div>
+      <button class="buy ${left > 0 ? '' : 'disabled'}" data-a="freeCoins">${icon(save.noAds ? 'coin' : 'video')}${t('shop.watch')}</button>
+    </div>`;
+  const packs = SHOP.filter((i) => i.kind === 'coins')
+    .map(
+      (i, k) => `
+      <button class="pack ${i.tag ?? ''}" data-a="buy" data-id="${i.id}" style="--d:${k + 2}">
+        ${i.tag ? `<span class="pack-tag">${t('shop.' + i.tag)}</span>` : ''}
+        <span class="pack-coins">${'<i></i>'.repeat(Math.min(4, k + 1))}${icon('coin')}</span>
+        <b>${fmt(i.coins)}</b>
+        ${i.bonus ? `<small class="pack-bonus">+%${i.bonus}</small>` : '<small class="pack-bonus"></small>'}
+        <span class="pack-price">${priceOf(i.id, lang)}</span>
+      </button>`,
+    )
+    .join('');
+  const starter = SHOP.find((i) => i.kind === 'starter')!;
+  const noads = SHOP.find((i) => i.kind === 'noads')!;
+  const starterCard = save.starter
+    ? ''
+    : `
+    <button class="offer starter" data-a="buy" data-id="${starter.id}" style="--d:1">
+      <span class="offer-badge">${t('shop.once')}</span>
+      <div class="offer-art">${icon('gem')}</div>
+      <div class="offer-body">
+        <h4>${t('shop.starter')}</h4>
+        <p>${t('shop.starterDesc', { n: fmt(starter.coins) })}</p>
+      </div>
+      <span class="pack-price">${priceOf(starter.id, lang)}</span>
+    </button>`;
+  const noadsCard = save.noAds
+    ? `<div class="offer noads owned" style="--d:7"><div class="offer-art">${icon('noads')}</div><div class="offer-body"><h4>${t('shop.noads')}</h4><p>${t('shop.noadsOwned')}</p></div><span class="buy done">${icon('check')}</span></div>`
+    : `
+    <button class="offer noads" data-a="buy" data-id="${noads.id}" style="--d:7">
+      <div class="offer-art">${icon('noads')}</div>
+      <div class="offer-body"><h4>${t('shop.noads')}</h4><p>${t('shop.noadsDesc')}</p></div>
+      <span class="pack-price">${priceOf(noads.id, lang)}</span>
+    </button>`;
+  const body = `
+    ${starterCard}
+    <h3 class="shop-h">${t('shop.coins')}</h3>
+    <div class="packs">${packs}</div>
+    ${noadsCard}
+    ${free}
+    <div class="shop-foot">
+      ${native ? `<button class="btn-ghost" data-a="restore">${t('shop.restore')}</button>` : `<p class="note">${t('shop.demo')}</p>`}
+    </div>`;
+  return panel('shop', t('shop.title'), body, save.coins);
+}
+
+/** Yetenekler: bir tanesi takılır, dolunca oyunda tek dokunuşla tetiklenir */
+export function skillsHTML(save: SaveData): string {
+  const cards = SKILLS.map((k, i) => {
+    const owned = save.skills.includes(k.id);
+    const on = save.skill === k.id;
+    let btn: string;
+    if (on) btn = `<span class="buy done">${icon('check')}${t('skills.on')}</span>`;
+    else if (owned) btn = `<button class="buy ghost" data-a="equipSkill" data-id="${k.id}">${t('skills.equip')}</button>`;
+    else btn = `<button class="buy ${save.coins >= k.price ? '' : 'disabled'}" data-a="buySkill" data-id="${k.id}">${icon('coin')}${fmt(k.price)}</button>`;
+    return `
+      <div class="skill-card ${on ? 'on' : ''} ${owned ? '' : 'locked'}" style="--sc:${k.color};--d:${i}">
+        <div class="skill-orb">${icon(k.icon)}</div>
+        <div class="skill-info">
+          <h4>${t('skill.' + k.id)}</h4>
+          <p>${t('skill.' + k.id + '.d')}</p>
+        </div>
+        ${btn}
+      </div>`;
+  }).join('');
+  return panel('skills', t('skills.title'), `<p class="lead">${t('skills.desc')}</p><div class="skill-list">${cards}</div>`, save.coins);
 }
 
 function upgradeDesc(id: string, nextLevel: number): string {
@@ -264,7 +391,7 @@ export function pauseHTML(save: SaveData): string {
     </section>`;
 }
 
-export function overHTML(r: RunResult, st: Settlement, best: number, dailyBest: number): string {
+export function overHTML(r: RunResult, st: Settlement, best: number, dailyBest: number, canDouble = false, noAds = false): string {
   const p = rankProgress(best);
   const rankUp = st.rankAfter > st.rankBefore;
   const rows: string[] = [];
@@ -306,6 +433,11 @@ export function overHTML(r: RunResult, st: Settlement, best: number, dailyBest: 
         <div><span class="label">${t('over.time')}</span><b>${fmtTime(r.time)}</b></div>
       </div>
       <div class="rewards">${rows.join('')}</div>
+      ${
+        canDouble && st.coins > 0
+          ? `<button class="btn-video double" data-a="double">${icon(noAds ? 'x2' : 'video')}<span>${t('over.double', { n: fmt(st.coins) })}</span></button>`
+          : ''
+      }
       <div class="over-actions">
         <button class="btn-play" data-a="again">${icon('restart')}${t('over.again')}</button>
         <button class="btn-ghost" data-a="menu" aria-label="${t('over.menu')}">${icon('home')}</button>
