@@ -2646,7 +2646,13 @@ export class World implements PointerSink {
     for (const m of this.meteors) m.active = false;
     this.ghost = null;
     this.tutStep = 3;
+    this.enableSkills();
     this.startWave(1);
+  }
+
+  /** Eğitim bitince (ya da atlanınca) yetenekler devreye girer, yarı dolu başlar */
+  private enableSkills(): void {
+    if (this.opts && !this.skillSlots.length) this.skillSlots = this.opts.skills.map((k) => ({ ...k, left: k.cd * 0.5 }));
   }
 
   private tutRetry(): void {
@@ -2699,8 +2705,7 @@ export class World implements PointerSink {
         this.phase = 'intro';
         this.tutStep = 3;
         this.onEvent({ type: 'tutorialDone' });
-        // eğitim bitince yetenekler de devreye girer
-        if (this.opts) this.skillSlots = this.opts.skills.map((k) => ({ ...k, left: k.cd * 0.5 }));
+        this.enableSkills();
         for (const m of this.meteors) m.active = false;
         this.startWave(1);
       }
