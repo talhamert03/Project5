@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.talhamert.murekkepkalkani',
-  appName: 'Mürekkep Kalkanı',
+  appName: 'Inkfall',
   webDir: 'dist',
   backgroundColor: '#060A22',
   android: {

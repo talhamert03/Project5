@@ -6,7 +6,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 const html = readFileSync('dist/index.html', 'utf8');
 const pick = (re) => [...html.matchAll(re)].map((m) => m[0]);
 
-const title = (html.match(/<title>[\s\S]*?<\/title>/) ?? ['<title>Mürekkep Kalkanı</title>'])[0];
+const title = (html.match(/<title>[\s\S]*?<\/title>/) ?? ['<title>Inkfall</title>'])[0];
 const styles = pick(/<style[^>]*>[\s\S]*?<\/style>/g);
 const scripts = pick(/<script[^>]*>[\s\S]*?<\/script>/g);
 const body = (html.match(/<body[^>]*>([\s\S]*?)<\/body>/) ?? ['', ''])[1]

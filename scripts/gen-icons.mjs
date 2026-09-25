@@ -53,6 +53,6 @@ for (const [d, k] of Object.entries(DENS)) {
 
 // Play Store (tanıtım görselleri PNG üretilir; yüklemeden önce JPEG'e çevrilebilir)
 save('store/icon-512.png', await render(512, 512, "drawIcon(c,'full')"));
-save('store/feature-graphic-tr.png', await render(1024, 500, "drawFeature(c,'MÜREKKEP','KALKANI','Çiz. Sektir. İstanbul’u koru.')"));
-save('store/feature-graphic-en.png', await render(1024, 500, "drawFeature(c,'INK','SHIELD','Draw. Deflect. Save Istanbul.')"));
+save('store/feature-graphic-tr.png', await render(1024, 500, "drawFeature(c,'INK','FALL','Çiz. Sektir. Şehri meteordan kurtar.')"));
+save('store/feature-graphic-en.png', await render(1024, 500, "drawFeature(c,'INK','FALL','Draw. Deflect. Save the city.')"));
 await browser.close();

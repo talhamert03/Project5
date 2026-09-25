@@ -1,6 +1,6 @@
-# Mürekkep Kalkanı
+# Inkfall: Meteor Defense
 
-Parmağınla mürekkep çizgileri çizip gökten yağan meteorları sektirdiğin, İstanbul'u koruduğun bir mobil arcade oyunu.
+Parmağınla mürekkep çizgileri çizip gökten yağan meteorları sektirdiğin, şehri meteordan kurtardığın bir mobil arcade oyunu.
 Sektirdiğin meteoru başka bir meteora çarptırırsan ikisi de patlar. Zincirleme patlamalar komboyu, kombo da puanı büyütür.
 
 - **Tür:** Arcade / roguelite, dikey ekran, tek parmak
@@ -133,7 +133,7 @@ keytool -genkey -v -keystore upload.jks -keyalg RSA -keysize 2048 -validity 1000
 ### Play Console kontrol listesi
 
 - [ ] Geliştirici hesabı (tek seferlik 25 $)
-- [ ] Uygulama oluştur: ad **Mürekkep Kalkanı**, paket adı `com.talhamert.murekkepkalkani`
+- [ ] Uygulama oluştur: ad **Inkfall: Meteor Defense**, paket adı `com.talhamert.murekkepkalkani`
 - [ ] Mağaza girişi: metinler `store/listing.md`, ikon `store/icon-512.png`, tanıtım görseli `store/feature-graphic-tr.jpg`, ekran görüntüleri `store/screenshots/`
 - [ ] Gizlilik politikası: `docs/privacy-policy.md` dosyasını herkese açık bir adreste yayınla (örneğin GitHub Pages) ve adresini gir
 - [ ] Veri güvenliği formu: veri toplanmıyor, paylaşılmıyor (oyun yalnızca cihazda yerel kayıt tutar)

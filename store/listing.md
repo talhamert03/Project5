@@ -3,14 +3,14 @@
 ## Türkçe (tr-TR)
 
 **Uygulama adı (en fazla 30 karakter)**
-Mürekkep Kalkanı
+Inkfall: Meteor Defense
 
 **Kısa açıklama (en fazla 80 karakter)**
-Çiz, sektir, zincirle! Meteorları mürekkeple sektir, İstanbul'u koru.
+Çiz, sektir, zincirle! Meteorları mürekkeple sektir, şehri meteordan kurtar.
 
 **Tam açıklama**
 
-Gökten meteorlar yağıyor ve İstanbul'un tek savunması senin kalemin.
+Gökten meteorlar yağıyor ve şehrin tek savunması senin kalemin.
 
 Parmağını sürükle, ışıldayan bir mürekkep çizgisi çiz. Meteorlar çizgine çarpıp seker. Sektirdiğin meteoru başka bir meteora çarptır, ikisi de patlasın. Kümelenmiş meteorlarda zincirleme patlamalar başlar, kombo büyür, puan katlanır.
 
@@ -38,14 +38,14 @@ Oyun tamamen çevrimdışı çalışır. Hiçbir kişisel veri toplanmaz.
 ## English (en-US)
 
 **App name**
-Ink Shield: Meteor Defense
+Inkfall: Meteor Defense
 
 **Short description (max 80 characters)**
-Draw, deflect, chain! Bounce meteors with ink and save Istanbul.
+Draw, deflect, chain! Bounce meteors with ink and save the city.
 
 **Full description**
 
-Meteors are raining down and Istanbul's only defense is your pen.
+Meteors are raining down and the city's only defense is your pen.
 
 Drag your finger to draw a glowing ink line. Meteors bounce off it. Deflect one into another and both explode. Clustered meteors set off chain reactions, your combo grows and your score multiplies.
 

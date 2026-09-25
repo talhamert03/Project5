@@ -577,7 +577,7 @@ svg {
 .home {
   justify-content: flex-start;
   gap: 0;
-  padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 12px);
+  padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 26px);
   background: linear-gradient(180deg, rgba(6, 10, 34, 0.7) 0%, rgba(6, 10, 34, 0) 26%, rgba(6, 10, 34, 0) 58%, rgba(6, 10, 34, 0.75) 86%);
   pointer-events: none;
 }
@@ -953,7 +953,7 @@ svg {
 }
 
 #ui.tabs-on {
-  --tabbar-h: 74px;
+  --tabbar-h: 84px;
 }
 
 .tabbar-layer {
@@ -970,9 +970,10 @@ svg {
   margin: 0 auto;
   max-width: 560px;
   height: calc(var(--tabbar-h) + var(--safe-b));
-  padding: 8px 8px calc(var(--safe-b) + 6px);
+  padding: 12px 14px calc(var(--safe-b) + 10px);
   display: grid;
   grid-template-columns: repeat(5, 1fr);
+  column-gap: 6px;
   align-items: end;
   background: linear-gradient(180deg, rgba(16, 22, 70, 0.97), rgba(8, 11, 38, 0.99));
   border-top: 1px solid var(--hair-strong);
@@ -993,15 +994,17 @@ svg {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 4px 0;
+  gap: 6px;
+  padding: 4px 0 2px;
+  min-width: 0;
   color: var(--dim);
   transition: color 0.2s;
 }
 
 .tab-ic {
   position: relative;
-  font-size: 24px;
+  font-size: 23px;
+  height: 26px;
   display: grid;
   place-items: center;
   transition: transform 0.25s var(--pop);
@@ -1012,6 +1015,9 @@ svg {
   font-weight: 700;
   letter-spacing: 0.02em;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .tab.active {
@@ -1027,7 +1033,7 @@ svg {
 .tab.active::before {
   content: '';
   position: absolute;
-  top: -9px;
+  top: -12px;
   width: 26px;
   height: 3px;
   border-radius: 3px;
@@ -1036,9 +1042,9 @@ svg {
 }
 
 .tab.home-tab .tab-ic {
-  width: 56px;
-  height: 56px;
-  margin-top: -26px;
+  width: 54px;
+  height: 54px;
+  margin-top: -34px;
   border-radius: 20px;
   font-size: 26px;
   color: #052229;

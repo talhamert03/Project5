@@ -1,9 +1,9 @@
 import { extend } from '../i18n';
 
 extend('tr', {
-  'app.title1': 'MÜREKKEP',
-  'app.title2': 'KALKANI',
-  'app.tagline': 'Çiz. Sektir. İstanbul’u koru.',
+  'app.title1': 'INK',
+  'app.title2': 'FALL',
+  'app.tagline': 'Çiz. Sektir. Şehri meteordan kurtar.',
   'app.tap': 'Başlamak için dokun',
 
   'menu.play': 'OYNA',
@@ -256,7 +256,7 @@ extend('tr', {
   'settings.resetConfirm': 'Emin misin? Silmek için tekrar dokun',
   'settings.resetDone': 'İlerleme sıfırlandı',
   'settings.fullscreen': 'Tam ekran',
-  'settings.credits': 'Mürekkep Kalkanı · sürüm {v}',
+  'settings.credits': 'Inkfall · sürüm {v}',
 
   'tut.0': 'Parmağını sürükleyip meteorun altına bir çizgi çiz',
   'tut.1': 'Sektirdiğin meteoru diğerine çarptır: ikisi de patlar',
@@ -274,8 +274,8 @@ extend('tr', {
 
 extend('en', {
   'app.title1': 'INK',
-  'app.title2': 'SHIELD',
-  'app.tagline': 'Draw. Deflect. Save Istanbul.',
+  'app.title2': 'FALL',
+  'app.tagline': 'Draw. Deflect. Save the city.',
   'app.tap': 'Tap to start',
 
   'menu.play': 'PLAY',
@@ -528,7 +528,7 @@ extend('en', {
   'settings.resetConfirm': 'Sure? Tap again to erase',
   'settings.resetDone': 'Progress reset',
   'settings.fullscreen': 'Fullscreen',
-  'settings.credits': 'Ink Shield · version {v}',
+  'settings.credits': 'Inkfall · version {v}',
 
   'tut.0': 'Drag your finger to draw a line under the meteor',
   'tut.1': 'Bounce the meteor into the other one: both explode',

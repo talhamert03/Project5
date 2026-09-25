@@ -149,9 +149,10 @@ export class HudView {
   }
 
   inkWarn(): void {
-    this.inkBar.classList.remove('shake');
-    void this.inkBar.offsetWidth;
-    this.inkBar.classList.add('shake');
+    this.inkBar.animate(
+      [{ transform: 'none' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' }, { transform: 'none' }],
+      { duration: 400 },
+    );
   }
 
   setFps(text: string | null): void {
@@ -170,9 +171,7 @@ export class HudView {
       this.score.textContent = txt;
       if (diff > 40 && this.time - this.lastPop > 0.16) {
         this.lastPop = this.time;
-        this.score.classList.remove('pop');
-        void this.score.offsetWidth;
-        this.score.classList.add('pop');
+        pulse(this.score, 1.12);
       }
     }
     if (!this.beaten && this.best0 > 0 && h.score > this.best0) {
@@ -214,9 +213,7 @@ export class HudView {
     if (m !== this.lastMult) {
       this.lastMult = m;
       this.mult.textContent = m;
-      this.mult.classList.remove('pop');
-      void this.mult.offsetWidth;
-      this.mult.classList.add('pop');
+      pulse(this.mult, 1.12);
     }
     if (h.combo >= 2) this.ring.style.strokeDashoffset = String(50.3 * (1 - h.comboT));
 
@@ -245,9 +242,7 @@ export class HudView {
       this.lastCoins = h.coins;
       this.coins.textContent = fmt(h.coins);
       if (bump) {
-        this.coins.classList.remove('bump');
-        void this.coins.offsetWidth;
-        this.coins.classList.add('bump');
+        pulse(this.coins, 1.25);
       }
     }
   }
@@ -264,4 +259,9 @@ export class HudView {
       coin: { x: view.toWorldX(c.left + c.width / 2), y: view.toWorldY(c.top + c.height / 2) },
     };
   }
+}
+
+/** Yerleşimi yeniden hesaplatmadan (reflow yok) kısa büyüme animasyonu */
+function pulse(el: HTMLElement, scale: number): void {
+  el.animate([{ transform: 'none' }, { transform: `scale(${scale})`, offset: 0.4 }, { transform: 'none' }], { duration: 220, easing: 'ease-out' });
 }

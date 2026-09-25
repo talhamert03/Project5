@@ -34,8 +34,18 @@ export class View {
     if (!ctx) throw new Error('Canvas 2D desteklenmiyor');
     this.ctx = ctx;
     this.resize();
-    window.addEventListener('resize', () => this.resize());
-    window.visualViewport?.addEventListener('resize', () => this.resize());
+    // aynı karede gelen boyut olaylarını birleştir (gökyüzü tek kez yeniden çizilir)
+    let queued = false;
+    const onResize = (): void => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        this.resize();
+      });
+    };
+    window.addEventListener('resize', onResize);
+    window.visualViewport?.addEventListener('resize', onResize);
   }
 
   onResize(fn: () => void): void {
@@ -43,7 +53,7 @@ export class View {
   }
 
   maxDpr(): number {
-    const cap = this.quality === 'high' ? 2.25 : this.quality === 'balanced' ? 1.6 : 1.1;
+    const cap = this.quality === 'high' ? 2 : this.quality === 'balanced' ? 1.6 : 1.1;
     return Math.max(1, Math.min(window.devicePixelRatio || 1, cap) * this.adaptive);
   }
 
