@@ -44,67 +44,85 @@ export const FREE_COINS = 80;
 export const FREE_COINS_PER_DAY = 5;
 
 let adsReady = false;
-let adLoaded = false;
+let adsInit: Promise<void> | null = null;
 let billingReady = false;
+let billingInit: Promise<void> | null = null;
 const prices = new Map<string, string>();
 
-/** Açılışta bir kez: reklam SDK'sı + izin formu (AB), satın alma istemcisi */
+/**
+ * Açılışta hiçbir şey başlatılmaz. Reklam SDK'sı ve önceden yüklenmiş bir reklam, oyunun
+ * WebView'ıyla aynı işlem hattını paylaşır ve oyun sırasında takılmaya yol açar. Bu yüzden
+ * reklam yalnızca oyuncu "Video izle"ye dokunduğunda yüklenir ve gösterildikten sonra
+ * yenisi önceden yüklenmez. Satın alma istemcisi de mağaza açılınca bağlanır.
+ */
 export async function initMonetization(): Promise<void> {
-  if (!isNative) return;
-  try {
-    await AdMob.initialize({ initializeForTesting: ADS_TESTING });
-    try {
-      const info = await AdMob.requestConsentInfo();
-      if (info.isConsentFormAvailable && info.status === AdmobConsentStatus.REQUIRED) await AdMob.showConsentForm();
-    } catch {
-      /* izin formu yoksa reklamlar kişiselleştirilmemiş gösterilir */
-    }
-    adsReady = true;
-    void preloadAd();
-  } catch {
-    adsReady = false;
-  }
-  try {
-    const { isBillingSupported } = await NativePurchases.isBillingSupported();
-    billingReady = isBillingSupported;
-  } catch {
-    billingReady = false;
-  }
+  /* bilinçli olarak boş: tembel başlatma */
 }
 
-async function preloadAd(): Promise<void> {
-  if (!adsReady || adLoaded) return;
-  try {
-    await AdMob.prepareRewardVideoAd({ adId: REWARDED_AD_ID, isTesting: ADS_TESTING, immersiveMode: true });
-    adLoaded = true;
-  } catch {
-    adLoaded = false;
+function ensureAds(): Promise<void> {
+  if (!isNative) return Promise.resolve();
+  if (!adsInit) {
+    adsInit = (async () => {
+      try {
+        await AdMob.initialize({ initializeForTesting: ADS_TESTING });
+        try {
+          const info = await AdMob.requestConsentInfo();
+          if (info.isConsentFormAvailable && info.status === AdmobConsentStatus.REQUIRED) await AdMob.showConsentForm();
+        } catch {
+          /* izin formu yoksa reklamlar kişiselleştirilmemiş gösterilir */
+        }
+        adsReady = true;
+      } catch {
+        adsReady = false;
+        adsInit = null;
+      }
+    })();
   }
+  return adsInit;
+}
+
+function ensureBilling(): Promise<void> {
+  if (!isNative) return Promise.resolve();
+  if (!billingInit) {
+    billingInit = (async () => {
+      try {
+        const { isBillingSupported } = await NativePurchases.isBillingSupported();
+        billingReady = isBillingSupported;
+      } catch {
+        billingReady = false;
+        billingInit = null;
+      }
+    })();
+  }
+  return billingInit;
 }
 
 export type AdResult = 'rewarded' | 'skipped' | 'unavailable';
 
-/** Yerelde ödüllü video göster. Ödül yalnızca video sonuna kadar izlenirse verilir. */
+/** Yerelde ödüllü video: o an yüklenir ve gösterilir. Ödül yalnızca sonuna kadar izlenirse. */
 export async function showRewardedAd(): Promise<AdResult> {
-  if (!isNative || !adsReady) return 'unavailable';
-  if (!adLoaded) await preloadAd();
-  if (!adLoaded) return 'unavailable';
+  if (!isNative) return 'unavailable';
+  await ensureAds();
+  if (!adsReady) return 'unavailable';
+  try {
+    await AdMob.prepareRewardVideoAd({ adId: REWARDED_AD_ID, isTesting: ADS_TESTING, immersiveMode: true });
+  } catch {
+    return 'unavailable';
+  }
   let rewarded = false;
-  const handles = [];
+  const handles: Array<{ remove: () => Promise<void> }> = [];
   try {
     const closed = new Promise<void>((resolve) => {
       void AdMob.addListener(RewardAdPluginEvents.Dismissed, () => resolve()).then((h) => handles.push(h));
       void AdMob.addListener(RewardAdPluginEvents.FailedToShow, () => resolve()).then((h) => handles.push(h));
     });
     handles.push(await AdMob.addListener(RewardAdPluginEvents.Rewarded, () => (rewarded = true)));
-    adLoaded = false;
     await AdMob.showRewardVideoAd();
     await closed;
   } catch {
     /* gösterilemedi */
   } finally {
     for (const h of handles) void h.remove();
-    void preloadAd();
   }
   return rewarded ? 'rewarded' : 'skipped';
 }
@@ -113,6 +131,7 @@ export const hasNativeStore = (): boolean => isNative && billingReady;
 
 /** Play'deki yerel fiyatlar (yoksa boş; arayüz yedek fiyatı gösterir) */
 export async function loadPrices(): Promise<Map<string, string>> {
+  await ensureBilling();
   if (!hasNativeStore() || prices.size) return prices;
   try {
     const { products } = await NativePurchases.getProducts({ productIdentifiers: SHOP.map((s) => s.id), productType: PURCHASE_TYPE.INAPP });
@@ -131,6 +150,8 @@ export type BuyResult = 'ok' | 'cancelled' | 'error';
 
 /** Google Play ödeme akışı. Altın paketleri tüketilir (tekrar alınabilir). */
 export async function buyNative(item: ShopItem): Promise<BuyResult> {
+  await ensureBilling();
+  if (!billingReady) return 'error';
   try {
     const tx = await NativePurchases.purchaseProduct({
       productIdentifier: item.id,
@@ -148,6 +169,7 @@ export async function buyNative(item: ShopItem): Promise<BuyResult> {
 
 /** Kalıcı ürünleri (reklamsız, başlangıç paketi) geri yükle */
 export async function ownedNonConsumables(): Promise<string[]> {
+  await ensureBilling();
   if (!hasNativeStore()) return [];
   try {
     const { purchases } = await NativePurchases.getPurchases({ productType: PURCHASE_TYPE.INAPP });

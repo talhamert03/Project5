@@ -45,8 +45,11 @@ class Atlas {
   private rowH = 0;
   private static readonly PAD = 2;
 
-  constructor(readonly size: number) {
-    this.c = makeCanvas(size, size);
+  constructor(
+    readonly w: number,
+    readonly h: number,
+  ) {
+    this.c = makeCanvas(w, h);
     this.g = ctx2d(this.c);
   }
 
@@ -54,13 +57,13 @@ class Atlas {
     const P = Atlas.PAD;
     const w = src.width;
     const h = src.height;
-    if (this.x + w + P * 2 > this.size) {
+    if (this.x + w + P * 2 > this.w) {
       this.x = 0;
       this.y += this.rowH;
       this.rowH = 0;
     }
     // atlas doluysa görsel kendi tuvalinde kalır (yine çalışır, yalnızca birleşmez)
-    if (this.y + h + P * 2 > this.size) return { img: src, sx: 0, sy: 0, sw: w, sh: h };
+    if (this.y + h + P * 2 > this.h) return { img: src, sx: 0, sy: 0, sw: w, sh: h };
     const sx = this.x + P;
     const sy = this.y + P;
     this.g.drawImage(src, sx, sy);
@@ -79,7 +82,7 @@ export class Sprites {
   private hotGlows = new Map<string, Spr>();
   private meteors = new Map<string, Canvas[]>();
   private armored = new Map<string, Canvas[]>();
-  private atlas = new Atlas(1024);
+  private atlas = new Atlas(2048, 1024);
   readonly smoke: Spr;
   readonly sparkle: Spr;
   readonly vignette: Canvas;
@@ -98,6 +101,12 @@ export class Sprites {
     const cache = hot ? this.hotGlows : this.glows;
     const found = cache.get(color);
     if (found) return found;
+    const up = color.toUpperCase();
+    const same = up !== color ? cache.get(up) : undefined;
+    if (same) {
+      cache.set(color, same);
+      return same;
+    }
     const c = makeCanvas(GLOW_SIZE, GLOW_SIZE);
     const g = ctx2d(c);
     const [r, gg, b] = hexToRgb(color);
@@ -117,6 +126,7 @@ export class Sprites {
     g.fillRect(0, 0, GLOW_SIZE, GLOW_SIZE);
     const spr = this.atlas.add(c);
     cache.set(color, spr);
+    cache.set(up, spr);
     return spr;
   }
 
@@ -202,6 +212,25 @@ export class Sprites {
     g.fillStyle = grad;
     g.fillRect(0, 0, s, s);
     return c;
+  }
+
+  /**
+   * Parıltıları önceden atlasa yazan adımlar: oyun sırasında atlas hiç değişmez
+   * (değişen bir kaynak doku GPU'da kopyalama/yeniden yükleme gerektirir).
+   */
+  glowSteps(colors: string[]): Array<() => void> {
+    const uniq = [...new Set(colors.map((c) => c.toUpperCase()).filter((c) => /^#[0-9A-F]{6}$/.test(c)))];
+    const steps: Array<() => void> = [];
+    for (let i = 0; i < uniq.length; i += 16) {
+      const chunk = uniq.slice(i, i + 16);
+      steps.push(() => {
+        for (const c of chunk) {
+          this.glow(c);
+          this.glow(c, true);
+        }
+      });
+    }
+    return steps;
   }
 
   /** Tüm meteor görsellerini önceden hazırlayan adımlar (ilk görünüşte takılma olmasın) */

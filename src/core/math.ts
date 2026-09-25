@@ -79,3 +79,17 @@ export const rgba = (hex: string, a: number): string => {
 };
 
 export const hsl = (h: number, s: number, l: number): string => `hsl(${h % 360},${s}%,${l}%)`;
+
+/** HSL -> #rrggbb (parıltı görselleri hex renk bekler) */
+export const hslHex = (h: number, s: number, l: number): string => {
+  const S = s / 100;
+  const L = l / 100;
+  const k = (n: number): number => (n + h / 30) % 12;
+  const a = S * Math.min(L, 1 - L);
+  const f = (n: number): number => L - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  const x = (v: number): string => Math.round(v * 255).toString(16).padStart(2, '0');
+  return `#${x(f(0))}${x(f(8))}${x(f(4))}`;
+};
+
+/** Gökkuşağı kalemi: 72 sabit ton (5°): parıltı önbelleği sınırlı kalır */
+export const RAINBOW: string[] = Array.from({ length: 72 }, (_, i) => hslHex(i * 5, 95, 62));

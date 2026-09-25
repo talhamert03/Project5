@@ -35,7 +35,9 @@ import {
   showRewardedAd,
 } from './monetize';
 import { canFullscreen, exitApp, initNative, isNative, keepAwake, toggleFullscreen } from './platform';
+import { RAINBOW } from './core/math';
 import { ATMOSPHERES, atmosphereIndexForWave } from './render/atmospheres';
+import { BOSS_COLORS, C, METEOR_COLORS } from './render/palette';
 import { Background } from './render/background';
 import { Sprites } from './render/sprites';
 import { View } from './render/view';
@@ -66,7 +68,7 @@ import {
   worldsHTML,
 } from './ui/screens';
 
-export const VERSION = '1.2.1';
+export const VERSION = '1.2.2';
 
 type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'revive' | 'over';
 type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds' | 'shop' | 'skills';
@@ -81,6 +83,15 @@ const TAB_PANELS: PanelName[] = ['pens', 'workshop', 'missions', 'records'];
 const REVIVE_SECONDS = 9;
 /** Boss türlerinin afiş rengi */
 const BOSS_UI_COLORS = ['var(--crimson)', '#7FFFE0', '#8FE8FF', '#B066FF', '#FFB030'];
+
+/** Oyunda parıltı olarak çizilebilecek bütün renkler (atlas açılışta bir kez doldurulur) */
+function glowPalette(): string[] {
+  const out: string[] = [...Object.values(METEOR_COLORS), ...BOSS_COLORS, ...Object.values(C), ...RAINBOW];
+  for (const p of PENS) out.push(p.color, p.core);
+  for (const a of ATMOSPHERES) out.push(...a.glows, a.accent, a.house.glow, ...a.veins);
+  out.push('#BFF6FF', '#FF3355', '#FF5A3A', '#FF7A4F', '#FF9FEA', '#FFC870', '#FFE07A', '#FFFFFF', '#CFF6FF', '#FF8A3D', '#FFB04A', '#E8F6FF', '#E8FAFF', '#7FFFE0', '#FF7AE0');
+  return out;
+}
 
 /** Tarayıcı boştayken çalıştır (animasyon karelerini bölmesin) */
 function whenIdle(fn: () => void): void {
@@ -173,7 +184,7 @@ export class App {
     this.save.menuAtm = Math.min(this.save.menuAtm, this.save.maxAtm);
     if (this.save.menuAtm > 0) this.world.applyAtmosphere(this.save.menuAtm);
     // ağır görselleri menüdeyken boşta hazırla: meteorlar ve (menü başka dünyadaysa) oyunun ilk dünyası
-    const warm = this.sprites.warmSteps();
+    const warm = [...this.sprites.glowSteps(glowPalette()), ...this.sprites.warmSteps()];
     if (this.save.menuAtm > 0) warm.push(() => this.world.prebuildStep(0, 0), () => this.world.prebuildStep(0, 1));
     const runWarm = (i: number): void => {
       if (i >= warm.length) return;
@@ -221,12 +232,8 @@ export class App {
     };
     boot?.addEventListener('pointerdown', go, { once: true });
     boot?.addEventListener('keydown', go, { once: true });
-    // reklam SDK'sı, izin formu ve Play fiyatları; kalıcı ürünleri sessizce geri yükle
-    void initMonetization().then(async () => {
-      if (!isNative) return;
-      await loadPrices();
-      await this.restore(true);
-    });
+    // reklam ve satın alma altyapısı tembel başlar (açılışta ve oyun sırasında yük yok)
+    void initMonetization();
   }
 
   private unlockAudio(): void {
@@ -701,6 +708,7 @@ export class App {
     this.adBusy = true;
     try {
       if (isNative) {
+        this.toast('video', t('toast.adLoading'));
         audio.suspend();
         const r = await showRewardedAd();
         audio.resume();
@@ -838,6 +846,19 @@ export class App {
   private refreshCoins(): void {
     if (this.panel) this.renderPanel();
     for (const el of this.ui.querySelectorAll('.coin-count, #m-coins')) el.textContent = fmt(this.save.coins);
+  }
+
+  private storePrepared = false;
+
+  /** Mağaza ilk açıldığında: Play bağlantısı, yerel fiyatlar ve kalıcı ürünlerin geri yüklenmesi */
+  private prepareStore(): void {
+    if (!isNative || this.storePrepared) return;
+    this.storePrepared = true;
+    void (async () => {
+      await loadPrices();
+      await this.restore(true);
+      if (this.panel === 'shop') this.renderPanel();
+    })();
   }
 
   private buySkill(id: string): void {
@@ -1048,6 +1069,7 @@ export class App {
         break;
       case 'shop':
         this.openPanel('shop');
+        this.prepareStore();
         break;
       case 'buy':
         void this.buy(el.dataset.id!);

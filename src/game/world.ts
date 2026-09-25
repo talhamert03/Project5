@@ -1,7 +1,7 @@
 import { audio as realAudio } from '../core/audio';
 import { haptics as realHaptics } from '../core/haptics';
 import type { PointerSink } from '../core/input';
-import { TAU, clamp, damp, easeInOutCubic, hsl } from '../core/math';
+import { RAINBOW, TAU, clamp, damp, easeInOutCubic } from '../core/math';
 import { Rng, fx } from '../core/rng';
 import { t } from '../i18n';
 import { ATMOSPHERES, type Atmosphere } from '../render/atmospheres';
@@ -389,7 +389,8 @@ export class World implements PointerSink {
   }
 
   get inkColor(): string {
-    return this.pen.rainbow ? hsl(this.realT * 90, 95, 62) : this.pen.color;
+    // gökkuşağı: sabit 72 tondan biri (her karede yeni renk -> yeni parıltı görseli üretilmez)
+    return this.pen.rainbow ? RAINBOW[Math.floor((this.realT * 90) / 5) % 72] : this.pen.color;
   }
 
   get playing(): boolean {

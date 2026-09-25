@@ -2926,8 +2926,17 @@ svg {
   stroke-linecap: round;
   stroke-dasharray: 176;
   stroke-dashoffset: 176;
-  transition: stroke-dashoffset 0.25s ease-out;
-  filter: drop-shadow(0 0 4px var(--sc));
+}
+
+/* halka ışıması: filtre/geçiş yerine ikinci, geniş ve soluk bir çizgi (her dolumda ucuz boyama) */
+.skill-ring .glow {
+  fill: none;
+  stroke: var(--sc);
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-dasharray: 176;
+  stroke-dashoffset: 176;
+  opacity: 0.22;
 }
 
 .skill-ic {

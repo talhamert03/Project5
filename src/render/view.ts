@@ -30,8 +30,8 @@ export class View {
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
-    // desynchronized kullanılmaz: bazı emülatör ve GPU'larda yırtılma/titreme yapar
-    const ctx = canvas.getContext('2d', { alpha: false });
+    // desynchronized: düşük gecikmeli tuval (dokunuş -> ekran arası en kısa yol)
+    const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
     if (!ctx) throw new Error('Canvas 2D desteklenmiyor');
     this.ctx = ctx;
     this.resize();

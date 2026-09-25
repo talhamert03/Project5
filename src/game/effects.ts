@@ -1,16 +1,7 @@
 import { TAU, clamp, easeOutBack, easeOutCubic } from '../core/math';
 import { C } from '../render/palette';
-import { type Canvas, type Sprites, makeCanvas, blit } from '../render/sprites';
+import { type Sprites, blit } from '../render/sprites';
 
-/** Önceden çizilmiş yazı görseli (kontur + dolgu bir kez rasterleşir) */
-interface TextSprite {
-  c: Canvas;
-  /** dünya birimi cinsinden görsel boyutu */
-  w: number;
-  h: number;
-  /** oluşturulduğu piksel ölçeği (ekran boyutu değişince yenilenir) */
-  k: number;
-}
 
 interface Ring {
   x: number;
@@ -42,7 +33,6 @@ export interface Floater {
   color: string;
   big: boolean;
   font: string;
-  spr: TextSprite | null;
 }
 
 interface Homer {
@@ -135,61 +125,7 @@ export class Effects {
       color,
       big,
       font: `800 ${Math.round(size)}px ${FONT_DISPLAY}`,
-      spr: null,
     });
-  }
-
-  // yazı görseli önbelleği: aynı metin/renk/boyut tekrar çizilmez (kombo sözleri, sık puanlar)
-  private textCache = new Map<string, TextSprite>();
-
-  private textSprite(f: Floater, k: number): TextSprite {
-    const key = f.font + '|' + f.color + '|' + f.text;
-    let sp = this.textCache.get(key);
-    if (sp && sp.k === k) {
-      // en son kullanılan sona taşınır (LRU)
-      this.textCache.delete(key);
-      this.textCache.set(key, sp);
-      return sp;
-    }
-    // büyük yazılar esnerken (easeOutBack) en fazla ~%12 büyür: o ölçekte keskin kalsın
-    const res = k * (f.big ? 1.18 : 1.06);
-    const lw = f.size * 0.22;
-    const probe = this.probe();
-    probe.font = f.font;
-    const tw = probe.measureText(f.text).width;
-    const w = tw + lw * 2 + 6;
-    const h = f.size * 1.35 + lw * 2;
-    let c: Canvas;
-    // en eski girişin tuvali yeniden kullanılır (yeni tuval/doku açma maliyeti yok)
-    if (this.textCache.size >= 64) {
-      const oldest = this.textCache.keys().next().value as string;
-      c = this.textCache.get(oldest)!.c;
-      this.textCache.delete(oldest);
-      c.width = Math.ceil(w * res);
-      c.height = Math.ceil(h * res);
-    } else {
-      c = makeCanvas(w * res, h * res);
-    }
-    const g = c.getContext('2d')!;
-    g.setTransform(res, 0, 0, res, (w * res) / 2, (h * res) / 2);
-    g.font = f.font;
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.lineJoin = 'round';
-    g.lineWidth = lw;
-    g.strokeStyle = 'rgba(8,6,30,0.85)';
-    g.strokeText(f.text, 0, 0);
-    g.fillStyle = f.color;
-    g.fillText(f.text, 0, 0);
-    sp = { c, w, h, k };
-    this.textCache.set(key, sp);
-    return sp;
-  }
-
-  private probeCtx: CanvasRenderingContext2D | null = null;
-  private probe(): CanvasRenderingContext2D {
-    if (!this.probeCtx) this.probeCtx = makeCanvas(4, 4).getContext('2d')!;
-    return this.probeCtx;
   }
 
   /** Dünya noktasından hedefe (HUD) kavisli uçan parıltı */
@@ -296,8 +232,11 @@ export class Effects {
     g.globalCompositeOperation = 'source-over';
   }
 
-  /** k: dünya -> piksel ölçeği (yazı görselleri bu çözünürlükte hazırlanır) */
-  renderText(g: CanvasRenderingContext2D, k: number): void {
+  renderText(g: CanvasRenderingContext2D, _k: number): void {
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.lineJoin = 'round';
+    let lastFont = '';
     for (const f of this.floaters) {
       const p = f.t / f.life;
       let scale: number;
@@ -309,13 +248,21 @@ export class Effects {
         scale = p < 0.15 ? 0.6 + easeOutBack(p / 0.15) * 0.4 : 1;
         a = p > 0.6 ? (1 - p) / 0.4 : 1;
       }
-      if (a <= 0.01 || scale <= 0.01) continue;
-      if (!f.spr || f.spr.k !== k) f.spr = this.textSprite(f, k);
-      const sp = f.spr;
-      const w = sp.w * scale;
-      const h = sp.h * scale;
+      if (a <= 0.01) continue;
+      if (f.font !== lastFont) {
+        g.font = f.font;
+        lastFont = f.font;
+      }
+      g.save();
+      g.translate(f.x, f.y);
+      g.scale(scale, scale);
       g.globalAlpha = a;
-      g.drawImage(sp.c, f.x - w / 2, f.y - h / 2, w, h);
+      g.lineWidth = f.size * 0.22;
+      g.strokeStyle = 'rgba(8,6,30,0.85)';
+      g.strokeText(f.text, 0, 0);
+      g.fillStyle = f.color;
+      g.fillText(f.text, 0, 0);
+      g.restore();
     }
     g.globalAlpha = 1;
   }

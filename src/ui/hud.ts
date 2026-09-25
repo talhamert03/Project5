@@ -27,6 +27,7 @@ export class HudView {
   private fpsEl!: HTMLElement;
   private skillBtn!: HTMLButtonElement;
   private skillRing!: SVGCircleElement;
+  private skillGlow!: SVGCircleElement;
   private skillIc!: HTMLElement;
   private bossLabel!: HTMLElement;
   private lastSkill = -1;
@@ -85,7 +86,7 @@ export class HudView {
       </div>
       <div class="hint" id="h-hint" hidden></div>
       <button class="skill-btn interactive" data-a="skill" id="h-skill" aria-label="skill">
-        <svg class="skill-ring" viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="28"/><circle class="fg" id="h-skillring" cx="32" cy="32" r="28"/></svg>
+        <svg class="skill-ring" viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="28"/><circle class="glow" id="h-skillglow" cx="32" cy="32" r="28"/><circle class="fg" id="h-skillring" cx="32" cy="32" r="28"/></svg>
         <span class="skill-ic" id="h-skillic"></span>
         <span class="skill-ready">${t('hud.skillReady')}</span>
       </button>
@@ -108,6 +109,7 @@ export class HudView {
     this.fpsEl = $('h-fps');
     this.skillBtn = $('h-skill') as HTMLButtonElement;
     this.skillRing = this.root.querySelector('#h-skillring') as SVGCircleElement;
+    this.skillGlow = this.root.querySelector('#h-skillglow') as SVGCircleElement;
     this.skillIc = $('h-skillic');
     this.bossLabel = $('h-bosslabel');
     this.invalidate();
@@ -276,7 +278,9 @@ export class HudView {
     const ready = sk >= 100 && !h.skillActive;
     if (sk !== this.lastSkill || ready !== this.lastSkillReady) {
       this.lastSkill = sk;
-      this.skillRing.style.strokeDashoffset = String(176 * (1 - sk / 100));
+      const off = String(176 * (1 - sk / 100));
+      this.skillRing.style.strokeDashoffset = off;
+      this.skillGlow.style.strokeDashoffset = off;
       if (ready !== this.lastSkillReady) {
         this.lastSkillReady = ready;
         this.skillBtn.classList.toggle('ready', ready);

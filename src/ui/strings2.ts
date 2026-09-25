@@ -107,6 +107,7 @@ extend('tr', {
 
   // bildirimler
   'toast.noAds': 'Reklamsız: ödül anında!',
+  'toast.adLoading': 'Video hazırlanıyor…',
   'toast.adFail': 'Şu an video yok, biraz sonra dene',
   'toast.adSkip': 'Ödül için videoyu sonuna kadar izle',
   'toast.storeOff': 'Mağaza şu an kullanılamıyor',
@@ -215,6 +216,7 @@ extend('en', {
   'shop.demo': 'Preview: no real payment, packs are added instantly for testing.',
 
   'toast.noAds': 'No Ads: instant reward!',
+  'toast.adLoading': 'Preparing video…',
   'toast.adFail': 'No video right now, try again soon',
   'toast.adSkip': 'Watch the whole video for the reward',
   'toast.storeOff': 'The store is unavailable right now',
