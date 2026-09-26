@@ -96,6 +96,12 @@ No forced ads. Watch a video only when you want to continue or double your gold.
 - Uygulama içi satın alma: Evet
 - İletişim e-postası: (Play Console'da kendi adresini gir)
 
+## Sürüm notları (1.8.0)
+
+**TR:** Çizilen şekiller artık çok daha doğru tanınıyor (yumurta biçimli daireler, yuvarlak köşeli kareler, hızlı çizimler), yetenek beklerken ya da kilitliyken ekranda açıkça yazıyor. Kalemler, Atölye, Görevler, Rekorlar, Mağaza ve Ayarlar menüleri yeni, açık renkli ve animasyonlu tasarımda.
+
+**EN:** Drawn shapes are recognised far more reliably (egg-shaped circles, rounded squares, quick strokes), and the game clearly tells you when a skill is recharging or locked. Pens, Workshop, Missions, Records, Shop and Settings get a new light, animated design.
+
 ## Sürüm notları (1.7.0)
 
 **TR:** Üç yeni yetenek (Sonsuz Yansıma, Kara Girdap, Yıldız Işınları) ve Orion takımyıldızı şeklinde yeni yetenek ekranı, 3 yetenek parşömeni, yeniden tasarlanan Dünyalar ekranı, ileri dünyalardan kart seçtirmeden hızlı başlangıç, üst üste binmeyen oyun içi yazılar, HD görüntü ve akıcılık iyileştirmeleri.

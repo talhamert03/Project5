@@ -108,6 +108,16 @@ extend('tr', {
   'toast.restored': 'Satın alımlar geri yüklendi',
   'toast.nothing': 'Geri yüklenecek satın alım yok',
   'toast.needCoins': 'Yeterli altın yok',
+  // 1.8: şekil geri bildirimi
+  'pens.hero': 'Mürekkebini seç',
+  'workshop.hero': 'Kalıcı güçler',
+  'missions.hero': 'Görev tahtası',
+  'hero.owned': 'kalem',
+  'hero.levels': 'seviye',
+  'hero.rewards': 'ödül',
+  'ws.lvl': 'Seviye {a}/{b}',
+  'skill.wait': '{name} dolmadı · {s} sn',
+  'skill.lockedDraw': '{name} kilitli',
   // 1.7: Orion takımyıldızı, yeni yetenekler, parşömenler
   'worlds.ask': 'Hangi dünyadan devam etmek istersin?',
   'worlds.sub': 'Seçtiğin dünyada oyun hemen başlar. Güç kartlarını dalgaları geçtikçe tek tek kazanırsın; atölye geliştirmelerin her dünyada seninle.',
@@ -296,6 +306,16 @@ extend('en', {
   'toast.restored': 'Purchases restored',
   'toast.nothing': 'Nothing to restore',
   'toast.needCoins': 'Not enough gold',
+  // 1.8: shape feedback
+  'pens.hero': 'Choose your ink',
+  'workshop.hero': 'Permanent power',
+  'missions.hero': 'Mission board',
+  'hero.owned': 'pens',
+  'hero.levels': 'levels',
+  'hero.rewards': 'rewards',
+  'ws.lvl': 'Level {a}/{b}',
+  'skill.wait': '{name} recharging · {s}s',
+  'skill.lockedDraw': '{name} is locked',
   // 1.7: Orion constellation, new skills, scrolls
   'worlds.ask': 'Which world do you want to continue from?',
   'worlds.sub': 'Your run starts right in the world you pick. Power cards are earned one by one as you clear waves; your workshop upgrades come with you everywhere.',

@@ -2,7 +2,7 @@ import { RAINBOW, clamp } from '../core/math';
 import { blit, type Sprites } from '../render/sprites';
 import type { Pen } from './pens';
 
-export const MAXP = 180;
+export const MAXP = 260;
 const MIN_DIST = 8;
 const FADE = 0.45;
 

@@ -18,6 +18,7 @@ import { type InkLine, LineManager } from './lines';
 import { BLINK_WARN, BT, KINDS, MK, Meteor, PRISM_COLS, renderBossRing, renderMeteors, shieldPos } from './meteors';
 import type { Pen } from './pens';
 import { type Stats, UPGRADES, UPGRADE_BY_ID, baseStats, Rarity } from './upgrades';
+import { SKILLS } from '../meta/progression';
 
 export interface DailyMod {
   id: string;
@@ -77,6 +78,9 @@ export interface SkillSlot extends SkillLoadout {
 const SKILL_KILL_SEC = 0.3;
 /** Yetenek hazırken mürekkep bitse de şekil çizmeye devam edilebilecek en uzun yol */
 const OVERDRAW_LEN = 1800;
+/** şekil tanıma yolunun en fazla nokta sayısı ve noktalar arası en kısa mesafe */
+const GESTURE_MAX = 400;
+const GESTURE_STEP = 5;
 
 /**
  * Menü arka planındaki demo (attract) yalnızca bir video gibi oynar: titreşim ve efekt sesi
@@ -305,6 +309,9 @@ export class World implements PointerSink {
   /** mürekkep bittikten sonra şekil için ücretsiz çizim */
   private overdraw = false;
   private overdrawT = 0;
+  /** şekil tanıma için parmağın ham yolu: tavan/zemin kırpması ve mürekkep kesintisi uygulanmaz */
+  private gPts = new Float32Array(GESTURE_MAX * 2);
+  private gN = 0;
   /** şekil kılavuzu (ilk hazır oluş / dok düğmesine dokunuş) */
   private shapeHint: { shape: GestureShape; t: number; color: string } | null = null;
   /** atılan şeklin kusursuz hali parlayıp büyür */
@@ -717,12 +724,16 @@ export class World implements PointerSink {
       }
       return;
     }
-    if (this.ink < 4) {
+    // mürekkep bitmiş olsa da hazır bir yetenek varsa şekil çizilebilir (tanınmazsa çizgi söner)
+    if (this.ink < 4 && !(this.anySkillReady && this.feverT <= 0)) {
       this.inkEmptyFx();
       return;
     }
     const line = this.lines.begin(x, y, tm, this.stats.maxLines, (this.realT * 90) % 360);
     if (!line) return;
+    this.gPts[0] = x;
+    this.gPts[1] = y;
+    this.gN = 1;
     this.drawing = true;
     this.strokeInk = 0;
     this.overdraw = false;
@@ -736,6 +747,7 @@ export class World implements PointerSink {
     if (!this.drawing) return;
     const l = this.lines.current;
     if (!l) return;
+    this.recordGesture(x, y);
     y = Math.min(y, this.groundY + 10);
     if (this.phase !== 'tutorial') y = Math.max(y, this.inkCeiling);
     const d = l.distTo(x, y);
@@ -771,6 +783,15 @@ export class World implements PointerSink {
 
   pointerUp(): void {
     if (this.drawing) this.endLine();
+  }
+
+  private recordGesture(x: number, y: number): void {
+    const n = this.gN;
+    if (n >= GESTURE_MAX) return;
+    if (n > 0 && Math.hypot(x - this.gPts[n * 2 - 2], y - this.gPts[n * 2 - 1]) < GESTURE_STEP) return;
+    this.gPts[n * 2] = x;
+    this.gPts[n * 2 + 1] = y;
+    this.gN = n + 1;
   }
 
   endLine(): void {
@@ -2453,13 +2474,20 @@ export class World implements PointerSink {
   /** Bitirilen çizgi bir yetenek şekli mi? Hazırsa yeteneği at (çizgi ışığa dönüşür) */
   private trySkillGesture(l: InkLine): boolean {
     if ((this.phase !== 'play' && this.phase !== 'intro') || !this.skillSlots.length) return false;
-    const g = recognize(l.pts, l.n);
+    // ham parmak yolu (kırpılmamış); yoksa çizginin kendisi
+    const g = this.gN >= 6 ? recognize(this.gPts, this.gN) : recognize(l.pts, l.n);
+    this.gN = 0;
     if (!g) return false;
     const k = this.skillSlots.find((s) => s.shape === g.shape);
-    if (!k) return false;
+    const def = SKILLS.find((s) => s.shape === g.shape);
+    if (!k) {
+      // şekil tanındı ama yetenek açılmamış: oyuncu neden bir şey olmadığını bilsin
+      if (def) this.fx.text(t('skill.lockedDraw', { name: t('skill.' + def.id) }), g.cx, g.cy, 26, '#A8A6C8', false, 1.1);
+      return false;
+    }
     if (k.left > 0) {
-      // bekliyor: çizgi normal mürekkep olarak kalır, kalan süre gösterilir
-      this.fx.text(`${Math.ceil(k.left)}s`, g.cx, g.cy, 30, '#A8A6C8', false, 0.9);
+      // bekliyor: çizgi normal mürekkep olarak kalır; hangi yeteneğin ne kadar beklediği yazılır
+      this.fx.text(t('skill.wait', { name: t('skill.' + k.id), s: Math.ceil(k.left) }), g.cx, g.cy, 28, '#C9C4F0', false, 1.1);
       this.onEvent({ type: 'skillWait', id: k.id, left: k.left });
       return false;
     }

@@ -401,7 +401,7 @@ export function shopHTML(save: SaveData, native: boolean): string {
     <div class="shop-foot">
       ${native ? `<button class="btn-ghost" data-a="restore">${t('shop.restore')}</button>` : `<p class="note">${t('shop.demo')}</p>`}
     </div>`;
-  return panel('shop', t('shop.title'), body, save.coins);
+  return panel('shop', t('shop.title'), body, save.coins, true);
 }
 
 /** Yetenekler: bir tanesi takılır, dolunca oyunda tek dokunuşla tetiklenir */
@@ -646,9 +646,9 @@ export function overHTML(r: RunResult, st: Settlement, best: number, dailyBest: 
     </section>`;
 }
 
-function panel(id: string, title: string, body: string, coins: number): string {
+function panel(id: string, title: string, body: string, coins: number, light = false): string {
   return `
-    <section class="screen panel" id="panel-${id}">
+    <section class="screen panel ${light ? 'light' : ''}" id="panel-${id}">
       <div class="panel-head">
         <button class="icon-btn" data-a="close" aria-label="${t('common.back')}">${icon('back')}</button>
         <h2>${title}</h2>
@@ -656,6 +656,20 @@ function panel(id: string, title: string, body: string, coins: number): string {
       </div>
       <div class="panel-body">${body}</div>
     </section>`;
+}
+
+/**
+ * Açık menülerin başındaki renkli vitrin: büyük simge (hafif süzülür), başlık, açıklama ve sağda
+ * küçük bir sayaç. c1/c2: vitrin gradyanı.
+ */
+function hero(ic: string, title: string, sub: string, stat: string, statLabel: string, c1: string, c2: string): string {
+  return `
+    <div class="p-hero" style="--h1:${c1};--h2:${c2}">
+      <i class="ph-glow"></i>
+      <div class="ph-art"><span class="ph-ic">${icon(ic)}</span></div>
+      <div class="ph-txt"><h3>${title}</h3><p>${sub}</p></div>
+      ${stat ? `<div class="ph-stat"><b>${stat}</b><small>${statLabel}</small></div>` : ''}
+    </div>`;
 }
 
 export function dailyHTML(save: SaveData, d: DailyInfo): string {
@@ -678,22 +692,22 @@ export function dailyHTML(save: SaveData, d: DailyInfo): string {
     <p class="lead enter" style="--d:2">${t('daily.streakHint')} ${t('daily.coins')}.</p>
     <button class="btn-play gold enter" style="--d:3" data-a="playDaily">${icon('play')}${t('daily.play')}</button>
     <p class="note enter" style="--d:4">${t('daily.resets', { h: Math.floor(mins / 60), m: mins % 60 })}</p>`;
-  return panel('daily', t('daily.title'), body, save.coins);
+  return panel('daily', t('daily.title'), body, save.coins, true);
 }
 
 export function missionsHTML(save: SaveData): string {
   const colors: Record<string, string> = {
-    kills: 'var(--ember)',
-    combo: 'var(--gold)',
-    wave: 'var(--ink)',
-    score: 'var(--paper)',
-    perfect: 'var(--gold)',
-    boss: 'var(--crimson)',
-    golden: 'var(--gold)',
-    oneline: 'var(--ink)',
-    chain: 'var(--violet)',
-    deflects: 'var(--ink)',
-    daily: 'var(--gold)',
+    kills: '#FF6A3D',
+    combo: '#F2A516',
+    wave: '#14B8AA',
+    score: '#6366F1',
+    perfect: '#10B981',
+    boss: '#EF3B5D',
+    golden: '#E8A200',
+    oneline: '#0EA5E9',
+    chain: '#8B5CF6',
+    deflects: '#14B8AA',
+    daily: '#F59E0B',
   };
   const icons: Record<string, string> = {
     kills: 'blast',
@@ -708,48 +722,56 @@ export function missionsHTML(save: SaveData): string {
     deflects: 'bounce',
     daily: 'calendar',
   };
+  let total = 0;
   const rows = save.missions
     .map((m, i) => {
       const frac = Math.min(1, m.progress / m.target);
+      total += m.reward;
       return `
-      <div class="row" style="--d:${i};--tc:${colors[m.id] ?? 'var(--ink)'}">
+      <div class="row mission ${frac >= 1 ? 'done' : ''}" style="--d:${i + 1};--tc:${colors[m.id] ?? '#14B8AA'}">
         <div class="ic">${icon(icons[m.id] ?? 'target')}</div>
-        <div>
+        <div class="row-main">
           <h4>${t('m.' + m.id, { n: fmt(m.target) })}</h4>
-          <div class="progress-mini"><i style="--w:${(frac * 100).toFixed(1)}%"></i></div>
-          <p>${fmt(Math.min(m.progress, m.target))} / ${fmt(m.target)}</p>
+          <div class="progress-mini"><i style="--w:${(frac * 100).toFixed(1)}%;--f:${frac.toFixed(3)}"></i></div>
+          <p><b>${fmt(Math.min(m.progress, m.target))}</b> / ${fmt(m.target)}<span class="pct">%${Math.round(frac * 100)}</span></p>
         </div>
         <span class="reward">${icon('coin')}${fmt(m.reward)}</span>
       </div>`;
     })
     .join('');
-  return panel('missions', t('missions.title'), `<p class="lead">${t('missions.desc')}</p><div class="list">${rows}</div>`, save.coins);
+  const head = hero('target', t('missions.hero'), t('missions.desc'), `${icon('coin')}${fmt(total)}`, t('hero.rewards'), '#FF7A45', '#E11D74');
+  return panel('missions', t('missions.title'), `${head}<div class="list">${rows}</div>`, save.coins, true);
 }
 
 export function workshopHTML(save: SaveData): string {
-  const colors = ['var(--ink)', 'var(--ink)', 'var(--violet)', 'var(--rose)', 'var(--gold)', 'var(--gold)', 'var(--violet)'];
+  const colors = ['#14B8AA', '#0EA5E9', '#8B5CF6', '#EC4899', '#F2A516', '#E8A200', '#6366F1'];
+  let lv = 0;
+  let lvMax = 0;
   const rows = WORKSHOP.map((w, i) => {
     const lvl = save.workshop[w.id] ?? 0;
+    lv += lvl;
+    lvMax += w.max;
     const maxed = lvl >= w.max;
     const cost = maxed ? 0 : w.cost(lvl);
     const can = !maxed && save.coins >= cost;
-    const dots = Array.from({ length: w.max }, (_, k) => `<i class="${k < lvl ? 'on' : ''}"></i>`).join('');
+    const dots = Array.from({ length: w.max }, (_, k) => `<i class="${k < lvl ? 'on' : ''}" style="--k:${k}"></i>`).join('');
     return `
-      <div class="row" style="--d:${i};--tc:${colors[i]}">
+      <div class="row ws ${maxed ? 'maxed' : ''}" style="--d:${i + 1};--tc:${colors[i % colors.length]}">
         <div class="ic">${icon(w.icon)}</div>
-        <div>
+        <div class="row-main">
           <h4>${t('ws.' + w.id)}</h4>
           <p>${t('ws.' + w.id + '.d')}</p>
-          <div class="lvl-dots">${dots}</div>
+          <div class="lvl-line"><div class="lvl-dots">${dots}</div><small>${t('ws.lvl', { a: lvl, b: w.max })}</small></div>
         </div>
         ${
           maxed
-            ? `<span class="buy done">${t('workshop.max')}</span>`
-            : `<button class="buy ${can ? '' : 'disabled'}" data-a="buyWs" data-id="${w.id}">${icon('coin')}${fmt(cost)}</button>`
+            ? `<span class="buy done">${icon('crown')}${t('workshop.max')}</span>`
+            : `<button class="buy ${can ? 'can' : 'disabled'}" data-a="buyWs" data-id="${w.id}">${icon('coin')}${fmt(cost)}</button>`
         }
       </div>`;
   }).join('');
-  return panel('workshop', t('workshop.title'), `<p class="lead">${t('workshop.desc')}</p><div class="list">${rows}</div>`, save.coins);
+  const head = hero('hammer', t('workshop.hero'), t('workshop.desc'), `${lv}/${lvMax}`, t('hero.levels'), '#0EA5E9', '#4F46E5');
+  return panel('workshop', t('workshop.title'), `${head}<div class="list">${rows}</div>`, save.coins, true);
 }
 
 function penSwatch(p: Pen, id: string): string {
@@ -765,24 +787,27 @@ function penSwatch(p: Pen, id: string): string {
 
 export function pensHTML(save: SaveData): string {
   const bestRank = rankProgress(save.best).idx;
+  let owned = 0;
   const cards = PENS.map((p, i) => {
-    const owned = save.pens.includes(p.id);
     const equipped = save.pen === p.id;
     const rankLocked = p.rank !== undefined && bestRank < p.rank;
+    // ücretsiz kalem de rütbesi yetmiyorsa kilitli kalır
+    const has = save.pens.includes(p.id) || (p.price === 0 && !rankLocked);
+    if (has) owned++;
     let btn: string;
-    if (equipped) btn = `<span class="buy done">${t('pens.equipped')}</span>`;
-    else if (owned) btn = `<button class="buy ghost" data-a="equip" data-id="${p.id}">${t('pens.equip')}</button>`;
+    if (equipped) btn = `<span class="buy done">${icon('check')}${t('pens.equipped')}</span>`;
+    else if (has) btn = `<button class="buy ghost" data-a="equip" data-id="${p.id}">${t('pens.equip')}</button>`;
     else if (rankLocked) btn = `<span class="buy ghost disabled">${icon('lock')}${t('pens.needRank', { rank: rankLabel(p.rank!) })}</span>`;
-    else if (p.price === 0) btn = `<button class="buy ghost" data-a="equip" data-id="${p.id}">${t('pens.equip')}</button>`;
-    else btn = `<button class="buy ${save.coins >= p.price ? '' : 'disabled'}" data-a="buyPen" data-id="${p.id}">${icon('coin')}${fmt(p.price)}</button>`;
+    else btn = `<button class="buy ${save.coins >= p.price ? 'can' : 'disabled'}" data-a="buyPen" data-id="${p.id}">${icon('coin')}${fmt(p.price)}</button>`;
     return `
-      <div class="pen ${equipped ? 'equipped' : ''} ${rankLocked && !owned ? 'locked' : ''}" style="--pc:${p.color};--d:${i}">
-        ${penSwatch(p, p.id)}
+      <div class="pen ${equipped ? 'equipped' : ''} ${rankLocked && !has ? 'locked' : ''}" style="--pc:${p.rainbow ? '#B57BFF' : p.color};--d:${i + 1}">
+        <div class="pen-well">${penSwatch(p, p.id)}${equipped ? `<span class="pen-badge">${icon('check')}</span>` : ''}</div>
         <h4>${t('pen.' + p.id)}</h4>
         ${btn}
       </div>`;
   }).join('');
-  return panel('pens', t('pens.title'), `<p class="lead">${t('pens.desc')}</p><div class="pen-grid">${cards}</div>`, save.coins);
+  const head = hero('pen', t('pens.hero'), t('pens.desc'), `${owned}/${PENS.length}`, t('hero.owned'), '#0FB5A8', '#7C3AED');
+  return panel('pens', t('pens.title'), `${head}<div class="pen-grid">${cards}</div>`, save.coins, true);
 }
 
 export function recordsHTML(save: SaveData): string {
@@ -790,28 +815,31 @@ export function recordsHTML(save: SaveData): string {
     ? save.records
         .map(
           (r, i) => `
-      <div class="rec" style="--d:${i}">
-        <span class="pos">${i + 1}</span>
-        <div><b>${fmt(r.score)}</b><br><small>${t('over.wave')} ${r.wave} · ${r.date}${r.daily ? ' · ' + t('st.daily') : ''}</small></div>
-        ${i === 0 ? `<span style="color:var(--gold);font-size:22px">${icon('crown')}</span>` : '<span></span>'}
+      <div class="rec ${i < 3 ? 'podium p' + (i + 1) : ''}" style="--d:${i + 2}">
+        <span class="pos">${i < 3 ? icon(i === 0 ? 'crown' : 'star') : ''}<em>${i + 1}</em></span>
+        <div><b>${fmt(r.score)}</b><small>${t('over.wave')} ${r.wave} · ${r.date}${r.daily ? ' · ' + t('st.daily') : ''}</small></div>
+        ${i === 0 ? `<span class="rec-best">${icon('trophy')}</span>` : '<span></span>'}
       </div>`,
         )
         .join('')
-    : `<p class="lead">${t('records.empty')}</p>`;
+    : `<div class="empty-card">${icon('trophy')}<p>${t('records.empty')}</p></div>`;
+  const stat = (ic: string, c: string, label: string, v: string, i: number): string =>
+    `<div class="stat" style="--tc:${c};--d:${i}"><span class="st-ic">${icon(ic)}</span><span class="label">${label}</span><b>${v}</b></div>`;
   const stats = `
-    <div class="kv">
-      <div><span class="label">${t('st.runs')}</span><b>${fmt(save.totalRuns)}</b></div>
-      <div><span class="label">${t('st.kills')}</span><b>${fmt(save.totalKills)}</b></div>
-      <div><span class="label">${t('st.wave')}</span><b>${save.bestWave}</b></div>
-      <div><span class="label">${t('st.combo')}</span><b>${save.bestCombo}</b></div>
-      <div><span class="label">${t('st.boss')}</span><b>${save.bossKills}</b></div>
-      <div><span class="label">${t('st.time')}</span><b>${fmtDuration(save.totalPlaySec)}</b></div>
+    <div class="kv stats">
+      ${stat('play', '#14B8AA', t('st.runs'), fmt(save.totalRuns), 3)}
+      ${stat('blast', '#FF6A3D', t('st.kills'), fmt(save.totalKills), 4)}
+      ${stat('lines', '#0EA5E9', t('st.wave'), String(save.bestWave), 5)}
+      ${stat('bolt', '#F2A516', t('st.combo'), String(save.bestCombo), 6)}
+      ${stat('crown', '#EF3B5D', t('st.boss'), String(save.bossKills), 7)}
+      ${stat('clock', '#8B5CF6', t('st.time'), fmtDuration(save.totalPlaySec), 8)}
     </div>`;
   return panel(
     'records',
     t('records.title'),
-    `${rankCard(rankProgress(save.best), save.best)}<div class="section-title">${t('records.top')}</div><div class="list">${recs}</div><div class="section-title">${t('records.stats')}</div>${stats}`,
+    `${rankCard(rankProgress(save.best), save.best, 'enter')}<div class="section-title">${t('records.top')}</div><div class="list">${recs}</div><div class="section-title">${t('records.stats')}</div>${stats}`,
     save.coins,
+    true,
   );
 }
 
@@ -853,7 +881,7 @@ export function settingsHTML(save: SaveData, version: string, canFullscreen: boo
       <button class="btn-ghost danger" data-a="reset">${icon('restart')}${resetArmed ? t('settings.resetConfirm') : t('settings.reset')}</button>
     </div>
     <p class="credits">${t('settings.credits', { v: version })}</p>`;
-  return panel('settings', t('settings.title'), body, save.coins);
+  return panel('settings', t('settings.title'), body, save.coins, true);
 }
 
 export function bannerHTML(big: string, small: string, boss: boolean, color?: string): string {

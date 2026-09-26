@@ -73,7 +73,10 @@ import {
   worldsHTML,
 } from './ui/screens';
 
-export const VERSION = '1.7.0';
+/** açık (kağıt) temalı menüler */
+const LIGHT_PANELS: string[] = ['pens', 'workshop', 'missions', 'records', 'shop', 'settings', 'daily'];
+
+export const VERSION = '1.8.0';
 
 type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'revive' | 'over';
 type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds' | 'shop' | 'skills';
@@ -333,6 +336,8 @@ export class App {
     const canBuy = WORKSHOP.some((w) => (this.save.workshop[w.id] ?? 0) < w.max && this.save.coins >= w.cost(this.save.workshop[w.id] ?? 0));
     const had = this.tabbarEl.firstElementChild !== null;
     this.tabbarEl.innerHTML = tabbarHTML(active, this.newMissions, canBuy);
+    // açık renkli menü açıkken sekme çubuğu da açık renge geçer
+    this.tabbarEl.classList.toggle('light', !!this.panel && LIGHT_PANELS.includes(this.panel));
     if (had) (this.tabbarEl.firstElementChild as HTMLElement).style.animation = 'none';
   }
 
@@ -444,7 +449,10 @@ export class App {
     const body = this.panelEl.querySelector('.panel-body') as HTMLElement | null;
     if (same && body) {
       body.scrollTop = scroll;
-      this.panelEl.querySelector('.panel')?.setAttribute('style', 'animation:none');
+      const pe = this.panelEl.querySelector('.panel');
+      pe?.setAttribute('style', 'animation:none');
+      // satın alma vb. sonrası yeniden çizimde giriş animasyonları tekrar oynamasın
+      pe?.classList.add('still');
     }
   }
 
