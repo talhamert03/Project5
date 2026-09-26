@@ -86,10 +86,10 @@ export function metaBonus(save: SaveData): MetaBonus {
 
 // ───────────────────────── YETENEKLER ─────────────────────────
 
-export type SkillShape = 'circle' | 'triangle' | 'square' | 'zigzag';
+export type SkillShape = 'circle' | 'triangle' | 'square' | 'zigzag' | 'spiral' | 'star' | 'infinity';
 
 export interface SkillDef {
-  id: 'nova' | 'warp' | 'aegis' | 'starfall';
+  id: 'nova' | 'warp' | 'aegis' | 'starfall' | 'vortex' | 'beams' | 'echo';
   /** açma bedeli (0: başlangıçta açık) */
   price: number;
   icon: string;
@@ -102,6 +102,9 @@ export interface SkillDef {
   power: [number, number, number];
   /** 2. ve 3. seviye bedelleri */
   up: [number, number];
+  /** Orion takımyıldızında yıldızı ve konumu (0..100 x 0..130 görünüm kutusu) */
+  star: string;
+  pos: [number, number];
 }
 
 export const SKILL_MAX_LV = 3;
@@ -111,11 +114,17 @@ export const SKILL_MAX_LV = 3;
  * Seviye atlatmak bekleme süresini kısaltır ve gücü artırır.
  */
 export const SKILLS: SkillDef[] = [
-  { id: 'nova', price: 0, icon: 'burst', color: '#FFFFFF', shape: 'circle', cd: [40, 34, 28], power: [3, 4, 6], up: [900, 2400] },
-  { id: 'warp', price: 1500, icon: 'clock', color: '#6EC8FF', shape: 'triangle', cd: [36, 31, 26], power: [5, 6.5, 8], up: [1400, 3400] },
-  { id: 'aegis', price: 2800, icon: 'shield', color: '#3EF0E0', shape: 'square', cd: [46, 40, 34], power: [6, 8, 10], up: [1900, 4400] },
-  { id: 'starfall', price: 4200, icon: 'stars', color: '#FFC857', shape: 'zigzag', cd: [40, 34, 28], power: [12, 16, 22], up: [2400, 5400] },
+  { id: 'nova', price: 0, icon: 'burst', color: '#FFFFFF', shape: 'circle', cd: [40, 34, 28], power: [3, 4, 6], up: [900, 2400], star: 'Alnilam', pos: [50, 64] },
+  { id: 'warp', price: 1500, icon: 'clock', color: '#6EC8FF', shape: 'triangle', cd: [36, 31, 26], power: [5, 6.5, 8], up: [1400, 3400], star: 'Alnitak', pos: [28, 75] },
+  { id: 'aegis', price: 2800, icon: 'shield', color: '#3EF0E0', shape: 'square', cd: [46, 40, 34], power: [6, 8, 10], up: [1900, 4400], star: 'Mintaka', pos: [72, 53] },
+  { id: 'starfall', price: 4200, icon: 'stars', color: '#FFC857', shape: 'zigzag', cd: [40, 34, 28], power: [12, 16, 22], up: [2400, 5400], star: 'Bellatrix', pos: [78, 24] },
+  { id: 'echo', price: 5200, icon: 'mirror', color: '#FF7AE0', shape: 'infinity', cd: [44, 38, 32], power: [6, 8, 10], up: [2800, 6000], star: 'Rigel', pos: [80, 112] },
+  { id: 'vortex', price: 6000, icon: 'hole', color: '#B066FF', shape: 'spiral', cd: [42, 36, 30], power: [3, 4, 5], up: [3200, 6600], star: 'Saiph', pos: [26, 116] },
+  { id: 'beams', price: 7000, icon: 'bolt', color: '#FF7A59', shape: 'star', cd: [46, 40, 34], power: [2, 3, 4], up: [3600, 7200], star: 'Betelgeuse', pos: [22, 20] },
 ];
+
+/** Oyun içinde rehber olarak gösterilen parşömen kutusu sayısı (yetenekler yine hepsi kullanılabilir) */
+export const SCROLL_SLOTS = 3;
 
 export const SKILL_BY_ID = new Map(SKILLS.map((s) => [s.id as string, s]));
 

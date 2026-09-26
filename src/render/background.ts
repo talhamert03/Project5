@@ -1048,7 +1048,7 @@ export class Background {
   }
 
   /** Dünyalar ekranı için küçük önizleme (data URL, önbellekli) */
-  thumb(atm: Atmosphere, w = 240, h = 300): string {
+  thumb(atm: Atmosphere, w = 288, h = 360): string {
     const cached = this.thumbs.get(atm.id);
     if (cached) return cached;
     const k = w / WORLD_W;

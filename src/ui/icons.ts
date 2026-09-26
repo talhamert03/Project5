@@ -65,6 +65,7 @@ export const ICONS: Record<string, string> = {
   noads: s('<rect x="3.2" y="5.5" width="17.6" height="13" rx="2.6"/><path d="M5 20.5L19 3.5"/>'),
   gem: s('<path d="M7 4h10l4 5-9 11L3 9z" fill="currentColor" fill-opacity=".18"/><path d="M3 9h18M9.5 4L8 9l4 11 4-11-1.5-5"/>'),
   x2: s('<path d="M4 8l6 8M10 8l-6 8"/><path d="M13.5 9.2a2.8 2.8 0 015.3 1.2c0 2.3-5.3 3.6-5.3 5.6h5.6"/>'),
+  scroll: s('<path d="M7 4.5h10.5a2 2 0 012 2V8H17" /><path d="M17 6.5v11a2 2 0 01-2 2H6.5a2 2 0 01-2-2V16H15" fill="currentColor" fill-opacity=".14"/><path d="M7 4.5a2 2 0 00-2 2v9.5M9 9h5.5M9 12.2h5.5"/>'),
 };
 
 export const icon = (name: string): string => ICONS[name] ?? ICONS.star;

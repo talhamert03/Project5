@@ -20,6 +20,7 @@ import {
   SKILLS,
   SKILL_BY_ID,
   SKILL_MAX_LV,
+  SCROLL_SLOTS,
   settleRun,
   skillUpCost,
 } from './meta/progression';
@@ -72,7 +73,7 @@ import {
   worldsHTML,
 } from './ui/screens';
 
-export const VERSION = '1.6.0';
+export const VERSION = '1.7.0';
 
 type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'revive' | 'over';
 type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds' | 'shop' | 'skills';
@@ -430,7 +431,7 @@ export class App {
         html = shopHTML(s, isNative && hasNativeStore());
         break;
       case 'skills':
-        html = skillsHTML(s);
+        html = skillsHTML(s, this.skillSel);
         break;
       default:
         html = '';
@@ -606,7 +607,8 @@ export class App {
       startWave: daily ? 1 : firstWaveOf(Math.min(this.save.menuAtm, this.save.maxAtm)),
     };
     this.hud.reset(this.save.best);
-    this.hud.setSkills(opts.skills);
+    // oyun içi rehber: yalnızca parşömendeki (en fazla 3) yetenek; hepsi yine çizilerek atılabilir
+    this.hud.setSkills(this.scrollSkills().map((id) => opts.skills.find((k) => k.id === id)!).filter(Boolean));
     this.hud.showSkill(!opts.tutorial);
     this.world.startRun(opts);
     this.hud.setBossWave(false);
@@ -618,14 +620,10 @@ export class App {
     void keepAwake(true);
     audio.resume();
     if (this.world.phase === 'cleared') {
-      // ileri dünyadan başlarken atlanan dalgaların yerine birkaç hazırlık kartı (en fazla 5)
-      const chapter = atmosphereIndexForWave(this.world.wave + 1);
-      const bonus = this.world.wave > 0 ? Math.min(5, chapter + 1) : 0;
-      const hattat = opts.meta.startRarity >= 1 ? 1 : 0;
-      this.startPickTotal = bonus + hattat;
-      this.startPicks = this.startPickTotal - 1;
-      if (hattat) this.showUpgrade(this.world.offerStart(opts.meta.startRarity >= 2 ? Rarity.Epic : Rarity.Rare), true);
-      else this.showUpgrade(this.world.offer(), true);
+      // yalnızca Hattat atölye bonusu: tek başlangıç kartı (ileri dünyada da ek kart yok)
+      this.startPickTotal = 1;
+      this.startPicks = 0;
+      this.showUpgrade(this.world.offerStart(opts.meta.startRarity >= 2 ? Rarity.Epic : Rarity.Rare), true);
     }
   }
 
@@ -953,6 +951,8 @@ export class App {
   }
 
   private storePrepared = false;
+  /** takımyıldızında seçili yıldız (yetenek) */
+  private skillSel = 'nova';
 
   /** Mağaza ilk açıldığında: Play bağlantısı, yerel fiyatlar ve kalıcı ürünlerin geri yüklenmesi */
   private prepareStore(): void {
@@ -973,6 +973,52 @@ export class App {
     });
   }
 
+  /** Parşömendeki açık yetenekler (sırasıyla, en fazla SCROLL_SLOTS) */
+  private scrollSkills(): string[] {
+    return this.save.scrolls.filter((id) => this.save.skills.includes(id)).slice(0, SCROLL_SLOTS);
+  }
+
+  /** Takımyıldızında bir yıldız (yetenek) seçildi: ayrıntı kartı onu gösterir */
+  private selectStar(id: string): void {
+    if (!SKILL_BY_ID.get(id)) return;
+    this.skillSel = id;
+    audio.ui();
+    haptics.light();
+    this.renderPanel();
+    // detay kartı ekranın altında kaldıysa görünür alana kaydır (şekil ve kullanım hemen görülsün)
+    const body = this.panelEl.querySelector('.panel-body') as HTMLElement | null;
+    const card = this.panelEl.querySelector('.sdetail') as HTMLElement | null;
+    if (body && card) {
+      const b = body.getBoundingClientRect();
+      const c = card.getBoundingClientRect();
+      const bar = this.tabbarEl.firstElementChild?.getBoundingClientRect();
+      const bottom = bar && bar.height ? Math.min(b.bottom, bar.top) : b.bottom;
+      const over = c.top + Math.min(c.height, 300) - bottom;
+      if (over > 0) body.scrollTo({ top: body.scrollTop + over + 12, behavior: 'smooth' });
+    }
+  }
+
+  /** Parşömene koy / parşömenden çıkar (en fazla 3) */
+  private toggleScroll(id: string): void {
+    if (!this.save.skills.includes(id)) return;
+    const list = this.scrollSkills();
+    const i = list.indexOf(id);
+    if (i >= 0) list.splice(i, 1);
+    else {
+      if (list.length >= SCROLL_SLOTS) {
+        haptics.error();
+        this.toast('scroll', t('toast.scrollFull'));
+        return;
+      }
+      list.push(id);
+    }
+    this.save.scrolls = list;
+    this.commit();
+    audio.select();
+    haptics.light();
+    this.renderPanel();
+  }
+
   /** Yetenek ağacı: aç (seviye 1) ya da seviye atlat */
   private buySkill(id: string): void {
     const k = SKILL_BY_ID.get(id);
@@ -988,7 +1034,12 @@ export class App {
       return;
     }
     this.save.coins -= cost;
-    if (!owned) this.save.skills.push(id);
+    if (!owned) {
+      this.save.skills.push(id);
+      // parşömende yer varsa yeni yetenek rehber olarak eklenir
+      const list = this.scrollSkills();
+      if (list.length < SCROLL_SLOTS) this.save.scrolls = [...list, id];
+    }
     this.save.skillLv[id] = lv + 1;
     this.commit();
     audio.select();
@@ -1163,7 +1214,7 @@ export class App {
     const el = (ev.target as Element).closest('[data-a]') as HTMLElement | null;
     if (!el) return;
     const a = el.dataset.a!;
-    const quiet = a === 'pick' || a === 'pause' || a === 'claimGift' || a === 'skillHint';
+    const quiet = a === 'pick' || a === 'pause' || a === 'claimGift' || a === 'skillHint' || a === 'skillStar';
     if (!quiet) {
       audio.ui();
       haptics.light();
@@ -1225,12 +1276,18 @@ export class App {
       case 'buySkill':
         this.buySkill(el.dataset.id!);
         break;
+      case 'skillStar':
+        this.selectStar(el.dataset.id!);
+        break;
+      case 'scrollToggle':
+        this.toggleScroll(el.dataset.id!);
+        break;
       case 'closeModal':
         this.closeModal();
         if (this.state === 'menu') this.renderMenu();
         break;
-      case 'world':
-        this.pickWorld(Number(el.dataset.i));
+      case 'worldGo':
+        this.playWorld(Number(el.dataset.i));
         break;
       case 'revive':
         this.doRevive();
@@ -1302,17 +1359,23 @@ export class App {
   }
 
   /** Dünyalar: açık bir dünyayı menü arka planı yap (tambur dönerek) */
-  private pickWorld(i: number): void {
+  /** Dünyalar ekranı: seçilen dünyadan oyunu hemen başlat */
+  private playWorld(i: number): void {
     if (i > this.save.maxAtm) {
       audio.inkEmpty();
       haptics.error();
+      const b = this.panelEl.querySelector(`.wc-go[data-i="${i}"]`);
+      b?.classList.remove('shake');
+      void (b as HTMLElement | null)?.offsetWidth;
+      b?.classList.add('shake');
       return;
     }
-    if (i === this.save.menuAtm) return;
-    this.save.menuAtm = i;
-    this.commit();
-    this.closePanel();
-    if (!this.world.beginTransition(i)) this.world.applyAtmosphere(i);
+    haptics.medium();
+    if (i !== this.save.menuAtm) {
+      this.save.menuAtm = i;
+      this.commit();
+    }
+    this.play(false);
   }
 
   private toggleSetting(k: string): void {

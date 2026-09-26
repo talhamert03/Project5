@@ -17,13 +17,14 @@ Sektirdiğin meteoru başka bir meteora çarptırırsan ikisi de patlar. Zincirl
 | Kombo ve zincir | Sekme ve patlamalar komboyu artırır (x5'e kadar çarpan). Kümelenmiş meteorlar zincirleme patlar. |
 | Meteorlar | Normal, hızlı, zırhlı (ilk çarpmada çizgiyi kırar), bölünen, altın; **kuyruklu yıldız** (köşeden çapraz ve çok hızlı, sektirince fazladan deler), **buz kristali** (dokunduğu çizgiyi dondurup kırar, patlayınca çevresini yavaşlatır), **hayalet** (aralıklarla saydamlaşıp çizgilerden geçer), **nova çekirdeği** (şehre 2 hasar; patlatınca dev zincir), **ışınlanan** (parlayınca yana ışınlanır), **alev meteoru** (sektiği çizgiyi yakar), **prizma** (sektirilince üçe bölünür), **şifa kristali** (sektirilirse şehri onarır), **kıvılcım sürüsü** (yılan gibi aynı yoldan dalgalanarak iner). |
 | Stratejik çizgi | HUD'un altındaki ince bant çizime kapalı; üst atmosfere çizilen mürekkep çabuk yanar, uzun duvarlar ve çok sektiren çizgiler daha çabuk söner. |
-| Dünyadan başlama | Dünyalar panelinden açık bir dünya seçilince oyun o dünyanın ilk dalgasından başlar; atlanan dalgalar için başta en fazla 5 güç kartı seçilir. Günlük meydan okuma hep 1. dalgadan. |
+| Dünyadan başlama | Dünyalar ekranı ("Hangi dünyadan devam etmek istersin?") büyük bölüm kartları ve "Buradan Başla" düğmeleriyle açık bir dünyadan oyunu hemen başlatır. Başta güç kartı seçtirilmez: kartlar dalgalar geçildikçe tek tek kazanılır, atölye geliştirmeleri her dünyada geçerlidir. Günlük meydan okuma hep 1. dalgadan. |
 | Görüntü ve akıcılık | Gökyüzü (bulutsu, ebru damarları, yıldızlar) ekranın gerçek piksel yoğunluğunda hazırlanır; dev ışık lekeleri çift tamponlu gökyüzü karesinde yavaşça tazelenir. Oyun tuvali dinamik çözünürlükle çalışır: ilk açılış güvenli 2x, cihaz 60 FPS'i tutuyorsa gerçek yoğunluğa (HD) çıkar, düşerse iner; öğrenilen seviye cihazda saklanır. |
 | Reklamlar | Ödüllü videolar (devam, 2 kat altın, hediye) ve her 5 oyunda bir zorunlu geçiş reklamı; Reklamsız paket ikisini de kaldırır. Reklam kimlikleri `index.html` başındaki `INKFALL_ADS` bloğunda. |
 | Mürekkep Ateşi | 15 komboda (sonra her 30'da) 6,5 sn: mürekkep bedava, çizgiler gökkuşağı, puan x1,5. Duvardan sekip vuran dost meteor **bilardo** bonusu verir. |
 | Bosslar | Her 5 dalgada sırayla beş farklı boss: **Kaya Titanı** (parça yağdırır), **Kuyruklu Kraliçe** (hızlı süzülür, kuyruklu yıldız fırlatır), **Buz Kalesi** (önce yörüngedeki üç kristali kır), **Tekillik** (dost meteorları kendine çeker, daralan halka dolunca çizgileri kırar), **İkiz Yıldızlar** (birbirinin etrafında dans eder, biri düşünce diğeri öfkelenir). Her döngüde daha dayanıklı. |
 | Güçler | Her dalga sonunda 3 karttan biri: 27 güç, 4 nadirlik. Yeni: Mıknatıs Uç, Kırağı, Sekme Ustası, Koruyucu Uydu, Aşırı Yük, İkinci Nefes, Şans Yıldızı, Mürekkep Dalgası. |
-| Yetenekler | Şekil çizerek atılır: **daire** Yıldız Patlaması (ücretsiz), **üçgen** Zaman Kırılması, **kare** Aegis Kalkanı, **zikzak** Yıldız Yağmuru. Her birinin bekleme süresi var (meteor patlatmak kısaltır); Yetenek Ağacı'nda altınla açılır ve 3 seviyeye kadar geliştirilir. |
+| Yetenekler | Şekil çizerek atılır: **daire** Yıldız Patlaması (ücretsiz), **üçgen** Zaman Kırılması, **kare** Aegis Kalkanı, **zikzak** Yıldız Yağmuru, **sonsuzluk** Sonsuz Yansıma (sektirilen meteor üçe bölünür), **sarmal** Kara Girdap (meteorları yutan girdap), **yıldız** Yıldız Işınları (beş ışın ekranı keser). Her birinin bekleme süresi var (meteor patlatmak kısaltır). Yetenek Takımyıldızı (Orion) ekranında her yıldız bir yetenek: dokununca şekli çizilerek gösterilir, altınla açılır ve 3 seviyeye kadar geliştirilir. |
+| Yetenek parşömenleri | Açılan tüm yetenekler oyunda çizilerek kullanılabilir; en fazla 3 tanesi parşömene konur ve oyunda altta rehber olarak görünür (dokununca şekil gösterilir). |
 | Şehir | Beş mahalle, her biri iki can. Mahalleler yıkıldıkça uzak silüetin (apartmanlar ve Boğaz Köprüsü) ışıkları söner. |
 | Son anda | Şehre çok yakınken yapılan sektirme "SON ANDA!" bonusu kazandırır. |
 | Devam et | Şehir düşünce **ödüllü video izleyerek** (turda bir kez) ya da altınla üç mahalleyi yeniden kurup sürdürebilirsin; ikinci düşüşte yalnızca altınla (iki kat bedel). |
@@ -44,7 +45,7 @@ Her 5 dalgada sahne tamburu 360° sağa döner ve arkasındaki yeni dünya ortay
 | 8 | Olay Ufku | 36–40 | Işık diski dönen kara delik, içine akan sarmal toz; hayaletler çoğalır |
 | 9 | Süpernova | 41+ | Patlayan yıldız, yayılan şok halkaları, kıvılcımlar; son ve sonsuz dünya |
 
-Açılan dünyalar menüdeki **Dünyalar** galerisinde görünür ve menü arka planı yapılabilir.
+Açılan dünyalar menüdeki **Dünyalar** ekranında görünür; seçilen dünya menü arka planı olur ve oyun doğrudan oradan başlar.
 
 ### Rekabet ve bağlılık sistemleri
 

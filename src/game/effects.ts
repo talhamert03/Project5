@@ -33,6 +33,18 @@ export interface Floater {
   color: string;
   big: boolean;
   font: string;
+  /** yaklaşık kutu (dünya birimi): yerleşimde çakışma denetimi için */
+  w: number;
+  h: number;
+}
+
+/** Yazı genişliği ölçümü için tek, küçük bir bağlam (yalnızca yazı oluşturulurken) */
+let measureCtx: CanvasRenderingContext2D | null = null;
+function measure(text: string, font: string, size: number): number {
+  if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
+  if (!measureCtx) return text.length * size * 0.66;
+  measureCtx.font = font;
+  return measureCtx.measureText(text).width;
 }
 
 interface Homer {
@@ -112,20 +124,36 @@ export class Effects {
     this.bolts.push({ pts, n, t: 0, life: 0.28, color });
   }
 
+  /**
+   * Uçan yazı. Ekrandaki yazılarla çakışmasın diye yerleştirilir: küçük yazılar (puan, uyarı)
+   * çakıştığı yazının üstüne kayar; büyük orta yazılar (kombo, yetenek, rekor) alt alta dizilir.
+   */
   text(text: string, x: number, y: number, size: number, color: string, big = false, life = 0.9): void {
     if (this.floaters.length > 34) this.floaters.shift();
-    this.floaters.push({
-      text,
-      x: clamp(x, 60, 660),
-      y: Math.max(y, this.minY + size * 0.6),
-      vy: big ? -30 : -70,
-      t: 0,
-      life,
-      size,
-      color,
-      big,
-      font: `800 ${Math.round(size)}px ${FONT_DISPLAY}`,
-    });
+    const font = `800 ${Math.round(size)}px ${FONT_DISPLAY}`;
+    const w = Math.min(700, measure(text, font, size) + size * 0.5);
+    const h = size * 1.15;
+    const cx = clamp(x, 20 + w / 2, 700 - w / 2);
+    const top = this.minY + h / 2;
+    let cy = Math.max(y, top);
+    for (let pass = 0; pass < 8; pass++) {
+      let hit: Floater | null = null;
+      for (const o of this.floaters) {
+        // sönmek üzere olan yazılar engel sayılmaz
+        if (o.t > o.life * 0.8) continue;
+        if (Math.abs(o.x - cx) < (o.w + w) / 2 && Math.abs(o.y - cy) < (o.h + h) / 2) {
+          hit = o;
+          break;
+        }
+      }
+      if (!hit) break;
+      if (big) cy = hit.y + (hit.h + h) / 2 + 4;
+      else {
+        const up = hit.y - (hit.h + h) / 2 - 2;
+        cy = up >= top ? up : hit.y + (hit.h + h) / 2 + 2;
+      }
+    }
+    this.floaters.push({ text, x: cx, y: cy, vy: big ? -30 : -70, t: 0, life, size, color, big, font, w, h });
   }
 
   /** Dünya noktasından hedefe (HUD) kavisli uçan parıltı */

@@ -587,6 +587,32 @@ export class AudioEngine {
     this.tone({ type: 'triangle', freq: 880, freqEnd: 330, dur: 0.5, vol: 0.05, reverb: 0.5 });
   }
 
+  /** Kara Girdap: derinden dönen uğultu */
+  skillVortex(): void {
+    if (!this.ctx || !this.sfxOn) return;
+    this.tone({ type: 'sawtooth', freq: 160, freqEnd: 40, dur: 1.6, vol: 0.1, lp: 700, reverb: 0.5 });
+    this.noiseBurst({ type: 'bandpass', freq: 2400, freqEnd: 120, q: 2.5, dur: 1.4, vol: 0.14, reverb: 0.4 });
+  }
+
+  /** Yıldız Işınları: parlak lazer çınlaması */
+  skillBeams(): void {
+    if (!this.ctx || !this.sfxOn) return;
+    const t = this.ctx.currentTime;
+    this.tone({ type: 'square', freq: 1800, freqEnd: 600, dur: 0.35, vol: 0.05, lp: 5000 });
+    this.noiseBurst({ type: 'highpass', freq: 3000, dur: 0.5, vol: 0.12, reverb: 0.5 });
+    [0, 4, 7, 11, 14].forEach((d, i) => this.tone({ type: 'triangle', freq: mtof(hicaz(d, 74)), dur: 0.5, vol: 0.05, when: t + i * 0.03, reverb: 0.6 }));
+  }
+
+  /** Sonsuz Yansıma: aynalı ışıltı akoru */
+  skillEcho(): void {
+    if (!this.ctx || !this.sfxOn) return;
+    const t = this.ctx.currentTime;
+    [0, 7, 12, 19].forEach((s, i) => {
+      this.tone({ type: 'sine', freq: mtof(69 + s), dur: 1.2, vol: 0.05, when: t + i * 0.08, reverb: 0.8 });
+      this.tone({ type: 'sine', freq: mtof(69 + s) * 1.005, dur: 1.2, vol: 0.03, when: t + 0.3 + i * 0.08, reverb: 0.8 });
+    });
+  }
+
   /** Satın alma / ödül: kasa çınlaması */
   purchase(): void {
     if (!this.ctx || !this.sfxOn) return;

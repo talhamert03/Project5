@@ -55,7 +55,7 @@ export interface RunOptions {
   startWave?: number;
 }
 
-export type SkillId = 'nova' | 'warp' | 'aegis' | 'starfall';
+export type SkillId = 'nova' | 'warp' | 'aegis' | 'starfall' | 'vortex' | 'beams' | 'echo';
 
 export interface SkillLoadout {
   id: SkillId;
@@ -76,7 +76,7 @@ export interface SkillSlot extends SkillLoadout {
 /** Düşman öldürmek/sektirmek bekleme süresini kısaltır (öldürme başına sn) */
 const SKILL_KILL_SEC = 0.3;
 /** Yetenek hazırken mürekkep bitse de şekil çizmeye devam edilebilecek en uzun yol */
-const OVERDRAW_LEN = 1100;
+const OVERDRAW_LEN = 1800;
 
 /**
  * Menü arka planındaki demo (attract) yalnızca bir video gibi oynar: titreşim ve efekt sesi
@@ -187,6 +187,20 @@ interface BlackHole {
   y: number;
   t: number;
   life: number;
+  /** çekim yarıçapı (kart: 300, Kara Girdap yeteneği daha geniş) */
+  pull: number;
+  /** yetenek girdabı: boss'a saniyede hasar verir */
+  skill: boolean;
+  bossT: number;
+}
+
+/** Yıldız Işınları: yıldızın merkezinden beş yöne ekranı kesen ışın */
+interface Beam {
+  x: number;
+  y: number;
+  a: number;
+  t: number;
+  color: string;
 }
 
 const COMBO_WINDOW = 2.6;
@@ -295,6 +309,9 @@ export class World implements PointerSink {
   private shapeHint: { shape: GestureShape; t: number; color: string } | null = null;
   /** atılan şeklin kusursuz hali parlayıp büyür */
   private castFx: { shape: GestureShape; x: number; y: number; r: number; t: number; color: string } | null = null;
+  /** Yıldız Işınları ve Sonsuz Yansıma */
+  private beams: Beam[] = [];
+  private echoT = 0;
   private novaX = 360;
   private novaY = 0;
   private novaDmg = 3;
@@ -490,6 +507,8 @@ export class World implements PointerSink {
     this.bosses = [];
     this.novaR = -1;
     this.novaHit.clear();
+    this.beams.length = 0;
+    this.echoT = 0;
     this.warpT = 0;
     this.aegisT = 0;
     this.starfallN = 0;
@@ -586,14 +605,14 @@ export class World implements PointerSink {
       this.phase = 'tutorial';
       this.tutStep = -1;
       this.setTutStep(0);
-    } else if (opts.meta.startRarity >= 1 || startWave > 1) {
-      // güç seçimiyle başlangıç (Hattat atölye bonusu ya da ileri bir dünyadan başlama):
-      // arayüz 'cleared' durumunu yakalar, seçimden sonra startWave dalgası gelir
+    } else if (opts.meta.startRarity >= 1) {
+      // Hattat atölye bonusu: ilk dalgadan önce güç seçimi (arayüz 'cleared' durumunu yakalar)
       this.phase = 'cleared';
       this.wave = startWave - 1;
       audio.setIntensity(1);
     } else {
-      this.startWave(1);
+      // ileri bir dünyadan başlarken de kart seçimi yok: kartlar dalga geçtikçe kazanılır
+      this.startWave(startWave);
     }
   }
 
@@ -1537,6 +1556,7 @@ export class World implements PointerSink {
       // aşınma: çok sektiren çizgi (duvar) daha çabuk söner
       if (!l.drawing && (this.phase === 'play' || this.phase === 'intro')) l.life = Math.max(Math.min(l.life, 0.3), l.life - l.maxLife * LINE_WEAR);
       if (m.kind === MK.Prism) this.prismSplit(m, l, px, py, target);
+      else if (this.echoT > 0 && m.kind !== MK.Shard) this.echoSplit(m, l, target);
       if (m.kind === MK.Mender && this.phase !== 'attract') this.mend(px, py);
       // buz kristali dokunduğu çizgiyi dondurur: kısa süre sonra kırılır
       if (m.kind === MK.Ice && l.frozen <= 0 && this.phase !== 'attract') {
@@ -1950,6 +1970,58 @@ export class World implements PointerSink {
       m.blinkX = clamp(m.x + dir * fx.r(170, 250), 50, 670);
       m.blinkT = BLINK_WARN;
     }
+  }
+
+  /** Sonsuz Yansıma: sektirilen meteorun iki yankısı (dost parça) yelpaze gibi açılır */
+  private echoSplit(m: Meteor, l: InkLine, speed: number): void {
+    const base = Math.atan2(m.vy, m.vx);
+    for (const a of [-0.38, 0.38]) {
+      const c = this.spawn(MK.Shard, m.x, m.y, Math.cos(base + a) * speed, Math.sin(base + a) * speed);
+      if (c) {
+        c.friendly = true;
+        c.mirrored = true;
+        c.lastLine = l.id;
+        c.lineCd = 0.3;
+        c.flash = 0.25;
+      }
+    }
+    this.parts.burst(m.x, m.y, Math.round(8 * this.q), this.sp['rb' + ((this.deflects % 3) as number)], 60, 280, 0.4, 10, { drag: 3, shape: Shape.Streak });
+  }
+
+  /** Yıldız Işınları: merkezden beş yöne ekranı kesen ışınlar; yoldaki düşmanlar yok olur */
+  private fireBeams(x: number, y: number, bossDmg: number, color: string): void {
+    const reach = 2400;
+    const half = 30;
+    const hitBoss = new Set<Meteor>();
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + (i * TAU) / 5;
+      const ux = Math.cos(a);
+      const uy = Math.sin(a);
+      this.beams.push({ x, y, a, t: 0, color });
+      for (const m of this.meteors) {
+        if (!m.active || m.friendly) continue;
+        const dx = m.x - x;
+        const dy = m.y - y;
+        const along = dx * ux + dy * uy;
+        if (along < -m.r || along > reach) continue;
+        const perp = Math.abs(dx * uy - dy * ux);
+        if (perp > half + m.r) continue;
+        if (m.kind === MK.Boss) {
+          if (!hitBoss.has(m)) {
+            hitBoss.add(m);
+            this.hurtBoss(m, bossDmg, m.x, m.y);
+            if (m.bossType === BT.Frost) m.shields = 0;
+          }
+        } else {
+          m.armor = 0;
+          this.killMeteor(m, 1);
+        }
+      }
+    }
+    this.hitstop = Math.max(this.hitstop, 0.07);
+    this.fx.flash(color, 0.35);
+    this.fx.shake(0.45);
+    this.parts.burst(x, y, Math.round(40 * this.q), this.sp.white, 200, 900, 0.7, 18, { drag: 2, shape: Shape.Streak });
   }
 
   /** Prizma: sektirilince iki dost parçaya daha bölünür (üçlü yelpaze) */
@@ -2446,6 +2518,22 @@ export class World implements PointerSink {
         this.fx.flash(C.gold, 0.3);
         audio.skillStar();
         break;
+      case 'vortex':
+        // Kara Girdap: sarmalın merkezinde geniş, uzun ömürlü bir girdap
+        this.spawnHole(g.cx, g.cy, k.power, 380, true);
+        this.fx.ring(g.cx, g.cy, 400, 20, 0.7, col, 14);
+        audio.skillVortex();
+        break;
+      case 'beams':
+        this.fireBeams(g.cx, g.cy, k.power, col);
+        audio.skillBeams();
+        break;
+      case 'echo':
+        this.echoT = k.power;
+        this.fx.flash(col, 0.25);
+        this.fx.ring(g.cx, g.cy, 10, 520, 0.8, col, 12);
+        audio.skillEcho();
+        break;
     }
     this.fx.text(t('skill.' + k.id), 360, H * 0.4, 46, col, true, 1.3);
     haptics.success();
@@ -2490,6 +2578,11 @@ export class World implements PointerSink {
     }
     // Zaman Kırılması: düşmanlar ağırlaşır, mürekkep hızlı dolar
     if (this.warpT > 0) this.warpT -= realDt;
+    if (this.echoT > 0) this.echoT -= realDt;
+    for (let i = this.beams.length - 1; i >= 0; i--) {
+      this.beams[i].t += realDt;
+      if (this.beams[i].t > 0.7) this.beams.splice(i, 1);
+    }
     const hs = this.warpT > 0 ? 0.28 : 1;
     this.hostileScale += (hs - this.hostileScale) * Math.min(1, realDt * 6);
     if (this.aegisT > 0) this.aegisT -= realDt;
@@ -2628,6 +2721,29 @@ export class World implements PointerSink {
       g.arc(this.novaX, this.novaY, this.novaR, 0, TAU);
       g.stroke();
     }
+    // Yıldız Işınları: hızla uzayıp sönen geniş ışık ve beyaz çekirdek
+    for (const b of this.beams) {
+      const p = b.t / 0.7;
+      const ext = Math.min(1, p / 0.18) * 2400;
+      const a = p < 0.18 ? 1 : 1 - (p - 0.18) / 0.82;
+      const ex = b.x + Math.cos(b.a) * ext;
+      const ey = b.y + Math.sin(b.a) * ext;
+      g.lineCap = 'round';
+      g.strokeStyle = b.color;
+      g.globalAlpha = 0.28 * a;
+      g.lineWidth = 64;
+      g.beginPath();
+      g.moveTo(b.x, b.y);
+      g.lineTo(ex, ey);
+      g.stroke();
+      g.globalAlpha = 0.6 * a;
+      g.lineWidth = 20;
+      g.stroke();
+      g.strokeStyle = '#FFFFFF';
+      g.globalAlpha = 0.95 * a;
+      g.lineWidth = 5;
+      g.stroke();
+    }
     // atılan şekil: kusursuz hali parlar ve büyüyerek söner
     const cf = this.castFx;
     if (cf) {
@@ -2690,8 +2806,8 @@ export class World implements PointerSink {
 
   // ───────────────────────── KARA DELİK ─────────────────────────
 
-  private spawnHole(x: number, y: number): void {
-    this.holes.push({ x: clamp(x, 80, 640), y: clamp(y, 200, this.groundY - 120), t: 0, life: 2.4 });
+  private spawnHole(x: number, y: number, life = 2.4, pull = 300, skill = false): void {
+    this.holes.push({ x: clamp(x, 80, 640), y: clamp(y, this.topInset + 60, this.groundY - 120), t: 0, life, pull, skill, bossT: 0 });
     audio.blackHole();
     this.fx.flash(C.violet, 0.2);
   }
@@ -2705,12 +2821,22 @@ export class World implements PointerSink {
         this.fx.ring(h.x, h.y, 10, 200, 0.5, C.violet, 10);
         continue;
       }
+      if (h.skill) {
+        // Kara Girdap: menzildeki boss saniyede bir hasar alır ve hafifçe çekilir
+        h.bossT += dt;
+        for (const b of this.bosses) {
+          if (!b.active || b.kind !== MK.Boss) continue;
+          const d = Math.hypot(b.x - h.x, b.y - h.y);
+          if (d < h.pull * 0.85 && h.bossT >= 1) this.hurtBoss(b, 1, b.x, b.y);
+        }
+        if (h.bossT >= 1) h.bossT = 0;
+      }
       for (const m of this.meteors) {
         if (!m.active || m.friendly || m.kind === MK.Boss) continue;
         const dx = h.x - m.x;
         const dy = h.y - m.y;
         const d = Math.hypot(dx, dy);
-        if (d < 300) {
+        if (d < h.pull) {
           const f = (1600 / Math.max(40, d)) * dt * 60;
           m.vx += (dx / d) * f * dt * 8;
           m.vy += (dy / d) * f * dt * 8;
@@ -3187,7 +3313,7 @@ export class World implements PointerSink {
     this.renderWarnings(g);
     this.renderHoles(g);
     this.renderHeat(g);
-    this.lines.render(g, this.pen, this.stats.lineWidth, this.feverT > 0);
+    this.lines.render(g, this.pen, this.stats.lineWidth, this.feverT > 0 || this.echoT > 0);
     renderMeteors(g, this.meteors, this.sprites, this.inkColor, k, tx, ty, this.realT);
     for (const b of this.bosses) if (b.active && b.kind === MK.Boss) renderBossRing(g, b, this.realT);
     this.renderSkillFx(g);
@@ -3206,6 +3332,13 @@ export class World implements PointerSink {
       // karartma + mürekkep renginde parıltı tek geçişte (önceden birleştirilmiş doku, birebir aynı sonuç)
       g.globalAlpha = slow;
       g.drawImage(this.sprites.slowVignette(this.pen.color), 0, 0, W, Hp);
+    }
+    if (this.echoT > 0) {
+      // Sonsuz Yansıma: kenarlarda yumuşak pembe ışıltı
+      g.globalCompositeOperation = 'lighter';
+      g.globalAlpha = Math.min(1, this.echoT * 2) * (0.2 + 0.08 * Math.sin(this.realT * 6));
+      g.drawImage(this.sprites.vignetteOf('#FF7AE0'), 0, 0, W, Hp);
+      g.globalCompositeOperation = 'source-over';
     }
     if (this.feverT > 0) {
       // Mürekkep Ateşi: kenarlarda nabız gibi atan altın ışık
@@ -3299,7 +3432,7 @@ export class World implements PointerSink {
     for (const h of this.holes) {
       const p = h.t / h.life;
       const grow = p < 0.15 ? p / 0.15 : p > 0.85 ? (1 - p) / 0.15 : 1;
-      const r = 46 * grow;
+      const r = 46 * grow * (h.pull / 300);
       const grad = g.createRadialGradient(h.x, h.y, 0, h.x, h.y, r * 2.2);
       grad.addColorStop(0, 'rgba(0,0,0,1)');
       grad.addColorStop(0.45, 'rgba(10,0,30,0.95)');

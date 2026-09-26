@@ -65,6 +65,8 @@ export interface SaveData {
   /** eski sürümlerden kalan: takılı yetenek (artık kullanılmıyor) */
   skill: string;
   skillLv: Record<string, number>;
+  /** oyun içinde rehber parşömen kutularında gösterilen yetenekler (en fazla 3) */
+  scrolls: string[];
   /** yetenek şekli ipucu gösterilen yetenekler (ilk kez hazır olunca) */
   skillHints: string[];
   /** günlük ücretsiz altın videoları */
@@ -113,6 +115,7 @@ export function defaultSave(): SaveData {
     skills: ['nova'],
     skill: 'nova',
     skillLv: { nova: 1 },
+    scrolls: ['nova'],
     skillHints: [],
     adCoins: { date: '', n: 0 },
     adRuns: 0,
@@ -136,6 +139,10 @@ export function loadSave(): SaveData {
       adCoins: { ...def.adCoins, ...(parsed.adCoins ?? {}) },
       skills: Array.isArray(parsed.skills) && parsed.skills.length ? parsed.skills : def.skills,
       skillLv: { ...def.skillLv, ...(parsed.skillLv ?? {}) },
+      // eski kayıtlar: açık yeteneklerin ilk üçü parşömene
+      scrolls: Array.isArray(parsed.scrolls)
+        ? parsed.scrolls.slice(0, 3)
+        : (Array.isArray(parsed.skills) && parsed.skills.length ? parsed.skills : def.skills).slice(0, 3),
       skillHints: Array.isArray(parsed.skillHints) ? parsed.skillHints : [],
       workshop: { ...(parsed.workshop ?? {}) },
       missionTiers: { ...(parsed.missionTiers ?? {}) },

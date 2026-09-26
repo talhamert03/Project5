@@ -21,7 +21,7 @@ Parmağını sürükle, ışıldayan bir mürekkep çizgisi çiz. Meteorlar çiz
 Her dalga sonunda 3 güçten birini seç: Mıknatıs Uç, Koruyucu Uydu, Zincir Şimşek, Kara Delik, Anka Kuşu ve dahası. 27 güç, 4 nadirlik seviyesi.
 
 ★ ŞEKİL ÇİZ, YETENEK AT
-Ekrana daire çiz: Yıldız Patlaması. Üçgen: Zaman Kırılması. Kare: Aegis Kalkanı. Zikzak: Yıldız Yağmuru. Yetenek Ağacı'nda aç, üç seviyeye kadar geliştir.
+Ekrana daire çiz: Yıldız Patlaması. Üçgen: Zaman Kırılması. Kare: Aegis Kalkanı. Zikzak: Yıldız Yağmuru. Sonsuzluk: Sonsuz Yansıma. Sarmal: Kara Girdap. Yıldız: Yıldız Işınları. Orion takımyıldızındaki her yıldız bir yetenek: aç, üç seviyeye kadar geliştir, en sevdiğin üçünü parşömene koy.
 
 ★ BEŞ ÇETİN BOSS
 Kaya Titanı, Kuyruklu Kraliçe, Buz Kalesi, Tekillik ve İkiz Yıldızlar gökyüzünde dolaşır. Her birinin kendi taktiği var.
@@ -65,7 +65,7 @@ Time slows while you draw so you can aim. But ink is limited: short, well-angled
 After each wave pick one of three powers: Magnet Nib, Guardian Satellite, Chain Lightning, Black Hole, Phoenix and more. 27 powers across 4 rarities.
 
 ★ DRAW A SHAPE, CAST A SKILL
-Draw a circle for Starburst, a triangle for Time Fracture, a square for Aegis Shield and a zigzag for Starfall. Unlock and upgrade them in the Skill Tree.
+Draw a circle for Starburst, a triangle for Time Fracture, a square for Aegis Shield, a zigzag for Starfall, an infinity sign for Infinite Echo, a spiral for Dark Vortex and a star for Star Beams. Every star of the Orion constellation is a skill: unlock it, upgrade it and pin your favourite three to your scrolls.
 
 ★ FIVE TOUGH BOSSES
 Rock Titan, Comet Queen, Frost Citadel, Singularity and Twin Stars roam the sky, each with its own tactics.
@@ -92,9 +92,15 @@ No forced ads. Watch a video only when you want to continue or double your gold.
 
 - Kategori: Oyun → Arcade
 - Etiketler: Arcade, Tek oyunculu, Stilize, Uzay
-- Reklam içerir: Evet (yalnızca isteğe bağlı ödüllü video)
+- Reklam içerir: Evet (isteğe bağlı ödüllü videolar ve her 5 oyunda bir geçiş reklamı; Reklamsız paketle kalkar)
 - Uygulama içi satın alma: Evet
 - İletişim e-postası: (Play Console'da kendi adresini gir)
+
+## Sürüm notları (1.7.0)
+
+**TR:** Üç yeni yetenek (Sonsuz Yansıma, Kara Girdap, Yıldız Işınları) ve Orion takımyıldızı şeklinde yeni yetenek ekranı, 3 yetenek parşömeni, yeniden tasarlanan Dünyalar ekranı, ileri dünyalardan kart seçtirmeden hızlı başlangıç, üst üste binmeyen oyun içi yazılar, HD görüntü ve akıcılık iyileştirmeleri.
+
+**EN:** Three new skills (Infinite Echo, Dark Vortex, Star Beams) and a new Orion constellation skill screen, 3 skill scrolls, a redesigned Worlds screen, instant starts from later worlds, non-overlapping in-game texts, HD visuals and smoothness improvements.
 
 ## Sürüm notları (1.5.0)
 

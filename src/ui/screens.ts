@@ -11,7 +11,9 @@ import {
   RANKS,
   type RankProgress,
   SKILLS,
+  SKILL_BY_ID,
   SKILL_MAX_LV,
+  SCROLL_SLOTS,
   type Settlement,
   WORKSHOP,
   rankProgress,
@@ -19,6 +21,7 @@ import {
 } from '../meta/progression';
 import { FREE_COINS, FREE_COINS_PER_DAY, SHOP, priceOf } from '../monetize';
 import { fmt, fmtDuration, fmtTime, roman } from './format';
+import { shapeGuide } from '../game/gesture';
 import { shapeIcon } from './hud';
 import { icon } from './icons';
 
@@ -112,7 +115,11 @@ export function menuHTML(d: MenuData): string {
   const atm = ATMOSPHERES[d.worldIndex];
   const owned = SKILLS.filter((k) => s.skills.includes(k.id));
   const lockedN = SKILLS.length - owned.length;
-  const strip = owned
+  // menü şeridi: parşömendeki (oyunda rehber olan) yetenekler
+  const strip = s.scrolls
+    .filter((id) => s.skills.includes(id))
+    .slice(0, SCROLL_SLOTS)
+    .map((id) => SKILL_BY_ID.get(id)!)
     .map((k) => `<span class="ss" style="--sc:${k.color}">${shapeIcon(k.shape)}<em>${t('shape.' + k.shape)}</em></span>`)
     .join('');
   return `
@@ -159,7 +166,7 @@ export function menuHTML(d: MenuData): string {
             <small class="fab-sub">${unlocked}/${ATMOSPHERES.length}</small>
           </button>
           <button class="fab" data-a="panel" data-p="skills" style="--ac:#B57BFF">
-            <span class="fab-ic">${shapeIcon('triangle')}</span>
+            <span class="fab-ic">${icon('stars')}</span>
             <span class="fab-label">${t('menu.skills')}</span>
             <small class="fab-sub">${owned.length}/${SKILLS.length}</small>
           </button>
@@ -181,7 +188,7 @@ export function menuHTML(d: MenuData): string {
         <button class="skill-strip" data-a="panel" data-p="skills">
           <span class="ss-title">${t('skills.draw')}</span>
           ${strip}
-          ${lockedN > 0 ? `<span class="ss more">${icon('lock')}<em>+${lockedN}</em></span>` : ''}
+          ${owned.length > SCROLL_SLOTS || lockedN > 0 ? `<span class="ss more">${icon('stars')}<em>${owned.length}/${SKILLS.length}</em></span>` : ''}
         </button>
         <div class="play-wrap">
           <span class="ring"></span>
@@ -211,28 +218,47 @@ export function tabbarHTML(active: TabName, missionsBadge: number, canBuy: boole
 
 /** Dünyalar galerisi: açılan atmosferler, menü arka planı seçimi */
 export function worldsHTML(save: SaveData, thumbs: string[], current: number): string {
+  const open = Math.min(save.maxAtm + 1, ATMOSPHERES.length);
   const cards = ATMOSPHERES.map((a, i) => {
     const unlocked = i <= save.maxAtm;
-    const selected = i === current;
+    const selected = unlocked && i === current;
     const first = firstWaveOf(i);
     const range = i === ATMOSPHERES.length - 1 ? t('worlds.wavesEnd', { a: first }) : t('worlds.waves', { a: first, b: first + 4 });
-    const status = selected
-      ? `<span class="w-status on">${icon('check')}${t('worlds.selected')}</span>`
-      : unlocked
-        ? `<span class="w-status">${t('worlds.select')}</span>`
-        : `<span class="w-status locked">${icon('lock')}${t('worlds.locked', { n: first })}</span>`;
+    const go = unlocked
+      ? `<button class="wc-go" data-a="worldGo" data-i="${i}">${icon('play')}<span>${selected ? t('worlds.continue') : t('worlds.go')}</span></button>`
+      : `<button class="wc-go locked" data-a="worldGo" data-i="${i}">${icon('lock')}<span>${t('worlds.lockedAt', { n: first })}</span></button>`;
     return `
-      <button class="world ${unlocked ? '' : 'locked'} ${selected ? 'selected' : ''}" data-a="world" data-i="${i}" style="--ac:${a.accent};--d:${i}">
-        <span class="w-thumb">${thumbs[i] ? `<img src="${thumbs[i]}" alt="">` : ''}${unlocked ? '' : `<span class="w-lock">${icon('lock')}</span>`}</span>
-        <span class="w-info">
-          <b>${t('atm.' + a.id)}</b>
-          <small>${range}</small>
-          <em>${t('atm.' + a.id + '.d')}</em>
-        </span>
-        ${status}
-      </button>`;
+      <div class="wcard ${unlocked ? '' : 'locked'} ${selected ? 'selected' : ''}" style="--ac:${a.accent};--d:${i}">
+        <div class="wc-top">
+          <button class="wc-art" data-a="worldGo" data-i="${i}" aria-label="${t('atm.' + a.id)}">
+            ${thumbs[i] ? `<img src="${thumbs[i]}" alt="">` : ''}
+            <span class="wc-num">${i + 1}</span>
+            ${unlocked ? '' : `<span class="wc-lock">${icon('lock')}</span>`}
+          </button>
+          <div class="wc-info">
+            <div class="wc-tags">
+              <small class="wc-chapter">${t('banner.chapter', { n: i + 1 })}</small>
+              ${selected ? `<small class="wc-sel">${icon('check')}${t('worlds.selected')}</small>` : ''}
+            </div>
+            <h3>${t('atm.' + a.id)}</h3>
+            <span class="wc-range">${range}</span>
+            <p>${t('atm.' + a.id + '.d')}</p>
+          </div>
+        </div>
+        ${go}
+      </div>`;
   }).join('');
-  return panel('worlds', t('worlds.title'), `<p class="lead">${t('worlds.desc')}</p><div class="worlds">${cards}</div>`, save.coins);
+  const hero = `
+    <div class="worlds-hero">
+      <div class="wh-ic">${icon('planet')}</div>
+      <h3>${t('worlds.ask')}</h3>
+      <p>${t('worlds.sub')}</p>
+      <div class="wh-prog">
+        <span class="wh-bar"><i style="width:${Math.round((open / ATMOSPHERES.length) * 100)}%"></i></span>
+        <b>${t('worlds.open', { a: open, b: ATMOSPHERES.length })}</b>
+      </div>
+    </div>`;
+  return panel('worlds', t('worlds.title'), `${hero}<div class="worlds">${cards}</div>`, save.coins);
 }
 
 /** Günlük hediye penceresi (7 günlük takvim) */
@@ -379,42 +405,135 @@ export function shopHTML(save: SaveData, native: boolean): string {
 }
 
 /** Yetenekler: bir tanesi takılır, dolunca oyunda tek dokunuşla tetiklenir */
-/** Yetenek ağacı: her yetenek bir dal (şekli + 3 seviye düğümü), aç / geliştir */
-export function skillsHTML(save: SaveData): string {
+/** Orion takımyıldızı çizgileri (yıldız adları; Meissa baş, M42 kılıç: süs) */
+const ORION_LINES: Array<[string, string]> = [
+  ['Betelgeuse', 'Meissa'],
+  ['Meissa', 'Bellatrix'],
+  ['Betelgeuse', 'Alnitak'],
+  ['Bellatrix', 'Mintaka'],
+  ['Alnitak', 'Alnilam'],
+  ['Alnilam', 'Mintaka'],
+  ['Alnitak', 'Saiph'],
+  ['Mintaka', 'Rigel'],
+];
+const ORION_EXTRA: Record<string, [number, number]> = { Meissa: [50, 7] };
+/** takımyıldız görünüm kutusunun yüksekliği (genişlik 100) */
+const ORION_H = 124;
+
+/** Şekil kılavuzundan küçük bir SVG yolu (0..100) */
+function shapePath(shape: string): string {
+  const pts = shapeGuide(shape as Parameters<typeof shapeGuide>[0]);
+  return pts.map(([x, y], i) => `${i ? 'L' : 'M'}${(x * 100).toFixed(1)} ${(y * 100).toFixed(1)}`).join(' ');
+}
+
+/**
+ * Yetenek Takımyıldızı (Orion): her yıldız bir yetenek. Yıldıza dokununca ayrıntı kartı: şeklin
+ * kendini çizen canlandırması, açıklama, seviye, aç/geliştir ve parşömen düğmesi.
+ */
+export function skillsHTML(save: SaveData, selected = 'nova'): string {
   const dec = (v: number): string => (getLang() === 'tr' ? String(v).replace('.', ',') : String(v));
-  const rows = SKILLS.map((k, i) => {
-    const owned = save.skills.includes(k.id);
-    const lv = owned ? Math.max(1, Math.min(SKILL_MAX_LV, save.skillLv[k.id] ?? 1)) : 0;
-    const cost = owned ? skillUpCost(k, lv) : k.price;
-    const maxed = owned && cost < 0;
-    const L = Math.max(1, lv);
-    let nodes = '';
-    for (let n = 1; n <= SKILL_MAX_LV; n++) {
-      if (n > 1) nodes += `<s class="${n <= lv ? 'on' : ''}"></s>`;
-      nodes += `<i class="node ${n <= lv ? 'on' : ''} ${n === lv + 1 ? 'next' : ''}"><b>${n}</b></i>`;
-    }
-    const stat = (l: number): string => `${t('skills.cd', { n: k.cd[l - 1] })} · ${t('skill.' + k.id + '.p', { v: dec(k.power[l - 1]) })}`;
-    const next = owned && !maxed ? `<div class="tree-next">${icon('arrow')}${stat(lv + 1)}</div>` : '';
-    const btn = maxed
-      ? `<span class="buy done">${icon('crown')}${t('skills.max')}</span>`
-      : `<button class="buy ${save.coins >= cost ? '' : 'disabled'}" data-a="buySkill" data-id="${k.id}">${owned ? t('skills.upgrade') : t('skills.unlock')}<em>${icon('coin')}${fmt(cost)}</em></button>`;
+  const lvOf = (id: string): number => (save.skills.includes(id) ? Math.max(1, Math.min(SKILL_MAX_LV, save.skillLv[id] ?? 1)) : 0);
+  const posOf = (name: string): [number, number] | undefined => SKILLS.find((k) => k.star === name)?.pos ?? ORION_EXTRA[name];
+  const scrolls = save.scrolls.filter((id) => save.skills.includes(id)).slice(0, SCROLL_SLOTS);
+  const sel = SKILLS.find((k) => k.id === selected) ?? SKILLS[0];
+
+  // gökyüzü: sabit toz yıldızlar + takımyıldız çizgileri
+  let dust = '';
+  let seed = 11;
+  const rnd = (): number => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 46; i++) {
+    dust += `<circle cx="${(rnd() * 100).toFixed(1)}" cy="${(rnd() * ORION_H).toFixed(1)}" r="${(0.15 + rnd() * 0.35).toFixed(2)}" opacity="${(0.25 + rnd() * 0.6).toFixed(2)}"/>`;
+  }
+  const scaleY = ORION_H / 130;
+  const lines = ORION_LINES.map(([a, b]) => {
+    const pa = posOf(a);
+    const pb = posOf(b);
+    if (!pa || !pb) return '';
+    const on = [a, b].every((n) => !SKILLS.find((k) => k.star === n) || save.skills.includes(SKILLS.find((k) => k.star === n)!.id));
+    return `<line class="${on ? 'on' : ''}" x1="${pa[0]}" y1="${(pa[1] * scaleY).toFixed(1)}" x2="${pb[0]}" y2="${(pb[1] * scaleY).toFixed(1)}"/>`;
+  }).join('');
+  const meissa = ORION_EXTRA.Meissa;
+  const sky = `
+    <svg class="orion-sky" viewBox="0 0 100 ${ORION_H}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <g class="dust">${dust}</g>
+      <ellipse class="m42" cx="51" cy="${(88 * scaleY).toFixed(1)}" rx="4" ry="6"/>
+      <g class="clines">${lines}</g>
+      <circle class="meissa" cx="${meissa[0]}" cy="${(meissa[1] * scaleY).toFixed(1)}" r="0.9"/>
+    </svg>`;
+  const stars = SKILLS.map((k, i) => {
+    const lv = lvOf(k.id);
+    const owned = lv > 0;
     return `
-      <div class="tree-row ${owned ? 'owned' : 'locked'}" data-sk="${k.id}" style="--sc:${k.color};--d:${i}">
-        <div class="tree-glyph">
-          <div class="tree-orb">${shapeIcon(k.shape)}${owned ? '' : `<span class="tree-lock">${icon('lock')}</span>`}</div>
-          <span class="tree-draw">${t('skills.draw')}<b>${t('shape.' + k.shape)}</b></span>
+      <button class="ostar ${owned ? 'owned' : 'locked'} ${k.id === sel.id ? 'sel' : ''} ${scrolls.includes(k.id) ? 'scrolled' : ''}"
+        data-a="skillStar" data-id="${k.id}" style="left:${k.pos[0]}%;top:${((k.pos[1] * scaleY) / ORION_H) * 100}%;--sc:${k.color};--d:${i}">
+        <span class="ostar-core">${shapeIcon(k.shape)}</span>
+        ${owned ? '' : `<span class="ostar-lock">${icon('lock')}</span>`}
+        <em>${t('skill.' + k.id + '.short')}</em>
+      </button>`;
+  }).join('');
+
+  // parşömen kutuları
+  let slots = '';
+  for (let i = 0; i < SCROLL_SLOTS; i++) {
+    const id = scrolls[i];
+    const k = id ? SKILL_BY_ID.get(id) : undefined;
+    slots += k
+      ? `<button class="scroll-slot full" data-a="skillStar" data-id="${k.id}" style="--sc:${k.color}">${shapeIcon(k.shape)}<span>${t('shape.' + k.shape)}</span></button>`
+      : `<div class="scroll-slot empty"><b>+</b><span>${t('skills.empty')}</span></div>`;
+  }
+
+  // seçili yıldızın ayrıntısı
+  const lv = lvOf(sel.id);
+  const owned = lv > 0;
+  const cost = owned ? skillUpCost(sel, lv) : sel.price;
+  const maxed = owned && cost < 0;
+  const L = Math.max(1, lv);
+  const stat = (l: number): string => `${t('skills.cd', { n: sel.cd[l - 1] })} · ${t('skill.' + sel.id + '.p', { v: dec(sel.power[l - 1]) })}`;
+  let nodes = '';
+  for (let n = 1; n <= SKILL_MAX_LV; n++) {
+    if (n > 1) nodes += `<s class="${n <= lv ? 'on' : ''}"></s>`;
+    nodes += `<i class="node ${n <= lv ? 'on' : ''} ${n === lv + 1 ? 'next' : ''}"><b>${n}</b></i>`;
+  }
+  const buy = maxed
+    ? `<span class="buy done">${icon('crown')}${t('skills.max')}</span>`
+    : `<button class="buy ${save.coins >= cost ? '' : 'disabled'}" data-a="buySkill" data-id="${sel.id}">${owned ? t('skills.upgrade') : t('skills.unlock')}<em>${icon('coin')}${fmt(cost)}</em></button>`;
+  const inScroll = scrolls.includes(sel.id);
+  const scrollBtn = owned
+    ? `<button class="btn-scroll ${inScroll ? 'on' : ''}" data-a="scrollToggle" data-id="${sel.id}">${icon('scroll')}${inScroll ? t('skills.removeScroll') : t('skills.addScroll')}</button>`
+    : '';
+  const path = shapePath(sel.shape);
+  const detail = `
+    <div class="sdetail" style="--sc:${sel.color}">
+      <div class="sd-top">
+        <div class="sd-demo">
+          <svg viewBox="-6 -6 112 112" aria-hidden="true">
+            <path class="ghost" d="${path}"/>
+            <path class="draw" d="${path}" pathLength="100"/>
+          </svg>
+          <span class="sd-shape">${t('skills.draw')} <b>${t('shape.' + sel.shape)}</b></span>
         </div>
-        <div class="tree-body">
-          <h4>${icon(k.icon)}<span>${t('skill.' + k.id)}</span></h4>
-          <p>${t('skill.' + k.id + '.d')}</p>
+        <div class="sd-info">
+          <small>${sel.star}${inScroll ? ` · ${icon('scroll')}${t('skills.inScroll')}` : ''}</small>
+          <h4>${icon(sel.icon)}<span>${t('skill.' + sel.id)}</span></h4>
+          <p>${t('skill.' + sel.id + '.d')}</p>
           <div class="tree-track">${nodes}</div>
           <div class="tree-stat">${stat(L)}</div>
-          ${next}
-          ${btn}
         </div>
-      </div>`;
-  }).join('');
-  return panel('skills', t('skills.title'), `<p class="lead">${t('skills.desc')}</p><div class="tree">${rows}</div>`, save.coins);
+      </div>
+      <p class="sd-how">${t('skills.how', { shape: t('shape.' + sel.shape).toLocaleLowerCase(getLang() === 'tr' ? 'tr-TR' : 'en-US'), name: t('skill.' + sel.id) })}</p>
+      <div class="sd-actions">${buy}${scrollBtn}</div>
+    </div>`;
+
+  const body = `
+    <p class="lead">${t('skills.desc')}</p>
+    <div class="orion"><div class="orion-box">${sky}${stars}</div></div>
+    ${detail}
+    <div class="scrolls-bar">
+      <div class="scrolls-title">${icon('scroll')}<b>${t('skills.scrolls')}</b><span>${scrolls.length}/${SCROLL_SLOTS}</span></div>
+      <div class="scroll-slots">${slots}</div>
+      <p class="scroll-note">${t('skills.scrollNote')}</p>
+    </div>`;
+  return panel('skills', t('skills.title'), body, save.coins);
 }
 
 function upgradeDesc(id: string, nextLevel: number): string {

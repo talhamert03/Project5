@@ -26,7 +26,7 @@ export class HudView {
   private hintEl!: HTMLElement;
   private fpsEl!: HTMLElement;
   private dock!: HTMLElement;
-  private dockItems: Array<{ el: HTMLElement; ring: SVGCircleElement; sec: HTMLElement; key: number; ready: boolean }> = [];
+  private dockItems: Array<{ id: string; el: HTMLElement; ring: SVGCircleElement; sec: HTMLElement; key: number; ready: boolean; slot: number }> = [];
   private bossLabel!: HTMLElement;
   private feverEl!: HTMLElement;
   private feverBar!: HTMLElement;
@@ -143,6 +143,8 @@ export class HudView {
       )
       .join('');
     this.dockItems = [...this.dock.querySelectorAll<HTMLElement>('.sk')].map((el) => ({
+      id: el.dataset.id ?? '',
+      slot: -1,
       el,
       ring: el.querySelector('.fg') as SVGCircleElement,
       sec: el.querySelector('.sk-sec') as HTMLElement,
@@ -151,7 +153,7 @@ export class HudView {
     }));
   }
 
-  /** Hazır olan yeteneğin simgesi zıplar */
+  /** Hazır olan yeteneğin simgesi zıplar (parşömende değilse bir şey olmaz) */
   bounceSkill(id: string): void {
     const d = this.dockItems.find((x) => x.el.dataset.id === id);
     if (d) pulse(d.el, 1.35);
@@ -315,10 +317,11 @@ export class HudView {
   }
 
   private updateDock(slots: SkillSlot[]): void {
-    const n = Math.min(slots.length, this.dockItems.length);
-    for (let i = 0; i < n; i++) {
-      const k = slots[i];
-      const d = this.dockItems[i];
+    for (const d of this.dockItems) {
+      // parşömendeki yetenek, açık yetenekler listesinde kimliğiyle bulunur (bir kez)
+      if (d.slot < 0 || slots[d.slot]?.id !== d.id) d.slot = slots.findIndex((k) => k.id === d.id);
+      const k = slots[d.slot];
+      if (!k) continue;
       const frac = k.cd > 0 ? 1 - k.left / k.cd : 1;
       const key = Math.round(frac * 100) * 1000 + Math.ceil(k.left);
       if (key === d.key) continue;
@@ -360,6 +363,9 @@ export function shapeIcon(shape: string, cls = ''): string {
     triangle: '<path d="M12 4.2 L20 18.6 H4 Z"/>',
     square: '<path d="M5.2 5.2 H18.8 V18.8 H5.2 Z"/>',
     zigzag: '<path d="M4.5 6 H19.5 L4.5 18 H19.5"/>',
+    spiral: '<path d="M12 12.4c.9 0 1.3-.9.9-1.6-.6-1-2.2-1-3 0-1.1 1.3-.6 3.4.9 4.2 2 1.1 4.5.1 5.3-2 1-2.6-.4-5.4-3-6.3-3.2-1.1-6.6.7-7.5 3.9-1 3.6 1.2 7.3 4.8 8.2"/>',
+    star: '<path d="M12 3.6 L17.1 19.2 L3.9 9.6 H20.1 L6.9 19.2 Z"/>',
+    infinity: '<path d="M12 12c-1.6-2.2-3.1-3.6-5-3.6a3.6 3.6 0 000 7.2c1.9 0 3.4-1.4 5-3.6s3.1-3.6 5-3.6a3.6 3.6 0 010 7.2c-1.9 0-3.4-1.4-5-3.6z"/>',
   };
   return `<svg class="shape-ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${d[shape] ?? ''}</svg>`;
 }
