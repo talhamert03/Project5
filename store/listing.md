@@ -20,14 +20,17 @@ Parmağını sürükle, ışıldayan bir mürekkep çizgisi çiz. Meteorlar çiz
 ★ HER OYUN FARKLI
 Her dalga sonunda 3 güçten birini seç: Mıknatıs Uç, Koruyucu Uydu, Zincir Şimşek, Kara Delik, Anka Kuşu ve dahası. 27 güç, 4 nadirlik seviyesi.
 
-★ YETENEKLER
-Meteor patlattıkça yetenek halkan dolar. Tek dokunuşla Yıldız Patlaması, Zaman Kırılması, Aegis Kalkanı ya da Yıldız Yağmuru'nu serbest bırak.
+★ ŞEKİL ÇİZ, YETENEK AT
+Ekrana daire çiz: Yıldız Patlaması. Üçgen: Zaman Kırılması. Kare: Aegis Kalkanı. Zikzak: Yıldız Yağmuru. Yetenek Ağacı'nda aç, üç seviyeye kadar geliştir.
 
-★ BEŞ BOSS, SEVİMLİ AMA ÇETİN
-Kaya Titanı, Kuyruklu Kraliçe, Buz Kalesi, Tekillik ve İkiz Yıldızlar. Her birinin kendi taktiği var.
+★ BEŞ ÇETİN BOSS
+Kaya Titanı, Kuyruklu Kraliçe, Buz Kalesi, Tekillik ve İkiz Yıldızlar gökyüzünde dolaşır. Her birinin kendi taktiği var.
 
 ★ YENİ METEORLAR
-Çapraz dalan kuyruklu yıldızlar, çizgini donduran buz kristalleri, saydamlaşıp çizgilerden geçen hayaletler ve dev zincir başlatan nova çekirdekleri.
+Çapraz dalan kuyruklu yıldızlar, çizgini donduran buz kristalleri, saydamlaşan hayaletler, dev zincir başlatan nova çekirdekleri, yana ışınlanan meteorlar, çizgini yakan alev meteorları, üçe bölünen prizmalar, şehri onaran şifa kristalleri ve yılan gibi süzülen kıvılcım sürüleri.
+
+★ MÜREKKEP ATEŞİ
+Komboyu büyüt, Mürekkep Ateşi'ni yak: mürekkep bedava, çizgiler gökkuşağı, puan katlanır.
 
 ★ DOKUZ UZAY DÜNYASI
 Her bölüm sonunda sahne tamburu döner, arkasından yeni bir dünya çıkar: Gece, Alacakaranlık, Kuzey Işıkları, Kızıl Kıyamet, Kozmos, Orion Bulutsusu, Satürn Halkaları, Olay Ufku ve Süpernova. Her dünyanın kendi gökyüzü, müziği ve sürprizi var.
@@ -61,14 +64,17 @@ Time slows while you draw so you can aim. But ink is limited: short, well-angled
 ★ EVERY RUN IS DIFFERENT
 After each wave pick one of three powers: Magnet Nib, Guardian Satellite, Chain Lightning, Black Hole, Phoenix and more. 27 powers across 4 rarities.
 
-★ SKILLS
-Destroying meteors charges your skill ring. Unleash Starburst, Time Fracture, Aegis Shield or Starfall with a single tap.
+★ DRAW A SHAPE, CAST A SKILL
+Draw a circle for Starburst, a triangle for Time Fracture, a square for Aegis Shield and a zigzag for Starfall. Unlock and upgrade them in the Skill Tree.
 
-★ FIVE BOSSES, CUTE BUT TOUGH
-Rock Titan, Comet Queen, Frost Citadel, Singularity and Twin Stars, each with its own tactics.
+★ FIVE TOUGH BOSSES
+Rock Titan, Comet Queen, Frost Citadel, Singularity and Twin Stars roam the sky, each with its own tactics.
 
 ★ NEW METEORS
-Diving comets, ice crystals that freeze your lines, phantoms that fade through them and nova cores that set off giant chains.
+Diving comets, ice crystals that freeze your lines, fading phantoms, nova cores that set off giant chains, blink meteors that teleport, flares that burn your lines, prisms that split in three, mending crystals that repair the city and weaving wisp swarms.
+
+★ INK FEVER
+Build your combo to ignite Ink Fever: free ink, rainbow lines and boosted score.
 
 ★ NINE SPACE WORLDS
 At the end of each chapter the stage turns and a new world appears behind it: Night, Dusk, Northern Lights, Crimson Doom, Cosmos, Orion Nebula, Saturn's Rings, Event Horizon and Supernova. Each has its own sky, music and twist.
@@ -90,8 +96,8 @@ No forced ads. Watch a video only when you want to continue or double your gold.
 - Uygulama içi satın alma: Evet
 - İletişim e-postası: (Play Console'da kendi adresini gir)
 
-## Sürüm notları (1.2.0)
+## Sürüm notları (1.5.0)
 
-**TR:** Üç yeni uzay dünyası (Satürn Halkaları, Olay Ufku, Süpernova), beş farklı boss, dört yeni meteor türü, aktif yetenekler, 8 yeni güç kartı ve denge ayarları, mağaza ve video izleyerek devam.
+**TR:** Şekil çizerek yetenek atma ve Yetenek Ağacı, beş yeni meteor türü, Mürekkep Ateşi, seçtiğin dünyadan başlama, yeni açılış ekranı ve yumuşak müzik, performans iyileştirmeleri.
 
-**EN:** Three new space worlds (Saturn's Rings, Event Horizon, Supernova), five distinct bosses, four new meteor types, active skills, 8 new power cards and balance changes, a shop and continue by watching a video.
+**EN:** Cast skills by drawing shapes plus a Skill Tree, five new meteor types, Ink Fever, start from any unlocked world, a new splash screen and softer music, performance improvements.
