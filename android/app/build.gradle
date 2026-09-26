@@ -20,7 +20,7 @@ android {
         applicationId "com.talhamert.inkfall"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode ((System.getenv("MK_VERSION_CODE") ?: "1.6.0") as Integer)
+        versionCode ((System.getenv("MK_VERSION_CODE") ?: "10600") as Integer)
         versionName (System.getenv("MK_VERSION_NAME") ?: "1.6.0")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
