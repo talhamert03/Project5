@@ -69,6 +69,8 @@ export interface SaveData {
   skillHints: string[];
   /** günlük ücretsiz altın videoları */
   adCoins: { date: string; n: number };
+  /** son geçiş reklamından beri oynanan oyun sayısı */
+  adRuns: number;
 }
 
 const KEY = 'murekkep-kalkani/save/v1';
@@ -113,6 +115,7 @@ export function defaultSave(): SaveData {
     skillLv: { nova: 1 },
     skillHints: [],
     adCoins: { date: '', n: 0 },
+    adRuns: 0,
   };
 }
 

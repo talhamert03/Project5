@@ -26,6 +26,7 @@ import {
 import {
   FREE_COINS,
   FREE_COINS_PER_DAY,
+  INTERSTITIAL_EVERY,
   SHOP_BY_ID,
   STARTER_SKILL,
   type ShopItem,
@@ -34,11 +35,12 @@ import {
   initMonetization,
   loadPrices,
   ownedNonConsumables,
+  showInterstitialAd,
   showRewardedAd,
 } from './monetize';
 import { canFullscreen, exitApp, initNative, isNative, keepAwake, toggleFullscreen } from './platform';
 import { RAINBOW } from './core/math';
-import { ATMOSPHERES, atmosphereIndexForWave } from './render/atmospheres';
+import { ATMOSPHERES, atmosphereIndexForWave, firstWaveOf } from './render/atmospheres';
 import { BOSS_COLORS, C, METEOR_COLORS } from './render/palette';
 import { Background } from './render/background';
 import { Sprites } from './render/sprites';
@@ -70,7 +72,7 @@ import {
   worldsHTML,
 } from './ui/screens';
 
-export const VERSION = '1.4.0';
+export const VERSION = '1.5.0';
 
 type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'revive' | 'over';
 type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds' | 'shop' | 'skills';
@@ -140,6 +142,9 @@ export class App {
   private runDaily = false;
   private timers: Timer[] = [];
   private upgradeStart = false;
+  /** ileri bir dünyadan başlarken kalan hazırlık kartı seçimleri ve toplamı */
+  private startPicks = 0;
+  private startPickTotal = 0;
   private picking = false;
   private resetArmed = false;
   private newMissions = 0;
@@ -551,7 +556,12 @@ export class App {
   // ───────────────────────── OYUN AKIŞI ─────────────────────────
 
   play(daily: boolean): void {
-    if (this.wiping) return;
+    if (this.wiping || this.adBusy) return;
+    // sırası gelmiş (ama henüz gösterilmemiş) geçiş reklamı yeni oyundan önce
+    if (!this.save.noAds && (this.save.adRuns ?? 0) >= INTERSTITIAL_EVERY) {
+      void this.showInterstitial().then(() => this.play(daily));
+      return;
+    }
     this.wipe(() => this.startRun(daily));
   }
 
@@ -573,6 +583,8 @@ export class App {
       best: this.save.best,
       pen: this.currentPen(),
       skills: this.loadout(),
+      // seçilen dünyanın ilk dalgasından başla (günlük meydan okuma ve eğitim hep 1. dalga)
+      startWave: daily ? 1 : firstWaveOf(Math.min(this.save.menuAtm, this.save.maxAtm)),
     };
     this.hud.reset(this.save.best);
     this.hud.setSkills(opts.skills);
@@ -586,9 +598,15 @@ export class App {
     this.measureHud();
     void keepAwake(true);
     audio.resume();
-    if (this.world.phase === 'cleared' && this.world.wave === 0) {
-      const rarity = opts.meta.startRarity >= 2 ? Rarity.Epic : Rarity.Rare;
-      this.showUpgrade(this.world.offerStart(rarity), true);
+    if (this.world.phase === 'cleared') {
+      // ileri dünyadan başlarken atlanan dalgaların yerine birkaç hazırlık kartı (en fazla 5)
+      const chapter = atmosphereIndexForWave(this.world.wave + 1);
+      const bonus = this.world.wave > 0 ? Math.min(5, chapter + 1) : 0;
+      const hattat = opts.meta.startRarity >= 1 ? 1 : 0;
+      this.startPickTotal = bonus + hattat;
+      this.startPicks = this.startPickTotal - 1;
+      if (hattat) this.showUpgrade(this.world.offerStart(opts.meta.startRarity >= 2 ? Rarity.Epic : Rarity.Rare), true);
+      else this.showUpgrade(this.world.offer(), true);
     }
   }
 
@@ -597,7 +615,15 @@ export class App {
     this.upgradeStart = start;
     this.picking = false;
     this.input.cancel();
-    const sub = start ? t('up.subStart') : t('up.sub', { n: this.world.wave + 1 });
+    const sub = !start
+      ? t('up.sub', { n: this.world.wave + 1 })
+      : this.startPickTotal > 1
+        ? t('up.subChapter', {
+            w: t('atm.' + ATMOSPHERES[atmosphereIndexForWave(this.world.wave + 1)].id),
+            i: this.startPickTotal - this.startPicks,
+            n: this.startPickTotal,
+          })
+        : t('up.subStart');
     this.setScreen(upgradeHTML(ids, this.world.levels, sub, this.world.rerolls));
     audio.whoosh();
     // kartlar yerleştikten sonra sıradaki dünyayı boşta, parça parça hazırla (geçişte takılma olmasın)
@@ -624,6 +650,14 @@ export class App {
     window.setTimeout(() => {
       if (this.state !== 'upgrade') return;
       this.world.applyUpgrade(id);
+      if (this.upgradeStart && this.startPicks > 0) {
+        // sıradaki hazırlık kartı
+        this.startPicks--;
+        this.picking = false;
+        this.showUpgrade(this.world.offer(), true);
+        return;
+      }
+      this.startPicks = 0;
       this.setScreen('');
       this.state = 'game';
       this.picking = false;
@@ -634,9 +668,9 @@ export class App {
   private reroll(): void {
     if (this.world.rerolls <= 0 || this.picking) return;
     this.world.rerolls--;
-    const ids = this.upgradeStart
-      ? this.world.offerStart((this.save.workshop.start ?? 0) >= 2 ? Rarity.Epic : Rarity.Rare)
-      : this.world.offer();
+    // Hattat kartı yalnızca ilk hazırlık seçiminde; sonrakiler normal teklif
+    const hattatPick = this.upgradeStart && metaBonus(this.save).startRarity >= 1 && this.startPicks === this.startPickTotal - 1;
+    const ids = hattatPick ? this.world.offerStart((this.save.workshop.start ?? 0) >= 2 ? Rarity.Epic : Rarity.Rare) : this.world.offer();
     this.showUpgrade(ids, this.upgradeStart);
   }
 
@@ -675,13 +709,18 @@ export class App {
 
   private restart(): void {
     audio.resume();
+    // yarıda yeniden başlatmak da bir oyun sayılır (reklam sırası play() içinde)
+    if (this.world.phase !== 'over') this.countGame();
     this.settleSilently();
     this.play(this.runDaily);
   }
 
   private quit(): void {
+    const due = this.world.phase !== 'over' && this.world.phase !== 'attract' && this.countGame();
     this.settleSilently();
     this.toMenu();
+    // menüye dönerken sıra geldiyse geçiş reklamı
+    if (due) window.setTimeout(() => void this.showInterstitial(), 900);
   }
 
   // ── devam: ödüllü video (turda bir kez) ya da altın
@@ -740,11 +779,11 @@ export class App {
     }
   }
 
-  /** Web/önizleme: gerçek reklam yerine 5 sn'lik temsili video */
-  private demoAd(): Promise<boolean> {
+  /** Web/önizleme: gerçek reklam yerine 5 sn'lik temsili video (inter: araya giren reklam) */
+  private demoAd(inter = false): Promise<boolean> {
     return new Promise((resolve) => {
       const secs = 5;
-      this.adEl.innerHTML = adHTML(secs);
+      this.adEl.innerHTML = adHTML(secs, inter);
       let left = secs;
       const count = this.adEl.querySelector('#ad-count') as HTMLElement | null;
       const iv = window.setInterval(() => {
@@ -764,6 +803,34 @@ export class App {
         resolve(true);
       };
     });
+  }
+
+  /** Bir oyun bitti: sayaç artar; sıra geldiyse true (Reklamsız pakette ve eğitimde hiç) */
+  private countGame(): boolean {
+    if (this.save.noAds || this.world.opts?.tutorial) return false;
+    this.save.adRuns = (this.save.adRuns ?? 0) + 1;
+    this.commit();
+    return this.save.adRuns >= INTERSTITIAL_EVERY;
+  }
+
+  /** Zorunlu geçiş reklamı (her INTERSTITIAL_EVERY oyunda bir) */
+  private async showInterstitial(): Promise<void> {
+    if (this.save.noAds || this.adBusy || (this.save.adRuns ?? 0) < INTERSTITIAL_EVERY) return;
+    this.save.adRuns = 0;
+    this.commit();
+    this.adBusy = true;
+    this.input.cancel();
+    try {
+      if (isNative) {
+        audio.suspend();
+        await showInterstitialAd();
+        audio.resume();
+      } else {
+        await this.demoAd(true);
+      }
+    } finally {
+      this.adBusy = false;
+    }
   }
 
   private async buy(id: string): Promise<void> {
@@ -949,6 +1016,8 @@ export class App {
     this.lastRunCoins = st.coins;
     this.doubled = false;
     this.setScreen(overHTML(r, st, this.save.best, today, true, this.save.noAds));
+    // her 5 oyunda bir: skor ekranı görüldükten kısa süre sonra zorunlu geçiş reklamı
+    if (this.countGame()) this.after(1.2, () => void this.showInterstitial());
     const scoreEl = this.screenEl.querySelector('#o-score') as HTMLElement | null;
     const coinEl = this.screenEl.querySelector('#o-coins') as HTMLElement | null;
     if (scoreEl) this.countUps.push({ el: scoreEl, from: 0, to: r.score, t: 0, dur: 1.3, tick: false });

@@ -303,18 +303,19 @@ export function reviveHTML(o: ReviveOffer): string {
 }
 
 /** Web demo reklamı (gerçek uygulamada burada AdMob videosu oynar) */
-export function adHTML(seconds: number): string {
+/** Web/önizleme reklam temsili. inter: araya giren (zorunlu) reklam, değilse ödüllü video */
+export function adHTML(seconds: number, inter = false): string {
   return `
     <section class="screen modal ad-demo" id="ad-demo">
       <div class="ad-card">
         <div class="ad-top"><span class="ad-tag">${t('ad.tag')}</span><span class="ad-count" id="ad-count">${seconds}</span></div>
         <div class="ad-stage">
-          <div class="ad-logo">${icon('video')}</div>
-          <b>${t('ad.title')}</b>
-          <p>${t('ad.desc')}</p>
+          <div class="ad-logo">${icon(inter ? 'noads' : 'video')}</div>
+          <b>${t(inter ? 'ad.titleInter' : 'ad.title')}</b>
+          <p>${t(inter ? 'ad.descInter' : 'ad.desc')}</p>
         </div>
         <div class="ad-bar"><i style="--dur:${seconds}s"></i></div>
-        <button class="btn-ghost wide" data-a="adClose" id="ad-close" hidden>${t('ad.close')}</button>
+        <button class="btn-ghost wide" data-a="adClose" id="ad-close" hidden>${t(inter ? 'ad.continue' : 'ad.close')}</button>
       </div>
     </section>`;
 }

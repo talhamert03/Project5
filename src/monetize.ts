@@ -1,4 +1,4 @@
-import { AdMob, AdmobConsentStatus, RewardAdPluginEvents } from '@capacitor-community/admob';
+import { AdMob, AdmobConsentStatus, InterstitialAdPluginEvents, RewardAdPluginEvents } from '@capacitor-community/admob';
 import { NativePurchases, PURCHASE_TYPE } from '@capgo/native-purchases';
 import { isNative } from './platform';
 
@@ -6,12 +6,24 @@ import { isNative } from './platform';
  * Gelir: ödüllü video reklamlar (AdMob) ve uygulama içi satın almalar (Google Play Billing).
  * Web'de (tarayıcı / önizleme) gerçek reklam ve ödeme yoktur: uygulama demo akışını gösterir.
  *
- * YAYIN ÖNCESİ: AdMob hesabındaki gerçek kimlikleri aşağıya ve AndroidManifest.xml'deki
- * APPLICATION_ID'ye yaz, ADS_TESTING'i false yap. Ürün kimlikleri Play Console'da aynen açılmalı.
+ * YAYIN ÖNCESİ: gerçek AdMob kimlikleri index.html'in başındaki INKFALL_ADS bloğuna
+ * (derlenmiş pakette android/app/src/main/assets/public/index.html) ve AndroidManifest.xml'deki
+ * APPLICATION_ID'ye yazılır, testing false yapılır. Ürün kimlikleri Play Console'da aynen açılmalı.
  */
-export const ADS_TESTING = true;
-/** Google'ın resmi test ödüllü reklam birimi (gerçeğiyle değiştirilecek) */
-export const REWARDED_AD_ID = 'ca-app-pub-3940256099942544/5224354917';
+interface AdsConfig {
+  testing?: boolean;
+  rewarded?: string;
+  interstitial?: string;
+  interstitialEvery?: number;
+}
+const ADS: AdsConfig = (window as unknown as { INKFALL_ADS?: AdsConfig }).INKFALL_ADS ?? {};
+export const ADS_TESTING = ADS.testing !== false;
+/** Ödüllü video birimi (varsayılan: Google'ın resmi test birimi) */
+export const REWARDED_AD_ID = ADS.rewarded || 'ca-app-pub-3940256099942544/5224354917';
+/** Geçiş (araya giren) reklam birimi (varsayılan: test birimi) */
+export const INTERSTITIAL_AD_ID = ADS.interstitial || 'ca-app-pub-3940256099942544/1033173712';
+/** Kaç oyunda bir zorunlu geçiş reklamı (Reklamsız pakette hiç çıkmaz) */
+export const INTERSTITIAL_EVERY = Math.max(1, Math.round(ADS.interstitialEvery ?? 5));
 
 export type ShopKind = 'coins' | 'starter' | 'noads';
 
@@ -125,6 +137,36 @@ export async function showRewardedAd(): Promise<AdResult> {
     for (const h of handles) void h.remove();
   }
   return rewarded ? 'rewarded' : 'skipped';
+}
+
+/** Geçiş reklamı: o an yüklenir ve gösterilir (oyun sırasında önceden yükleme yok). Kapatılınca döner. */
+export async function showInterstitialAd(): Promise<boolean> {
+  if (!isNative) return false;
+  await ensureAds();
+  if (!adsReady) return false;
+  try {
+    // yavaş ağda oyuncuyu bekletme: 8 sn'de yüklenmezse atla
+    await Promise.race([
+      AdMob.prepareInterstitial({ adId: INTERSTITIAL_AD_ID, isTesting: ADS_TESTING, immersiveMode: true }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000)),
+    ]);
+  } catch {
+    return false;
+  }
+  const handles: Array<{ remove: () => Promise<void> }> = [];
+  try {
+    const closed = new Promise<void>((resolve) => {
+      void AdMob.addListener(InterstitialAdPluginEvents.Dismissed, () => resolve()).then((h) => handles.push(h));
+      void AdMob.addListener(InterstitialAdPluginEvents.FailedToShow, () => resolve()).then((h) => handles.push(h));
+    });
+    await AdMob.showInterstitial();
+    await closed;
+    return true;
+  } catch {
+    return false;
+  } finally {
+    for (const h of handles) void h.remove();
+  }
 }
 
 export const hasNativeStore = (): boolean => isNative && billingReady;

@@ -4,7 +4,7 @@ import type { PointerSink } from '../core/input';
 import { RAINBOW, TAU, clamp, damp, easeInOutCubic } from '../core/math';
 import { Rng, fx } from '../core/rng';
 import { t } from '../i18n';
-import { ATMOSPHERES, type Atmosphere } from '../render/atmospheres';
+import { ATMOSPHERES, type Atmosphere, atmosphereIndexForWave } from '../render/atmospheres';
 import type { Background } from '../render/background';
 import { BOSS_COLORS, C, METEOR_COLORS } from '../render/palette';
 import { Particles, Shape } from '../render/particles';
@@ -51,6 +51,8 @@ export interface RunOptions {
   pen: Pen;
   /** açık yetenekler: her biri şekli çizilince atılır */
   skills: SkillLoadout[];
+  /** başlangıç dalgası (seçilen dünyanın ilk dalgası; varsayılan 1) */
+  startWave?: number;
 }
 
 export type SkillId = 'nova' | 'warp' | 'aegis' | 'starfall';
@@ -573,7 +575,9 @@ export class World implements PointerSink {
     this.shapeHint = null;
     this.castFx = null;
     this.droneT = 3;
-    if (this.atmIndex !== 0) this.applyAtmosphere(0);
+    const startWave = opts.tutorial || opts.daily ? 1 : Math.max(1, opts.startWave ?? 1);
+    const atmI = atmosphereIndexForWave(startWave);
+    if (this.atmIndex !== atmI) this.applyAtmosphere(atmI);
     this.director.bias = this.atm.bias;
     this.hud.best = opts.best;
     this.hud.bossHp = -1;
@@ -582,10 +586,11 @@ export class World implements PointerSink {
       this.phase = 'tutorial';
       this.tutStep = -1;
       this.setTutStep(0);
-    } else if (opts.meta.startRarity >= 1) {
-      // Hattat başlangıcı: ilk dalgadan önce güç seçimi (UI 'cleared' + wave 0 durumunu yakalar)
+    } else if (opts.meta.startRarity >= 1 || startWave > 1) {
+      // güç seçimiyle başlangıç (Hattat atölye bonusu ya da ileri bir dünyadan başlama):
+      // arayüz 'cleared' durumunu yakalar, seçimden sonra startWave dalgası gelir
       this.phase = 'cleared';
-      this.wave = 0;
+      this.wave = startWave - 1;
       audio.setIntensity(1);
     } else {
       this.startWave(1);
