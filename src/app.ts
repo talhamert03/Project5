@@ -70,7 +70,7 @@ import {
   worldsHTML,
 } from './ui/screens';
 
-export const VERSION = '1.3.0';
+export const VERSION = '1.4.0';
 
 type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'revive' | 'over';
 type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds' | 'shop' | 'skills';

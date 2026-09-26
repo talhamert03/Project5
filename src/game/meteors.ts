@@ -18,10 +18,33 @@ export const enum MK {
   Phantom = 9,
   /** nova çekirdeği: büyük patlar (şehre 2 hasar, patlatınca dev zincir) */
   Nova = 10,
+  /** ışınlanan: düşerken (önceden haber vererek) yana ışınlanır */
+  Blink = 11,
+  /** alev meteoru: sektiği çizgiyi yakar */
+  Flare = 12,
+  /** prizma: sektirilince üç dost parçaya bölünür */
+  Prism = 13,
+  /** şifa kristali: sektirilirse şehri onarır, düşerse zararsız söner */
+  Mender = 14,
+  /** kıvılcım: küçük, dalgalanarak iner (yılan dizisi halinde gelir) */
+  Wisp = 15,
 }
 
 /** Normal dalgalarda seçilebilen türler (yönetmen ağırlık sırası) */
-export const SPAWN_KINDS: MK[] = [MK.Normal, MK.Fast, MK.Heavy, MK.Splitter, MK.Comet, MK.Ice, MK.Phantom, MK.Nova];
+export const SPAWN_KINDS: MK[] = [
+  MK.Normal,
+  MK.Fast,
+  MK.Heavy,
+  MK.Splitter,
+  MK.Comet,
+  MK.Ice,
+  MK.Phantom,
+  MK.Nova,
+  MK.Flare,
+  MK.Prism,
+  MK.Wisp,
+  MK.Blink,
+];
 
 export interface KindDef {
   key: keyof typeof METEOR_COLORS;
@@ -42,6 +65,11 @@ export const KINDS: KindDef[] = [
   { key: 'ice', r: 21, speed: 0.95, score: 90 },
   { key: 'phantom', r: 21, speed: 1.05, score: 100 },
   { key: 'nova', r: 24, speed: 0.78, score: 130 },
+  { key: 'blink', r: 20, speed: 0.92, score: 110 },
+  { key: 'flare', r: 23, speed: 0.9, score: 100 },
+  { key: 'prism', r: 21, speed: 0.88, score: 90 },
+  { key: 'mender', r: 19, speed: 0.72, score: 40 },
+  { key: 'wisp', r: 11.5, speed: 1.08, score: 45 },
 ];
 
 /** Boss türleri */
@@ -108,6 +136,12 @@ export class Meteor {
   topBounces = 0;
   /** hayalet: 0 görünür .. 1 tamamen saydam */
   fade = 0;
+  /** ışınlanan: yapılan ışınlanma, uyarı sayacı (>0 iken titrer) ve varış noktası */
+  blinkN = 0;
+  blinkT = 0;
+  blinkX = 0;
+  /** dost meteorun yan duvardan sekme sayısı (bilardo bonusu) */
+  wallHits = 0;
 
   spawn(kind: MK, x: number, y: number, vx: number, vy: number, rScale = 1): this {
     const d = KINDS[kind];
@@ -150,7 +184,12 @@ export class Meteor {
     this.homing = 0;
     this.topBounces = 0;
     this.fade = 0;
+    this.blinkN = 0;
+    this.blinkT = 0;
+    this.blinkX = x;
+    this.wallHits = 0;
     if (kind === MK.Comet) this.spin = (Math.random() - 0.5) * 8;
+    if (kind === MK.Wisp) this.spin = (Math.random() - 0.5) * 5;
     return this;
   }
 
@@ -270,6 +309,40 @@ export function renderMeteors(
       g.globalAlpha = 0.5 + Math.sin(time * 5 + m.swayPh) * 0.3;
       const ss = m.r * 2.8;
       blit(g, sprites.sparkle, m.x - ss / 2 - m.r * 0.25, m.y - ss / 2 - m.r * 0.3, ss, ss);
+    } else if (m.kind === MK.Blink) {
+      // ışınlanma uyarısı: gövde titrer, varış noktasında dönen halka belirir
+      if (m.blinkT > 0) {
+        const p = 1 - m.blinkT / BLINK_WARN;
+        g.globalAlpha = 0.5 + 0.5 * Math.sin(time * 40);
+        const rs = m.r * (3.4 - p * 1.2);
+        blit(g, sprites.ring, m.x - rs / 2, m.y - rs / 2, rs, rs);
+        g.globalAlpha = 0.35 + 0.55 * p;
+        const ds = m.r * (1.6 + p * 1.8);
+        blit(g, sprites.ring, m.blinkX - ds / 2, m.y - ds / 2, ds, ds);
+        blit(g, sprites.glow(col), m.blinkX - ds / 2, m.y - ds / 2, ds, ds);
+      } else {
+        g.globalAlpha = 0.3 + 0.2 * Math.sin(time * 6 + m.swayPh);
+        const rs = m.r * 2.6;
+        blit(g, sprites.ring, m.x - rs / 2, m.y - rs / 2, rs, rs);
+      }
+    } else if (m.kind === MK.Flare) {
+      // titreyen alev hâlesi
+      const f = 0.5 + 0.5 * Math.sin(time * 23 + m.swayPh) * Math.sin(time * 9);
+      g.globalAlpha = 0.45 + f * 0.35;
+      const cs = m.r * (2.3 + f * 0.6);
+      blit(g, sprites.glow('#FFE07A', true), m.x - cs / 2, m.y - cs / 2 - m.r * 0.2, cs, cs);
+    } else if (m.kind === MK.Prism) {
+      // dönen gökkuşağı pırıltıları
+      for (let i = 0; i < 3; i++) {
+        const a = time * 2.4 + (i / 3) * TAU + m.swayPh;
+        g.globalAlpha = 0.75;
+        const ss = m.r * 1.5;
+        blit(g, sprites.glow(PRISM_COLS[i], true), m.x + Math.cos(a) * m.r * 1.1 - ss / 2, m.y + Math.sin(a) * m.r * 1.1 - ss / 2, ss, ss);
+      }
+    } else if (m.kind === MK.Mender) {
+      g.globalAlpha = 0.5 + 0.4 * Math.sin(time * 4 + m.swayPh);
+      const ss = m.r * 3;
+      blit(g, sprites.sparkle, m.x - ss / 2, m.y - ss / 2, ss, ss);
     } else if (m.kind === MK.Phantom && m.fade > 0.05) {
       // saydamken titreyen hayalet halkası: yeri belli olsun
       g.globalAlpha = m.fade * (0.35 + 0.25 * Math.sin(time * 20));
@@ -296,6 +369,11 @@ export function renderMeteors(
   g.globalAlpha = 1;
   g.globalCompositeOperation = 'source-over';
 }
+
+/** Işınlanma uyarı süresi (sn) */
+export const BLINK_WARN = 0.42;
+/** Prizma pırıltı renkleri (gökkuşağı üçlüsü) */
+export const PRISM_COLS = ['#FF5C8A', '#FFE14D', '#4DD8FF'] as const;
 
 /** Buz Kalesi kristallerinin dünya konumu */
 export function shieldPos(m: Meteor, i: number, time: number): [number, number] {

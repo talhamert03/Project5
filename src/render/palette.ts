@@ -32,6 +32,11 @@ export const METEOR_COLORS = {
   ice: '#A8E6FF',
   phantom: '#C79BFF',
   nova: '#FF4FD8',
+  blink: '#B8FF3D',
+  flare: '#FF9A1F',
+  prism: '#E8DEFF',
+  mender: '#4DFF9A',
+  wisp: '#FF6EB4',
 } as const;
 
 /** Boss türlerine göre ışıma rengi: Kaya Titanı, Kuyruklu Kraliçe, Buz Kalesi, Tekillik, İkiz Yıldızlar */

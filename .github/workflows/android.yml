@@ -15,7 +15,7 @@ jobs:
     env:
       HAS_KEYSTORE: ${{ secrets.MK_KEYSTORE_BASE64 != '' }}
       MK_VERSION_CODE: ${{ github.run_number }}
-      MK_VERSION_NAME: '1.3.0'
+      MK_VERSION_NAME: '1.4.0'
     steps:
       - uses: actions/checkout@v5
 

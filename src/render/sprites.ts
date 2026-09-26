@@ -275,8 +275,8 @@ function drawMeteor(kind: keyof typeof METEOR_COLORS, variant: number, armor: bo
   const bossType = kind === 'boss' ? variant : -1;
   const glowCol = kind === 'boss' ? BOSS_COLORS[variant] : METEOR_COLORS[kind];
   const [gr, gg, gb] = hexToRgb(glowCol);
-  const crystal = kind === 'ice' || bossType === 2;
-  const smooth = kind === 'comet' || kind === 'phantom' || bossType === 3 || bossType === 4;
+  const crystal = kind === 'ice' || kind === 'prism' || kind === 'mender' || bossType === 2;
+  const smooth = kind === 'comet' || kind === 'phantom' || kind === 'blink' || kind === 'wisp' || bossType === 3 || bossType === 4;
 
   // Dış hat: kaya (düzensiz), kristal (altıgen), pürüzsüz (kuyruklu yıldız, hayalet)
   const n = crystal ? 6 : kind === 'fast' ? 7 : smooth ? 20 : 16;
@@ -333,6 +333,21 @@ function drawMeteor(kind: keyof typeof METEOR_COLORS, variant: number, armor: bo
   } else if (kind === 'nova') {
     light = '#c24aa0';
     dark = '#2a0624';
+  } else if (kind === 'blink') {
+    light = '#f0ffd0';
+    dark = '#2e5a06';
+  } else if (kind === 'flare') {
+    light = '#ffd27a';
+    dark = '#5a1400';
+  } else if (kind === 'prism') {
+    light = '#ffffff';
+    dark = '#6a5aa8';
+  } else if (kind === 'mender') {
+    light = '#e9fff2';
+    dark = '#0c6a3c';
+  } else if (kind === 'wisp') {
+    light = '#ffe3f2';
+    dark = '#9a1250';
   }
   const body = g.createRadialGradient(cx - R * 0.4, cy - R * 0.45, R * 0.1, cx, cy, R * 1.05);
   body.addColorStop(0, light);
@@ -347,8 +362,19 @@ function drawMeteor(kind: keyof typeof METEOR_COLORS, variant: number, armor: bo
 
   if (crystal) {
     // Altıgen kristal: merkezden kenarlara açık/koyu yüzeyler + iç parıltı
+    // prizma: her yüzey gökkuşağının bir rengi; şifa: yeşil tonlar
+    const prismFill = ['rgba(255,92,138,0.45)', 'rgba(255,225,77,0.45)', 'rgba(120,255,140,0.4)', 'rgba(77,216,255,0.45)', 'rgba(150,120,255,0.45)', 'rgba(255,140,60,0.4)'];
     for (let i = 0; i < 6; i++) {
-      g.fillStyle = i % 2 ? `rgba(255,255,255,${rng.range(0.18, 0.32)})` : `rgba(20,60,110,${rng.range(0.12, 0.25)})`;
+      g.fillStyle =
+        kind === 'prism'
+          ? prismFill[i]
+          : kind === 'mender'
+            ? i % 2
+              ? `rgba(220,255,235,${rng.range(0.2, 0.34)})`
+              : `rgba(0,90,50,${rng.range(0.15, 0.3)})`
+            : i % 2
+              ? `rgba(255,255,255,${rng.range(0.18, 0.32)})`
+              : `rgba(20,60,110,${rng.range(0.12, 0.25)})`;
       g.beginPath();
       g.moveTo(cx, cy);
       g.lineTo(pts[i * 2], pts[i * 2 + 1]);
@@ -369,7 +395,41 @@ function drawMeteor(kind: keyof typeof METEOR_COLORS, variant: number, armor: bo
     core.addColorStop(1, 'rgba(200,240,255,0)');
     g.fillStyle = core;
     g.fillRect(0, 0, size, size);
-  } else if (kind === 'comet' || bossType === 1) {
+    if (kind === 'mender') {
+      // parlayan artı: şifa
+      g.lineCap = 'round';
+      for (const [w, col] of [
+        [R * 0.34, 'rgba(120,255,180,0.45)'],
+        [R * 0.18, 'rgba(255,255,255,0.95)'],
+      ] as const) {
+        g.strokeStyle = col;
+        g.lineWidth = w;
+        g.beginPath();
+        g.moveTo(cx - R * 0.42, cy);
+        g.lineTo(cx + R * 0.42, cy);
+        g.moveTo(cx, cy - R * 0.42);
+        g.lineTo(cx, cy + R * 0.42);
+        g.stroke();
+      }
+    }
+  } else if (kind === 'blink') {
+    // iç içe dönen geçit halkaları
+    g.lineCap = 'round';
+    for (let i = 0; i < 4; i++) {
+      const rr = R * (0.22 + i * 0.18);
+      const a0 = rng.range(0, TAU);
+      g.strokeStyle = `rgba(225,255,150,${0.75 - i * 0.14})`;
+      g.lineWidth = R * 0.07;
+      g.beginPath();
+      g.arc(cx, cy, rr, a0, a0 + Math.PI * 1.25);
+      g.stroke();
+    }
+    const core = g.createRadialGradient(cx, cy, 0, cx, cy, R * 0.35);
+    core.addColorStop(0, 'rgba(255,255,255,0.95)');
+    core.addColorStop(1, 'rgba(200,255,120,0)');
+    g.fillStyle = core;
+    g.fillRect(0, 0, size, size);
+  } else if (kind === 'comet' || kind === 'wisp' || bossType === 1) {
     // Buzlu çekirdek: parlak yüzeyler ve içten gelen ışık
     for (let i = 0; i < 7; i++) {
       g.fillStyle = `rgba(255,255,255,${rng.range(0.08, 0.3)})`;
@@ -395,10 +455,10 @@ function drawMeteor(kind: keyof typeof METEOR_COLORS, variant: number, armor: bo
       g.fillStyle = pg;
       g.fillRect(x - r, y - r, r * 2, r * 2);
     }
-  } else if (kind === 'nova' || bossType === 3 || bossType === 4) {
-    // Parlayan çekirdek ve ondan yayılan ışık çatlakları
+  } else if (kind === 'nova' || kind === 'flare' || bossType === 3 || bossType === 4) {
+    // Parlayan çekirdek ve ondan yayılan ışık çatlakları (alev meteorunda lav)
     const core = g.createRadialGradient(cx, cy, 0, cx, cy, R * 0.55);
-    const hot = bossType === 3 ? '200,150,255' : bossType === 4 ? '255,230,150' : '255,170,240';
+    const hot = bossType === 3 ? '200,150,255' : bossType === 4 ? '255,230,150' : kind === 'flare' ? '255,215,110' : '255,170,240';
     core.addColorStop(0, `rgba(${hot},0.95)`);
     core.addColorStop(1, `rgba(${hot},0)`);
     g.fillStyle = core;

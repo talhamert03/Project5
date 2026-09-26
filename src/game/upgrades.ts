@@ -98,7 +98,8 @@ export const UPGRADES: UpgradeDef[] = [
   // ── Sıradan: temel ekonomi, küçük ama güvenilir adımlar
   { id: 'ink_regen', rarity: Rarity.Common, max: 5, icon: 'drop', apply: (s) => (s.inkRegen *= 1.2), value: () => '20' },
   { id: 'ink_max', rarity: Rarity.Common, max: 5, icon: 'well', apply: (s) => (s.maxInk += 22), value: () => '22' },
-  { id: 'line_life', rarity: Rarity.Common, max: 4, icon: 'hourglass', apply: (s) => (s.lineLife *= 1.3), value: () => '30' },
+  // stratejik çizgi: küçük bir artış (sık seçilir, duvar kurmayı kolaylaştırmasın)
+  { id: 'line_life', rarity: Rarity.Common, max: 3, icon: 'hourglass', apply: (s) => (s.lineLife *= 1.06), value: () => '6' },
   {
     id: 'bounce',
     rarity: Rarity.Common,

@@ -28,6 +28,9 @@ export class HudView {
   private dock!: HTMLElement;
   private dockItems: Array<{ el: HTMLElement; ring: SVGCircleElement; sec: HTMLElement; key: number; ready: boolean }> = [];
   private bossLabel!: HTMLElement;
+  private feverEl!: HTMLElement;
+  private feverBar!: HTMLElement;
+  private lastFever = -1;
 
   private shownScore = 0;
   private lastScoreText = '';
@@ -81,6 +84,7 @@ export class HudView {
         <div class="bar"><i id="h-bossfill" style="--w:100%"></i></div>
       </div>
       <div class="hint" id="h-hint" hidden></div>
+      <div class="fever" id="h-fever" hidden><b>${t('hud.fever')}</b><span><i id="h-feverbar"></i></span></div>
       <div class="skill-dock" id="h-dock"></div>
       <div class="fps" id="h-fps" hidden></div>`;
     const $ = <T extends HTMLElement>(id: string): T => this.root.querySelector('#' + id) as T;
@@ -100,6 +104,8 @@ export class HudView {
     this.hintEl = $('h-hint');
     this.fpsEl = $('h-fps');
     this.dock = $('h-dock');
+    this.feverEl = $('h-fever');
+    this.feverBar = $('h-feverbar');
     this.dockItems = [];
     this.bossLabel = $('h-bosslabel');
     this.invalidate();
@@ -115,6 +121,7 @@ export class HudView {
     this.lastBoss = -2;
     this.lastCoins = -1;
     for (const d of this.dockItems) d.key = -1;
+    this.lastFever = -1;
   }
 
   /** Eğitimde yetenek doku gizlenir */
@@ -285,6 +292,17 @@ export class HudView {
 
     // yetenek doku: bekleme halkası (her %1'de bir) ve kalan saniye
     this.updateDock(h.skills);
+
+    // Mürekkep Ateşi göstergesi (transform ile küçülen bar)
+    const fv = Math.round(h.fever * 200);
+    if (fv !== this.lastFever) {
+      if ((fv > 0) !== (this.lastFever > 0)) {
+        this.feverEl.hidden = fv <= 0;
+        this.combo.classList.toggle('fever', fv > 0);
+      }
+      this.lastFever = fv;
+      if (fv > 0) this.feverBar.style.transform = `scaleX(${(fv / 200).toFixed(3)})`;
+    }
 
     if (h.coins !== this.lastCoins) {
       const bump = this.lastCoins >= 0 && h.coins > this.lastCoins;

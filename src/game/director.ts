@@ -11,10 +11,12 @@ export interface Spawn {
   vy: number;
   /** boss dalgasında boss türü */
   boss?: number;
+  /** salınım evresi (yılan dizisinde hepsi aynı yoldan iner) */
+  ph?: number;
 }
 
 /** Türlerin ilk görüldüğü dalga (SPAWN_KINDS sırası) */
-const INTRO_WAVE = [1, 2, 3, 4, 7, 9, 12, 6];
+const INTRO_WAVE = [1, 2, 3, 4, 7, 9, 12, 6, 5, 6, 4, 8];
 
 export interface DirectorMods {
   speed: number;
@@ -41,6 +43,8 @@ export class Director {
   bias: number[] = [1, 1, 1, 1, 1, 1, 1, 1];
   /** bu dalganın boss türü */
   bossType = 0;
+  /** hasarlı mahalle sayısı (şifa kristali şansı) */
+  hurt = 0;
 
   constructor(
     seed: number,
@@ -66,9 +70,11 @@ export class Director {
     const r = this.rng;
     const golden = (w >= 2 ? 0.035 : 0) * this.mods.golden + this.goldenBonus;
     if (r.chance(golden)) return MK.Golden;
+    // şehir hasarlıysa ara sıra şifa kristali
+    if (w >= 3 && this.hurt > 0 && r.chance(Math.min(0.06, 0.014 * this.hurt))) return MK.Mender;
     const ww = this.mods.chaos ? Math.max(w, 14) : w;
     // her tür tanıtıldığı dalgada hafif başlar, zamanla bir tavana kadar artar
-    const cap = [1, 0.45, 0.3, 0.28, 0.22, 0.22, 0.2, 0.18];
+    const cap = [1, 0.45, 0.3, 0.28, 0.22, 0.22, 0.2, 0.18, 0.2, 0.14, 0.12, 0.2];
     const weights = SPAWN_KINDS.map((_, i) => {
       if (i === 0) return 1;
       const since = ww - INTRO_WAVE[i];
@@ -147,6 +153,7 @@ export class Director {
         pw(6, 0.28), // yağmur
         pw(8, 0.22), // kuyruklu yıldız sağanağı
         pw(10, 0.2), // makas: iki köşeden aynı anda çapraz kuyruklu yıldız
+        pw(4, 0.3), // yılan: aynı yoldan dalgalanarak inen kıvılcımlar
       ]);
       let n = 1;
       if (pattern === 0) {
@@ -201,6 +208,16 @@ export class Director {
         // aynı köşeden art arda üç kuyruklu yıldız
         n = 3;
         for (let i = 0; i < n; i++) add(t + i * 0.42, MK.Comet, 0, 0, 0);
+      } else if (pattern === 9) {
+        // yılan: 5-7 kıvılcım aynı salınımla art arda (tek çizgiyle kombo fırsatı)
+        n = r.int(5, 5 + Math.min(2, Math.floor(wave / 6)));
+        const x = r.range(170, 550);
+        const ph = r.range(0, Math.PI * 2);
+        const [vx, vy] = aim(x, MK.Wisp, speed);
+        for (let i = 0; i < n; i++) {
+          const rr = KINDS[MK.Wisp].r * this.mods.size;
+          this.queue.push({ t: t + i * 0.2, kind: MK.Wisp, x, y: -rr - 12, vx: vx * 0.35, vy, ph });
+        }
       } else {
         // makas: iki kuyruklu yıldız karşı köşelerden aynı anda, ortada kesişir
         n = 2;

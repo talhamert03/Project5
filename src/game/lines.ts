@@ -1,4 +1,4 @@
-import { clamp, hsl } from '../core/math';
+import { RAINBOW, clamp } from '../core/math';
 import { blit, type Sprites } from '../render/sprites';
 import type { Pen } from './pens';
 
@@ -227,7 +227,8 @@ export class LineManager {
     }
   }
 
-  render(g: CanvasRenderingContext2D, pen: Pen, baseWidth: number): void {
+  /** rainbow: gökkuşağı kalemi ya da Mürekkep Ateşi (renkler sabit 72'lik paletten: yeni parıltı üretilmez) */
+  render(g: CanvasRenderingContext2D, pen: Pen, baseWidth: number, rainbow = false): void {
     g.globalCompositeOperation = 'lighter';
     g.lineCap = 'round';
     g.lineJoin = 'round';
@@ -235,7 +236,8 @@ export class LineManager {
       if (!l.alive || l.n < 1) continue;
       const a = l.alpha();
       if (a <= 0.01) continue;
-      const color = l.frozen > 0 ? '#CFF6FF' : pen.rainbow ? hsl(l.hue + this.t * 90, 95, 62) : pen.color;
+      const hue = (((l.hue + this.t * 90) % 360) + 360) % 360;
+      const color = l.frozen > 0 ? '#CFF6FF' : pen.rainbow || rainbow ? RAINBOW[Math.floor(hue / 5) % 72] : pen.color;
       const n = l.n;
       const flash = l.killT >= 0 ? 1 + (1 - l.killT / 0.16) * 1.5 : 1;
       const bw = baseWidth * (l.drawing ? 1.05 : 1);

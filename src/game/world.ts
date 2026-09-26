@@ -15,7 +15,7 @@ import { Director, type DirectorMods } from './director';
 import { Effects } from './effects';
 import { type GestureResult, type Shape as GestureShape, recognize, shapeGuide } from './gesture';
 import { type InkLine, LineManager } from './lines';
-import { BT, KINDS, MK, Meteor, renderBossRing, renderMeteors, shieldPos } from './meteors';
+import { BLINK_WARN, BT, KINDS, MK, Meteor, PRISM_COLS, renderBossRing, renderMeteors, shieldPos } from './meteors';
 import type { Pen } from './pens';
 import { type Stats, UPGRADES, UPGRADE_BY_ID, baseStats, Rarity } from './upgrades';
 
@@ -135,7 +135,8 @@ export type WorldEvent =
   | { type: 'nearMiss' }
   | { type: 'skillReady'; id: SkillId; shape: GestureShape; first: boolean }
   | { type: 'skill'; id: SkillId }
-  | { type: 'skillWait'; id: SkillId; left: number };
+  | { type: 'skillWait'; id: SkillId; left: number }
+  | { type: 'fever'; on: boolean };
 
 export type Phase = 'attract' | 'tutorial' | 'intro' | 'play' | 'cleared' | 'transition' | 'revive' | 'dying' | 'over';
 
@@ -165,6 +166,8 @@ export interface Hud {
   coins: number;
   /** açık yetenekler ve bekleme süreleri */
   skills: SkillSlot[];
+  /** Mürekkep Ateşi kalan oran (0: yok) */
+  fever: number;
 }
 
 interface Pending {
@@ -185,6 +188,16 @@ interface BlackHole {
 }
 
 const COMBO_WINDOW = 2.6;
+/** Mürekkep Ateşi: kombo eşiği, sonraki tetikler arası ve süre */
+const FEVER_AT = 15;
+const FEVER_STEP = 30;
+const FEVER_DUR = 6.5;
+/** Çizgi ömrü: bu uzunluğa kadar tam, üstünde kısalır (uzun duvarlar çabuk söner) */
+const LINE_FULL_LEN = 320;
+/** Her sektirme çizginin ömründen bu kadarını yer (aşınma) */
+const LINE_WEAR = 0.1;
+/** İlk kez görülünce adıyla tanıtılan yeni türler */
+const INTRO_KINDS: MK[] = [MK.Blink, MK.Flare, MK.Prism, MK.Mender, MK.Wisp];
 const MILESTONES = [10, 25, 50, 75, 100, 150, 200];
 const COMBO_WORD_COLORS = [C.turkuaz, C.gold, C.rose, C.violet, '#FFFFFF', C.gold, C.turkuaz];
 
@@ -255,6 +268,18 @@ export class World implements PointerSink {
   /** İkiz Yıldızlar: ikisinin döndüğü ortak merkez */
   private twinC = { x: 360, y: -110, vy: 0, base: 0, spin: 0.9 };
 
+  // Mürekkep Ateşi (yüksek komboda bedava mürekkep + gökkuşağı çizgiler)
+  feverT = 0;
+  private feverNext = FEVER_AT;
+  /** dalganın müzik yoğunluğu (ateş bitince geri dönülür) */
+  private musicLevel = 1;
+  /** bu turda tanıtılmış yeni türler */
+  private introduced = new Set<MK>();
+  private introAt = -9;
+  private introSlot = 0;
+  /** "üstte mürekkep çabuk yanar" ipucu bu turda gösterildi mi */
+  private heatHinted = false;
+
   // aktif yetenekler (şekil çizerek)
   skillSlots: SkillSlot[] = [];
   /** bu turda ilk kez hazır olan yetenekler (ipucu için) */
@@ -322,6 +347,7 @@ export class World implements PointerSink {
     bossHp: -1,
     coins: 0,
     skills: [],
+    fever: 0,
   };
 
   constructor(
@@ -402,6 +428,9 @@ export class World implements PointerSink {
     for (const k of Object.keys(METEOR_COLORS) as Array<keyof typeof METEOR_COLORS>) {
       reg('m_' + k, METEOR_COLORS[k]);
     }
+    reg('menderHot', METEOR_COLORS.mender, true);
+    reg('blinkHot', METEOR_COLORS.blink, true);
+    PRISM_COLS.forEach((c, i) => reg('rb' + i, c, true));
     this.sp.smoke = this.parts.register('smoke', S.smoke);
     this.sp.sparkle = this.parts.register('sparkle', S.sparkle);
     this.sp.rock = this.parts.register('chip:rock', S.smoke, '#3A2B30');
@@ -421,7 +450,19 @@ export class World implements PointerSink {
 
   get inkColor(): string {
     // gökkuşağı: sabit 72 tondan biri (her karede yeni renk -> yeni parıltı görseli üretilmez)
-    return this.pen.rainbow ? RAINBOW[Math.floor((this.realT * 90) / 5) % 72] : this.pen.color;
+    if (this.pen.rainbow) return RAINBOW[Math.floor((this.realT * 90) / 5) % 72];
+    if (this.feverT > 0) return RAINBOW[Math.floor((this.realT * 240) / 5) % 72];
+    return this.pen.color;
+  }
+
+  /** Çizim tavanı: HUD'un hemen altındaki ince bant (üst atmosfer) çizime kapalı */
+  get inkCeiling(): number {
+    return this.topInset + 34;
+  }
+
+  /** Isı bölgesi: bu yükseklikten yukarıda çizilen mürekkep çabuk yanar */
+  get heatLine(): number {
+    return Math.max(this.inkCeiling + 120, this.view.H * 0.36);
   }
 
   get playing(): boolean {
@@ -522,6 +563,10 @@ export class World implements PointerSink {
     this.recordBroken = false;
     this.phoenixUsed = 0;
     this.revives = 0;
+    this.feverT = 0;
+    this.feverNext = FEVER_AT;
+    this.introduced.clear();
+    this.heatHinted = false;
     // yetenekler turun başında yarı dolu (ilk kullanım ~15-20 sn sonra)
     this.skillSlots = opts.tutorial ? [] : opts.skills.map((k) => ({ ...k, left: k.cd * 0.5 }));
     this.skillSeen.clear();
@@ -550,13 +595,16 @@ export class World implements PointerSink {
   startWave(n: number): void {
     this.wave = n;
     this.bosses = [];
+    // hasarlı mahalle varsa şifa kristali düşme şansı artar
+    this.director.hurt = this.city.blocks.filter((b) => b.hp < b.maxHp).length;
     this.director.plan(n, this.view.H, this.groundY);
     this.phase = 'intro';
     this.introT = 1.35;
     this.waveDamaged = false;
     this.city.domeCharges = Math.max(this.city.domeCharges, this.stats.domePerWave);
     this.onEvent({ type: 'wave', wave: n, boss: this.director.bossWave, bossType: this.director.bossType });
-    audio.setIntensity(this.director.bossWave ? 4 : n >= 7 ? 3 : n >= 3 ? 2 : 1);
+    this.musicLevel = this.director.bossWave ? 4 : n >= 7 ? 3 : n >= 3 ? 2 : 1;
+    audio.setIntensity(this.feverT > 0 ? 4 : this.musicLevel);
     audio.waveStart();
   }
 
@@ -635,6 +683,16 @@ export class World implements PointerSink {
   pointerDown(x: number, y: number, tm: number): void {
     if (!this.canDraw()) return;
     if (y > this.groundY + 10) return;
+    if (y < this.inkCeiling && this.phase !== 'tutorial') {
+      // üst atmosfer: mürekkep tutunmaz
+      if (this.inkFlash <= 0) {
+        this.inkFlash = 0.5;
+        this.fx.text(t('w.tooHigh'), clamp(x, 110, 610), this.inkCeiling + 40, 22, C.ember, true, 0.8);
+        this.parts.burst(x, this.inkCeiling, Math.round(8 * this.q), this.sp.flame, 30, 160, 0.5, 12, { drag: 3, gravity: -120 });
+        haptics.light();
+      }
+      return;
+    }
     if (this.ink < 4) {
       this.inkEmptyFx();
       return;
@@ -655,9 +713,11 @@ export class World implements PointerSink {
     const l = this.lines.current;
     if (!l) return;
     y = Math.min(y, this.groundY + 10);
+    if (this.phase !== 'tutorial') y = Math.max(y, this.inkCeiling);
     const d = l.distTo(x, y);
     if (d < 8) return;
-    const cost = d * this.stats.drawCost;
+    // Mürekkep Ateşi: çizim bedava
+    const cost = this.feverT > 0 ? 0 : d * this.stats.drawCost;
     // bir yetenek hazırsa mürekkep bitse de şekil tamamlanabilir (tanınmazsa çizgi söner)
     if (cost > this.ink && this.anySkillReady && l.len < OVERDRAW_LEN) {
       const added = l.extend(x, y, tm);
@@ -697,6 +757,7 @@ export class World implements PointerSink {
     const l = this.lines.end(this.stats.lineLife);
     if (l && l.n >= 2) {
       if (this.trySkillGesture(l)) return;
+      this.setLineLife(l);
       if (this.overdraw) {
         // mürekkepsiz çizilen ama şekle uymayan çizgi kalıcı olmaz
         this.dissolveLine(l);
@@ -709,6 +770,29 @@ export class World implements PointerSink {
       this.parts.burst(l.lastX, l.lastY, Math.round(6 * this.q), this.sp.penHot, 30, 140, 0.4, 10, { drag: 4 });
     }
     this.overdraw = false;
+  }
+
+  /**
+   * Stratejik çizgi: uzun duvarlar ve üst atmosfere çizilen çizgiler çabuk söner.
+   * Ömür = temel süre x uzunluk çarpanı x ısı çarpanı (menü demosu ve eğitimde uygulanmaz).
+   */
+  private setLineLife(l: InkLine): void {
+    if (this.phase !== 'play' && this.phase !== 'intro') return;
+    const lenF = l.len <= LINE_FULL_LEN ? 1 : clamp(1 - (l.len - LINE_FULL_LEN) / 800, 0.5, 1);
+    let sy = 0;
+    for (let i = 0; i < l.n; i++) sy += l.pts[i * 2 + 1];
+    const heat = this.heatOf(sy / l.n);
+    const life = this.stats.lineLife * lenF * (1 - heat * 0.6);
+    l.life = l.maxLife = life;
+    if (heat > 0.35 && !this.heatHinted) {
+      this.heatHinted = true;
+      this.fx.text(t('w.heat'), 360, this.heatLine + 30, 22, '#FFB070', true, 1.6);
+    }
+  }
+
+  /** 0: serin (normal ömür) .. 1: tavanın dibi (en hızlı yanar) */
+  private heatOf(y: number): number {
+    return clamp((this.heatLine - y) / (this.heatLine - this.inkCeiling), 0, 1);
   }
 
   private inkEmptyFx(): void {
@@ -784,7 +868,7 @@ export class World implements PointerSink {
     if (this.playing) {
       this.runTime += realDt;
       // mürekkep: yenilenme + basılı tutma bedeli (sonsuz ağır çekimi engeller)
-      if (this.drawing) {
+      if (this.drawing && this.feverT <= 0) {
         this.ink -= 5 * realDt;
         if (this.ink <= 0) {
           this.ink = 0;
@@ -795,8 +879,13 @@ export class World implements PointerSink {
             this.inkEmptyFx();
           }
         }
-      } else {
+      } else if (!this.drawing) {
         this.ink = Math.min(this.stats.maxInk, this.ink + this.stats.inkRegen * sdt * (this.warpT > 0 ? 2.5 : 1));
+      }
+      if (this.feverT > 0) {
+        this.feverT -= realDt;
+        this.ink = Math.min(this.stats.maxInk, this.ink + 40 * realDt);
+        if (this.feverT <= 0) this.endFever();
       }
       // kombo zamanlayıcı
       if (this.combo > 0) {
@@ -844,6 +933,7 @@ export class World implements PointerSink {
     h.bossHp = hp > 0 ? hp / max : -1;
     h.coins = this.coins;
     h.skills = this.skillSlots;
+    h.fever = this.feverT > 0 ? this.feverT / FEVER_DUR : 0;
   }
 
   private updateSpawns(sdt: number): void {
@@ -852,7 +942,11 @@ export class World implements PointerSink {
     while (d.qi < d.queue.length && d.queue[d.qi].t <= d.time) {
       const s = d.queue[d.qi++];
       if (s.kind === MK.Boss) this.spawnBoss(s.boss ?? 0);
-      else this.spawn(s.kind, s.x, s.y, s.vx, s.vy);
+      else {
+        const m = this.spawn(s.kind, s.x, s.y, s.vx, s.vy);
+        // yılan dizisi: aynı salınım evresi -> hepsi aynı yoldan iner
+        if (m && s.ph !== undefined) m.swayPh = s.ph;
+      }
     }
     if (d.bossWave && this.bossAlive) {
       const e = d.escort(sdt, this.view.H, this.groundY);
@@ -894,6 +988,18 @@ export class World implements PointerSink {
     if (!m) return null;
     const size = this.opts?.mod?.size ?? 1;
     m.spawn(kind, x, y, vx, vy, kind === MK.Boss ? 1 : size);
+    if ((this.phase === 'play' || this.phase === 'intro') && !this.introduced.has(kind) && INTRO_KINDS.includes(kind)) {
+      // yeni tür ilk kez: adı ve ne yaptığı kısa bir tanıtımla
+      this.introduced.add(kind);
+      const key = KINDS[kind].key;
+      const tx = clamp(x, 170, 550);
+      // aynı anda birden fazla tanıtım: alt alta dizilir
+      this.introSlot = this.realT - this.introAt < 1.8 ? (this.introSlot + 1) % 3 : 0;
+      this.introAt = this.realT;
+      const ty = this.topInset + 70 + this.introSlot * 64;
+      this.fx.text(t('mk.' + key), tx, ty, 24, METEOR_COLORS[key], true, 1.8);
+      this.fx.text(t('mk.' + key + '.d'), tx, ty + 30, 17, C.paper, false, 1.8);
+    }
     if (kind === MK.Phantom) {
       // yüzü hep dik dursun
       m.rot = 0;
@@ -982,6 +1088,10 @@ export class World implements PointerSink {
       if (m.kind === MK.Golden && !m.friendly) {
         m.vx = m.baseV + Math.sin(m.age * 2.4 + m.swayPh) * 90 * this.speedScale;
       }
+      if (m.kind === MK.Wisp && !m.friendly) {
+        m.vx = m.baseV + Math.sin(m.age * 3.1 + m.swayPh) * 170 * this.speedScale;
+      }
+      if (m.kind === MK.Blink && !m.friendly && inGame && m.blinkN < 2) this.updateBlink(m, mdt);
       if (m.kind === MK.Phantom) {
         // hayalet: ~2.3 sn'lik döngüde kısa süre saydamlaşır; şehre yaklaşınca hep görünür (adil olsun)
         const ph = (m.age + m.swayPh) % 2.3;
@@ -1011,9 +1121,11 @@ export class World implements PointerSink {
         if (m.x < m.r && m.vx < 0) {
           m.x = m.r;
           m.vx = -m.vx;
+          if (m.friendly) m.wallHits++;
         } else if (m.x > W - m.r && m.vx > 0) {
           m.x = W - m.r;
           m.vx = -m.vx;
+          if (m.friendly) m.wallHits++;
         }
       }
       if (!m.active) continue;
@@ -1022,6 +1134,20 @@ export class World implements PointerSink {
       if (m.trailAcc >= 1 / 60) {
         m.trailAcc = 0;
         m.pushTrail();
+      }
+      // alev meteoru: yukarı savrulan alevler
+      if (m.kind === MK.Flare && !m.friendly && Math.random() < dt * 26 * this.q) {
+        this.parts.spawn({
+          x: m.x + fx.r(-m.r, m.r) * 0.6,
+          y: m.y + fx.r(-m.r, m.r) * 0.4,
+          vx: -m.vx * 0.2 + fx.r(-40, 40),
+          vy: -m.vy * 0.25 - fx.r(40, 120),
+          life: fx.r(0.3, 0.6),
+          size: m.r * fx.r(0.7, 1.2),
+          sprite: this.sp.flame,
+          drag: 2,
+          gravity: -160,
+        });
       }
       // yanma parçacıkları
       if (Math.random() < dt * (m.kind === MK.Boss ? 40 : 14) * this.q) {
@@ -1403,6 +1529,10 @@ export class World implements PointerSink {
     m.fade = 0;
     if (wasHostile) {
       this.chargeSkills(0.4);
+      // aşınma: çok sektiren çizgi (duvar) daha çabuk söner
+      if (!l.drawing && (this.phase === 'play' || this.phase === 'intro')) l.life = Math.max(Math.min(l.life, 0.3), l.life - l.maxLife * LINE_WEAR);
+      if (m.kind === MK.Prism) this.prismSplit(m, l, px, py, target);
+      if (m.kind === MK.Mender && this.phase !== 'attract') this.mend(px, py);
       // buz kristali dokunduğu çizgiyi dondurur: kısa süre sonra kırılır
       if (m.kind === MK.Ice && l.frozen <= 0 && this.phase !== 'attract') {
         l.frozen = 0.42;
@@ -1467,6 +1597,16 @@ export class World implements PointerSink {
         }
       }
       if (this.phase === 'tutorial') this.tutFrozen = false;
+      if (m.kind === MK.Flare && this.phase !== 'attract') {
+        // alev meteoru çizgiyi yakar (kalın uç kartı dayanır)
+        if (this.stats.heavyProof) l.wobble(s, 16);
+        else {
+          this.shatterLine(l);
+          this.fx.text(t('w.burn'), px, py - 36, 22, METEOR_COLORS.flare, true, 0.9);
+          this.parts.burst(px, py, Math.round(18 * this.q), this.sp.flame, 60, 260, 0.6, 22, { drag: 3, gravity: -220 });
+          audio.burn();
+        }
+      }
     } else {
       this.addScore(5, px, py, false);
       audio.deflect(Math.max(0, this.combo - 2));
@@ -1544,6 +1684,7 @@ export class World implements PointerSink {
           audio.shatter();
           this.consumeFriendly(a, cx, cy);
         } else {
+          if (a.wallHits > 0) this.bankShot(a, cx, cy);
           this.killMeteor(b, a.chainDepth);
           this.consumeFriendly(a, cx, cy);
         }
@@ -1569,6 +1710,13 @@ export class World implements PointerSink {
       this.explosionFx(x, y, METEOR_COLORS.nova, 1.4);
       this.fx.ring(x, y, 20, this.stats.explosionR * 2.2, 0.5, METEOR_COLORS.nova, 14);
       this.fx.shake(0.3);
+      return;
+    }
+    if (a.kind === MK.Flare) {
+      // sektirilen alev meteoru ateş topu gibi patlar
+      this.queueExplosion(x, y, this.stats.explosionR * 1.4, a.chainDepth + 1, 0);
+      this.explosionFx(x, y, METEOR_COLORS.flare, 1.1);
+      this.parts.burst(x, y, Math.round(16 * this.q), this.sp.flame, 80, 320, 0.7, 26, { drag: 3, gravity: -200 });
       return;
     }
     this.queueExplosion(x, y, this.stats.explosionR, a.chainDepth + 1, 0);
@@ -1752,6 +1900,7 @@ export class World implements PointerSink {
       this.fx.shake(0.3);
     }
     if (m.kind === MK.Ice && inGame) this.frostNova(m.x, m.y, 190, 2, true);
+    if (m.kind === MK.Mender && inGame && !m.friendly) this.mend(m.x, m.y);
     if (m.kind === MK.Splitter) {
       const spd = this.director.baseSpeed(this.view.H) * 1.1;
       for (const a of [-0.7, 0, 0.7]) {
@@ -1770,6 +1919,108 @@ export class World implements PointerSink {
     if (depth < 3) this.queueExplosion(m.x, m.y, this.stats.explosionR * (depth === 0 ? 1 : 0.75), depth + 1, 0.05 + depth * 0.03);
     if (inGame && this.stats.blackHole > 0 && this.combo > 0 && this.combo % 15 === 0) this.spawnHole(m.x, m.y);
     if (this.phase === 'tutorial' && this.tutStep === 1) this.setTutStep(2);
+  }
+
+  /** Işınlanan: eşik yüksekliklerinde uyarır, sonra yana ışınlanır */
+  private updateBlink(m: Meteor, dt: number): void {
+    if (m.blinkT > 0) {
+      m.blinkT -= dt;
+      if (m.blinkT <= 0) {
+        const x0 = m.x;
+        this.fx.ring(x0, m.y, 6, 90, 0.4, METEOR_COLORS.blink, 6);
+        this.parts.burst(x0, m.y, Math.round(10 * this.q), this.sp.blinkHot, 60, 240, 0.4, 12, { drag: 4, shape: Shape.Streak });
+        m.x = m.blinkX;
+        m.trailN = 0;
+        m.blinkN++;
+        m.flash = 0.25;
+        this.fx.ring(m.x, m.y, 60, 6, 0.35, METEOR_COLORS.blink, 6);
+        this.parts.burst(m.x, m.y, Math.round(10 * this.q), this.sp.blinkHot, 40, 200, 0.4, 12, { drag: 4 });
+        audio.blink();
+      }
+      return;
+    }
+    const at = this.groundY * (m.blinkN === 0 ? 0.3 : 0.54);
+    if (m.y > at && m.y < this.groundY - 230) {
+      const dir = m.x < 220 ? 1 : m.x > 500 ? -1 : fx.r(0, 1) < 0.5 ? -1 : 1;
+      m.blinkX = clamp(m.x + dir * fx.r(170, 250), 50, 670);
+      m.blinkT = BLINK_WARN;
+    }
+  }
+
+  /** Prizma: sektirilince iki dost parçaya daha bölünür (üçlü yelpaze) */
+  private prismSplit(m: Meteor, l: InkLine, px: number, py: number, speed: number): void {
+    const base = Math.atan2(m.vy, m.vx);
+    for (const a of [-0.42, 0.42]) {
+      const c = this.spawn(MK.Shard, m.x, m.y, Math.cos(base + a) * speed, Math.sin(base + a) * speed);
+      if (c) {
+        c.friendly = true;
+        c.mirrored = true;
+        c.lastLine = l.id;
+        c.lineCd = 0.3;
+        c.flash = 0.25;
+      }
+    }
+    for (let i = 0; i < 3; i++) {
+      this.parts.burst(px, py, Math.round(6 * this.q), this.sp['rb' + i], 80, 360, 0.5, 12, { drag: 3, shape: Shape.Streak });
+    }
+    this.fx.text(t('w.prism'), px, py - 40, 24, PRISM_COLS[1], true, 0.9);
+    audio.prism();
+  }
+
+  /** Şifa kristali: en hasarlı mahalle onarılır, mürekkep dolar (hasar yoksa puan) */
+  private mend(x: number, y: number): void {
+    const hurt = this.city.blocks.some((b) => b.hp < b.maxHp);
+    if (hurt) this.repairOne();
+    else {
+      this.addScore(200, x, y, true);
+      audio.repair();
+    }
+    this.ink = Math.min(this.stats.maxInk, this.ink + 30);
+    this.fx.home(x, y, this.hudInk.x, this.hudInk.y, METEOR_COLORS.mender, 26, 0.6);
+    this.fx.ring(x, y, 10, 150, 0.6, METEOR_COLORS.mender, 10);
+    this.parts.burst(x, y, Math.round(20 * this.q), this.sp.menderHot, 80, 340, 0.8, 16, { drag: 2.5, gravity: -80 });
+    this.fx.text(t('w.mend'), x, y - 44, 26, METEOR_COLORS.mender, true, 1.1);
+    haptics.success();
+  }
+
+  /** Bilardo: duvardan sekip düşmanı vuran dost meteor */
+  private bankShot(a: Meteor, x: number, y: number): void {
+    if (this.phase === 'attract') return;
+    const bonus = 120 * Math.min(3, a.wallHits);
+    this.addScore(bonus, x, y, false);
+    this.fx.text(t('w.bank', { n: Math.round(bonus * this.mult) }), x, y - 60, 26, C.gold, true, 1.1);
+    this.parts.burst(x, y, Math.round(12 * this.q), this.sp.goldHot, 100, 380, 0.5, 12, { drag: 3, shape: Shape.Streak });
+    audio.bank();
+    a.wallHits = 0;
+  }
+
+  private startFever(): void {
+    const H = this.view.H;
+    const was = this.feverT > 0;
+    this.feverT = FEVER_DUR;
+    this.fx.text(t('w.fever'), 360, H * 0.33, 50, C.gold, true, 1.6);
+    this.fx.text(t('w.feverSub'), 360, H * 0.33 + 50, 22, C.paper, true, 1.5);
+    this.fx.flash(C.gold, 0.22);
+    this.hitstop = Math.max(this.hitstop, 0.05);
+    for (let i = 0; i < 3; i++) {
+      this.parts.burst(360 + fx.r(-220, 220), H * fx.r(0.28, 0.4), Math.round(14 * this.q), this.sp['rb' + i], 100, 460, 1, 16, {
+        drag: 2,
+        gravity: 200,
+        shape: Shape.Streak,
+      });
+    }
+    this.ink = this.stats.maxInk;
+    audio.feverStart();
+    if (!was) audio.setIntensity(4);
+    haptics.success();
+    this.onEvent({ type: 'fever', on: true });
+  }
+
+  private endFever(): void {
+    this.feverT = 0;
+    audio.feverEnd();
+    audio.setIntensity(this.musicLevel);
+    this.onEvent({ type: 'fever', on: false });
   }
 
   private nearestHostiles(x: number, y: number, range: number, n: number): Meteor[] {
@@ -1795,7 +2046,8 @@ export class World implements PointerSink {
 
   private addScore(base: number, x: number, y: number, show: boolean): void {
     if (this.phase === 'attract') return;
-    const gained = Math.round(base * this.mult * this.stats.scoreMult * (this.opts?.mod?.scoreMult ?? 1));
+    const fever = this.feverT > 0 ? 1.5 : 1;
+    const gained = Math.round(base * this.mult * fever * this.stats.scoreMult * (this.opts?.mod?.scoreMult ?? 1));
     this.score += gained;
     if (show) {
       const size = 22 + Math.min(18, gained / 60);
@@ -1828,6 +2080,10 @@ export class World implements PointerSink {
     this.comboT = COMBO_WINDOW;
     this.mult = 1 + Math.min(this.combo, 100) * 0.04;
     if (this.combo > this.maxCombo) this.maxCombo = this.combo;
+    if (this.combo >= this.feverNext && (this.phase === 'play' || this.phase === 'intro')) {
+      this.feverNext = this.combo + FEVER_STEP;
+      this.startFever();
+    }
     if (this.stats.inkSurge > 0 && this.combo % 10 === 0) {
       this.ink = Math.min(this.stats.maxInk, this.ink + this.stats.inkSurge);
       this.fx.home(360, this.view.H * 0.45, this.hudInk.x, this.hudInk.y, this.pen.color, 26, 0.5);
@@ -1852,6 +2108,7 @@ export class World implements PointerSink {
     }
     this.combo = 0;
     this.mult = 1;
+    this.feverNext = FEVER_AT;
   }
 
   /** Zincir bitti: 3+ patlamada tek, büyük bir etiket ve kare bonus */
@@ -1874,6 +2131,7 @@ export class World implements PointerSink {
 
   private breakCombo(): void {
     if (this.combo >= 5) this.fx.text(t('w.comboBreak'), 360, this.view.H * 0.5, 30, C.crimson, true, 1.2);
+    this.feverNext = FEVER_AT;
     this.combo = 0;
     this.mult = 1;
     this.comboT = 0;
@@ -1927,6 +2185,12 @@ export class World implements PointerSink {
     if (m.kind === MK.Golden) {
       this.explosionFx(x, y, C.gold, 0.6);
       this.fx.text(t('w.escaped'), x, y - 40, 20, C.gold);
+      return;
+    }
+    if (m.kind === MK.Mender) {
+      // şifa kristali şehre zarar vermez, yalnızca söner
+      this.explosionFx(x, y, METEOR_COLORS.mender, 0.6);
+      this.fx.text(t('w.escaped'), x, y - 40, 20, METEOR_COLORS.mender);
       return;
     }
     const dmg = m.kind === MK.Boss || m.kind === MK.Nova ? 2 : 1;
@@ -2914,7 +3178,8 @@ export class World implements PointerSink {
     this.city.renderDome(g, this.inkColor);
     this.renderWarnings(g);
     this.renderHoles(g);
-    this.lines.render(g, this.pen, this.stats.lineWidth);
+    this.renderHeat(g);
+    this.lines.render(g, this.pen, this.stats.lineWidth, this.feverT > 0);
     renderMeteors(g, this.meteors, this.sprites, this.inkColor, k, tx, ty, this.realT);
     for (const b of this.bosses) if (b.active && b.kind === MK.Boss) renderBossRing(g, b, this.realT);
     this.renderSkillFx(g);
@@ -2937,6 +3202,14 @@ export class World implements PointerSink {
       g.drawImage(this.sprites.vignetteOf(this.pen.color), 0, 0, W, Hp);
       g.globalCompositeOperation = 'source-over';
     }
+    if (this.feverT > 0) {
+      // Mürekkep Ateşi: kenarlarda nabız gibi atan altın ışık
+      const fade = Math.min(1, this.feverT * 2, (FEVER_DUR - this.feverT) * 4);
+      g.globalCompositeOperation = 'lighter';
+      g.globalAlpha = fade * (0.28 + 0.14 * Math.sin(this.realT * 9));
+      g.drawImage(this.sprites.vignetteOf(C.gold), 0, 0, W, Hp);
+      g.globalCompositeOperation = 'source-over';
+    }
     const warp = 1 - this.hostileScale;
     if (warp > 0.02) {
       g.globalCompositeOperation = 'lighter';
@@ -2956,6 +3229,36 @@ export class World implements PointerSink {
       g.globalCompositeOperation = 'source-over';
     }
     g.globalAlpha = 1;
+  }
+
+  /**
+   * Üst atmosfer: tavan bandında hafif ısı parıltısı (çizerken belirginleşir) ve ısı bölgesindeki
+   * çizgilerden yükselen közler. Birkaç parıltı + seyrek parçacık: kare maliyeti çok düşük.
+   */
+  private renderHeat(g: CanvasRenderingContext2D): void {
+    if (this.phase !== 'play' && this.phase !== 'intro') return;
+    const top = this.inkCeiling;
+    const a = this.drawing ? 0.3 : 0.12;
+    g.globalCompositeOperation = 'lighter';
+    g.globalAlpha = a * (0.8 + 0.2 * Math.sin(this.realT * 3));
+    blit(g, this.sprites.glow('#FF7A4F'), -120, top - 60, WORLD_W + 240, 120);
+    g.globalAlpha = a * 0.9;
+    g.fillStyle = '#FFB070';
+    g.fillRect(0, top - 1, WORLD_W, 2);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
+    // közler: ısı bölgesindeki çizgiler yanıyor
+    if (Math.random() < 0.5) {
+      for (const l of this.lines.pool) {
+        if (!l.collidable || l.drawing) continue;
+        const i = Math.floor(Math.random() * l.n);
+        const x = l.pts[i * 2];
+        const y = l.pts[i * 2 + 1];
+        const h = this.heatOf(y);
+        if (h <= 0.05 || Math.random() > h) continue;
+        this.parts.spawn({ x, y, vx: fx.r(-20, 20), vy: fx.r(-90, -40), life: fx.r(0.4, 0.8), size: fx.r(6, 12), sprite: this.sp.flame, drag: 1.5, gravity: -60 });
+      }
+    }
   }
 
   private renderWarnings(g: CanvasRenderingContext2D): void {

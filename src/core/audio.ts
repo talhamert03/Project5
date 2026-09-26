@@ -545,6 +545,48 @@ export class AudioEngine {
     }
   }
 
+  /** Işınlanma: yukarı kayan cam sesi */
+  blink(): void {
+    if (!this.gate('blink', 0.08)) return;
+    this.tone({ type: 'sine', freq: 520, freqEnd: 1900, dur: 0.18, vol: 0.08, reverb: 0.4 });
+    this.noiseBurst({ type: 'bandpass', freq: 2400, freqEnd: 6000, q: 2, dur: 0.12, vol: 0.05 });
+  }
+
+  /** Alev meteoru çizgiyi yaktı: çıtırtılı alev */
+  burn(): void {
+    if (!this.gate('burn', 0.08)) return;
+    this.noiseBurst({ type: 'bandpass', freq: 1800, freqEnd: 500, q: 0.9, dur: 0.35, vol: 0.16 });
+    this.tone({ type: 'sawtooth', freq: 180, freqEnd: 70, dur: 0.25, vol: 0.05, lp: 900 });
+  }
+
+  /** Prizma bölündü: üç parlak çan */
+  prism(): void {
+    if (!this.gate('prism', 0.08)) return;
+    const t = this.ctx!.currentTime;
+    [0, 4, 7].forEach((d, i) => this.tone({ type: 'triangle', freq: mtof(hicaz(d + 9, 62)), dur: 0.3, vol: 0.06, when: t + i * 0.035, reverb: 0.5 }));
+  }
+
+  /** Bilardo vuruşu: tahta top tıkırtısı + çan */
+  bank(): void {
+    if (!this.gate('bank', 0.06)) return;
+    this.tone({ type: 'square', freq: 1400, dur: 0.04, vol: 0.04, lp: 4000 });
+    this.tone({ type: 'sine', freq: 1976, dur: 0.3, vol: 0.07, reverb: 0.5 });
+  }
+
+  /** Mürekkep Ateşi başladı: yükselen parlak akor */
+  feverStart(): void {
+    if (!this.ctx || !this.sfxOn) return;
+    const t = this.ctx.currentTime;
+    [0, 4, 7, 12, 16].forEach((s, i) => this.tone({ type: 'sawtooth', freq: mtof(62 + s), dur: 0.9, vol: 0.045, when: t + i * 0.05, lp: 3000, reverb: 0.6 }));
+    this.noiseBurst({ type: 'highpass', freq: 5000, dur: 0.8, vol: 0.06, attack: 0.2 });
+  }
+
+  /** Mürekkep Ateşi bitti: yumuşak iniş */
+  feverEnd(): void {
+    if (!this.ctx || !this.sfxOn) return;
+    this.tone({ type: 'triangle', freq: 880, freqEnd: 330, dur: 0.5, vol: 0.05, reverb: 0.5 });
+  }
+
   /** Satın alma / ödül: kasa çınlaması */
   purchase(): void {
     if (!this.ctx || !this.sfxOn) return;
