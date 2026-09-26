@@ -96,11 +96,11 @@ No forced ads. Watch a video only when you want to continue or double your gold.
 - Uygulama içi satın alma: Evet
 - İletişim e-postası: (Play Console'da kendi adresini gir)
 
-## Sürüm notları (1.8.0)
+## Sürüm notları (1.8.1)
 
-**TR:** Çizilen şekiller artık çok daha doğru tanınıyor (yumurta biçimli daireler, yuvarlak köşeli kareler, hızlı çizimler), yetenek beklerken ya da kilitliyken ekranda açıkça yazıyor. Kalemler, Atölye, Görevler, Rekorlar, Mağaza ve Ayarlar menüleri yeni, açık renkli ve animasyonlu tasarımda.
+**TR:** Çizilen şekiller artık çok daha doğru tanınıyor (yumurta biçimli daireler, yuvarlak köşeli kareler, hızlı çizimler); yetenek beklerken ya da kilitliyken ekranda açıkça yazıyor. Kalemler, Atölye, Görevler, Rekorlar, Mağaza ve Ayarlar menüleri ana ekranın uzay sahnesiyle bütünleşen yeni, animasyonlu tasarımda: yörüngeli gezegenler, kendini çizen mürekkep çizgileri, parlayan ilerleme çubukları.
 
-**EN:** Drawn shapes are recognised far more reliably (egg-shaped circles, rounded squares, quick strokes), and the game clearly tells you when a skill is recharging or locked. Pens, Workshop, Missions, Records, Shop and Settings get a new light, animated design.
+**EN:** Drawn shapes are recognised far more reliably (egg-shaped circles, rounded squares, quick strokes), and the game clearly tells you when a skill is recharging or locked. Pens, Workshop, Missions, Records, Shop and Settings get a new animated design that blends into the space scene: orbiting planets, self-drawing ink strokes and glowing progress bars.
 
 ## Sürüm notları (1.7.0)
 

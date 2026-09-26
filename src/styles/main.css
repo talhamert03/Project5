@@ -5249,133 +5249,252 @@ svg {
   }
 }
 
-/* ═════════════ Sürüm 1.8: açık, premium menüler (kalemler, atölye, görevler, rekorlar, mağaza, ayarlar, günlük) ═════════════ */
-.panel.light {
-  --lt-ink: #1c1f4a;
-  --lt-muted: #6b6a8e;
-  --lt-line: rgba(28, 31, 74, 0.08);
-  --lt-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 10px 22px -10px rgba(43, 32, 95, 0.22), 0 2px 0 rgba(43, 32, 95, 0.06);
-  color: var(--lt-ink);
-  color-scheme: light;
-  background:
-    radial-gradient(130% 55% at 110% -5%, rgba(62, 240, 224, 0.18), transparent 60%),
-    radial-gradient(120% 50% at -10% 105%, rgba(255, 106, 160, 0.13), transparent 60%),
-    radial-gradient(80% 40% at 50% 45%, rgba(255, 200, 87, 0.08), transparent 70%),
-    linear-gradient(180deg, #fdfbf6 0%, #f3ede1 100%);
-}
+/* ═════════════ Sürüm 1.8.1: kozmik mürekkep menüleri ═════════════
+   Menüler ana ekrandaki gökyüzünün üstünde yarı saydam bir uzay örtüsüdür: arkadaki bulutsu
+   görünür, üstünde yıldızlar göz kırpar. Üst çubuk (altın pili) ve alt sekme çubuğu ana ekranla
+   aynıdır; sekmeler arasında yalnızca içerik kayar. Kartlar ana ekranın parlak lacivert
+   karolarıyla aynı dili konuşur; başlıklar kendini çizen mürekkep çizgileriyle açılır. */
 
-/* ebru kağıdı dokusu: çok hafif mürekkep damarları */
-.panel.light::before {
+.panel-layer::before,
+.panel-layer::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.5;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360' viewBox='0 0 360 360'%3E%3Cg fill='none' stroke-linecap='round'%3E%3Cpath d='M-20 60 C 60 10, 110 120, 190 70 S 330 20, 390 90' stroke='%233ef0e0' stroke-opacity='.16' stroke-width='2'/%3E%3Cpath d='M-20 170 C 50 220, 140 130, 210 190 S 320 250, 390 180' stroke='%23b57bff' stroke-opacity='.12' stroke-width='2'/%3E%3Cpath d='M-20 290 C 70 250, 130 340, 220 290 S 330 260, 390 320' stroke='%23ff6aa0' stroke-opacity='.11' stroke-width='2'/%3E%3C/g%3E%3C/svg%3E");
-  background-size: 360px 360px;
+  opacity: 0;
+  transition: opacity 0.35s ease;
 }
 
-.panel.light > * {
+.panel-layer::before {
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgba(62, 240, 224, 0.1), transparent 60%),
+    radial-gradient(90% 50% at 100% 100%, rgba(181, 123, 255, 0.12), transparent 60%),
+    linear-gradient(180deg, rgba(6, 9, 32, 0.8) 0%, rgba(6, 9, 32, 0.72) 22%, rgba(6, 9, 32, 0.8) 50%, rgba(4, 6, 24, 0.92) 100%);
+}
+
+/* göz kırpan yıldızlar (yalnızca opaklık canlanır: GPU dostu) */
+.panel-layer::after {
+  background:
+    radial-gradient(1.4px 1.4px at 12% 18%, #fff, transparent),
+    radial-gradient(1px 1px at 28% 64%, rgba(255, 255, 255, 0.8), transparent),
+    radial-gradient(1.6px 1.6px at 46% 32%, #bff, transparent),
+    radial-gradient(1px 1px at 63% 12%, #fff, transparent),
+    radial-gradient(1.3px 1.3px at 78% 48%, rgba(255, 230, 190, 0.9), transparent),
+    radial-gradient(1px 1px at 88% 82%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 34% 90%, #e6d9ff, transparent),
+    radial-gradient(1px 1px at 8% 76%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 56% 72%, #fff, transparent),
+    radial-gradient(1px 1px at 94% 26%, #cff, transparent);
+}
+
+.panel-layer.on::before {
+  opacity: 1;
+}
+
+.panel-layer.on::after {
+  opacity: 1;
+  animation: twinkleLayer 3.6s ease-in-out infinite alternate;
+}
+
+@keyframes twinkleLayer {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.panel {
+  background: transparent;
+}
+
+/* sekme geçişinde üst çubuk sabit kalır, yalnızca içerik kayar */
+.panel.slide {
+  animation: none;
+}
+
+.panel.slide .panel-body {
+  animation: tabSlide 0.34s var(--smooth) both;
+}
+
+.panel.slide .panel-head h2 {
+  animation: fadeIn 0.3s ease both;
+}
+
+.panel-head {
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+}
+
+.panel-head h2 {
   position: relative;
+  min-width: 0;
+  padding-bottom: 6px;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
 }
 
-.panel.light .panel-head h2 {
-  color: var(--lt-ink);
+.panel-head h2 span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.panel.light .icon-btn,
-.panel.light .chip {
-  color: var(--lt-ink);
-  background: #fff;
-  border: 1px solid var(--lt-line);
-  box-shadow: 0 3px 0 rgba(43, 32, 95, 0.08), 0 8px 16px -8px rgba(43, 32, 95, 0.3);
+.head-stroke {
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  width: min(120px, 70%);
+  height: 10px;
+  overflow: visible;
 }
 
-.panel.light .chip.coin svg {
-  color: #e8a200;
+.head-stroke path {
+  fill: none;
+  stroke: var(--pac, var(--ink));
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  stroke-dasharray: 130;
+  stroke-dashoffset: 130;
+  filter: drop-shadow(0 0 5px var(--pac, var(--ink)));
+  animation: strokeIn 0.9s 0.15s var(--smooth) forwards;
 }
 
-.panel.light .lead,
-.panel.light .note {
-  color: var(--lt-muted);
+.panel.slide .head-stroke path {
+  animation-delay: 0s;
 }
 
-.panel.light .section-title {
+.panel-head .currency {
+  height: 38px;
+}
+
+.panel .lead {
+  color: #c3c0e4;
+}
+
+/* bölüm başlığı: yanında menü renginde ince bir mürekkep izi */
+.panel .section-title {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #8c89a8;
+  color: #b7b4de;
 }
 
-.panel.light .section-title::after {
+.panel .section-title::after {
   content: '';
   flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(28, 31, 74, 0.14), transparent);
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--pac, var(--ink)) 70%, transparent), transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--pac, var(--ink)) 40%, transparent);
 }
 
-/* ── vitrin ── */
+/* ── vitrin: derin uzay kartı + gezegen + yörünge + mürekkep çizgisi ── */
 .p-hero {
   position: relative;
   overflow: hidden;
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) auto;
+  grid-template-columns: 70px minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
-  margin: 2px 0 18px;
-  padding: 16px;
+  margin: 4px 0 18px;
+  padding: 16px 16px 22px;
   border-radius: 24px;
-  color: #fff;
-  background: linear-gradient(135deg, var(--h1), var(--h2));
+  background:
+    radial-gradient(80% 130% at 0% 0%, color-mix(in srgb, var(--h1) 30%, transparent), transparent 62%),
+    radial-gradient(70% 120% at 100% 100%, color-mix(in srgb, var(--h2) 32%, transparent), transparent 62%),
+    linear-gradient(160deg, rgba(26, 32, 98, 0.94), rgba(9, 12, 42, 0.96));
+  border: 1.5px solid color-mix(in srgb, var(--h1) 45%, transparent);
   box-shadow:
-    0 14px 28px -12px color-mix(in srgb, var(--h2) 75%, transparent),
-    0 5px 0 color-mix(in srgb, var(--h2) 55%, #000),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    0 14px 30px rgba(0, 0, 0, 0.42),
+    0 0 26px color-mix(in srgb, var(--h1) 18%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
   animation: heroIn 0.6s var(--pop) both;
 }
 
-.p-hero::after {
-  content: '';
+.ph-neb {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 40%;
-  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.28), transparent);
-  transform: translateX(-140%);
-  animation: ltShine 5.5s ease-in-out 1.2s infinite;
+  right: -20%;
+  top: -70%;
+  width: 80%;
+  height: 200%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--h2) 38%, transparent), transparent);
+  animation: nebDrift 9s ease-in-out infinite alternate;
   pointer-events: none;
 }
 
-.ph-glow {
+.ph-stars {
   position: absolute;
-  right: -18%;
-  top: -60%;
-  width: 70%;
-  height: 170%;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.34), transparent);
-  animation: heroGlow 7s ease-in-out infinite alternate;
+  inset: 0;
   pointer-events: none;
+  background:
+    radial-gradient(1.4px 1.4px at 38% 22%, #fff, transparent),
+    radial-gradient(1px 1px at 52% 78%, rgba(255, 255, 255, 0.8), transparent),
+    radial-gradient(1.6px 1.6px at 70% 30%, #dff, transparent),
+    radial-gradient(1px 1px at 84% 64%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 94% 16%, #fff, transparent),
+    radial-gradient(1px 1px at 60% 50%, rgba(255, 230, 190, 0.8), transparent);
+  animation: twinkleLayer 2.8s ease-in-out infinite alternate;
 }
 
 .ph-art {
   position: relative;
-  width: 64px;
-  height: 64px;
-  border-radius: 20px;
+  width: 70px;
+  height: 70px;
   display: grid;
   place-items: center;
-  background: rgba(255, 255, 255, 0.2);
-  border: 1.5px solid rgba(255, 255, 255, 0.45);
-  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.35), 0 8px 18px -8px rgba(0, 0, 0, 0.35);
 }
 
-.ph-ic {
+.ph-orbit {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  animation: spin 14s linear infinite;
+}
+
+.ph-orbit circle {
+  fill: none;
+  stroke: color-mix(in srgb, var(--h1) 70%, #fff);
+  stroke-opacity: 0.55;
+  stroke-width: 1.6;
+  stroke-dasharray: 3 7;
+}
+
+.ph-moon {
+  position: absolute;
+  inset: 0;
+  animation: spin 5.5s linear infinite;
+  pointer-events: none;
+}
+
+.ph-moon::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, var(--h2) 70%);
+  box-shadow: 0 0 10px var(--h2);
+}
+
+/* parlak gezegen: ışığı sol üstten alan küre */
+.ph-planet {
+  position: relative;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
   display: grid;
-  font-size: 34px;
-  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.2));
-  animation: heroBob 3.4s ease-in-out infinite;
+  place-items: center;
+  font-size: 26px;
+  color: #061226;
+  background: radial-gradient(circle at 34% 28%, #fff 0 5%, color-mix(in srgb, var(--h1) 55%, #fff) 16%, var(--h1) 50%, color-mix(in srgb, var(--h1) 45%, #000) 100%);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--h1) 60%, transparent), inset -6px -8px 14px rgba(0, 0, 0, 0.3);
+  animation: planetBob 3.6s ease-in-out infinite;
 }
 
 .ph-txt h3 {
@@ -5384,23 +5503,26 @@ svg {
   font-size: 19px;
   font-weight: 800;
   line-height: 1.15;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+  color: #fff;
+  text-shadow: 0 0 18px color-mix(in srgb, var(--h1) 55%, transparent);
 }
 
 .ph-txt p {
   margin: 5px 0 0;
   font-size: 12.5px;
   line-height: 1.38;
-  color: rgba(255, 255, 255, 0.93);
+  color: #c9c6ea;
 }
 
 .ph-stat {
+  position: relative;
   min-width: 66px;
   padding: 8px 10px;
   border-radius: 16px;
   text-align: center;
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.38);
+  background: rgba(8, 12, 40, 0.55);
+  border: 1px solid color-mix(in srgb, var(--h1) 40%, transparent);
+  box-shadow: inset 0 0 14px color-mix(in srgb, var(--h1) 16%, transparent);
 }
 
 .ph-stat b {
@@ -5411,11 +5533,13 @@ svg {
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 800;
+  color: #fff;
   white-space: nowrap;
 }
 
 .ph-stat b svg {
   font-size: 16px;
+  color: var(--gold);
 }
 
 .ph-stat small {
@@ -5425,49 +5549,108 @@ svg {
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  opacity: 0.9;
+  color: color-mix(in srgb, var(--h1) 70%, #fff);
 }
 
-/* ── satır kartları (atölye, görevler) ── */
-.panel.light .list {
+.ph-ink {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 7px;
+  height: 12px;
+  width: calc(100% - 36px);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.ph-ink path {
+  fill: none;
+  stroke: var(--h1);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-dasharray: 320;
+  stroke-dashoffset: 320;
+  opacity: 0.75;
+  filter: drop-shadow(0 0 5px var(--h1));
+  animation: strokeIn 1.4s 0.35s var(--smooth) forwards;
+}
+
+/* ── satır kartları: ana ekran karolarıyla aynı dil ── */
+.panel .list {
   gap: 12px;
 }
 
-.panel.light .row {
+.panel .row {
+  position: relative;
+  overflow: hidden;
   grid-template-columns: 54px minmax(0, 1fr) auto;
   gap: 12px;
-  padding: 12px;
-  border-radius: 22px;
-  background: #fff;
-  border: 1px solid var(--lt-line);
-  box-shadow: var(--lt-shadow);
-  animation: ltCardIn 0.55s var(--smooth) both;
+  padding: 12px 12px 12px 14px;
+  border-radius: 20px;
+  background:
+    radial-gradient(70% 120% at 0% 50%, color-mix(in srgb, var(--tc, var(--ink)) 10%, transparent), transparent 70%),
+    linear-gradient(180deg, rgba(26, 32, 96, 0.82), rgba(11, 15, 50, 0.88));
+  border: 1px solid rgba(150, 165, 255, 0.15);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  animation: cardIn 0.5s var(--smooth) both;
   animation-delay: calc(var(--d, 0) * 55ms);
 }
 
-.panel.light .row .ic {
-  width: 54px;
-  height: 54px;
-  border-radius: 17px;
-  font-size: 27px;
-  color: #fff;
-  border: 0;
-  background: linear-gradient(150deg, color-mix(in srgb, var(--tc) 62%, #fff), var(--tc) 70%);
-  box-shadow: 0 8px 16px -6px color-mix(in srgb, var(--tc) 70%, transparent), inset 0 2px 0 rgba(255, 255, 255, 0.4);
+/* kartın solunda menü renginde parlayan mürekkep kenarı */
+.panel .row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(180deg, var(--tc, var(--ink)), transparent);
+  box-shadow: 0 0 10px var(--tc, var(--ink));
 }
 
-.panel.light .row h4 {
-  color: var(--lt-ink);
+.panel .row .ic {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  font-size: 27px;
+  color: var(--tc, var(--ink));
+  background:
+    radial-gradient(100% 100% at 30% 20%, color-mix(in srgb, var(--tc, var(--ink)) 32%, transparent), transparent 70%),
+    linear-gradient(180deg, rgba(28, 36, 104, 0.98), rgba(10, 14, 48, 0.98));
+  border: 1.5px solid color-mix(in srgb, var(--tc, var(--ink)) 55%, transparent);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35), 0 0 16px color-mix(in srgb, var(--tc, var(--ink)) 25%, transparent);
+  filter: none;
+}
+
+.panel .row .ic::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  top: 3px;
+  height: 45%;
+  border-radius: 14px 14px 40% 40%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+.panel .row .ic svg {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--tc, var(--ink)) 70%, transparent));
+}
+
+.panel .row h4 {
   font-size: 15px;
   line-height: 1.25;
 }
 
-.panel.light .row p {
-  color: var(--lt-muted);
+.panel .row p {
+  color: #aeabd6;
 }
 
-.panel.light .row p b {
-  color: var(--lt-ink);
+.panel .row p b {
+  color: #fff;
 }
 
 .row .pct {
@@ -5476,191 +5659,204 @@ svg {
   color: var(--tc);
 }
 
-.panel.light .progress-mini {
-  height: 9px;
+/* ilerleme: parlayan mürekkep çubuğu, ucunda kuyruklu yıldız başı */
+.panel .progress-mini {
+  height: 8px;
   margin-top: 9px;
-  background: #efeaf6;
-  box-shadow: inset 0 1px 2px rgba(43, 32, 95, 0.14);
+  overflow: visible;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
-.panel.light .progress-mini i {
-  width: 100%;
-  transform-origin: left center;
-  transform: scaleX(var(--f, 0));
-  background: linear-gradient(90deg, color-mix(in srgb, var(--tc) 55%, #fff), var(--tc));
-  animation: ltFill 1.1s var(--smooth) both;
-  animation-delay: calc(var(--d, 0) * 55ms + 0.25s);
+.panel .progress-mini i {
+  position: relative;
+  width: var(--w);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--tc, var(--ink)) 35%, transparent), var(--tc, var(--ink)));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--tc, var(--ink)) 60%, transparent);
+  animation: barFill 1.1s var(--smooth) both;
+  animation-delay: calc(var(--d, 0) * 55ms + 0.2s);
 }
 
-.panel.light .reward {
-  padding: 8px 10px;
+.panel .progress-mini i::after {
+  content: '';
+  position: absolute;
+  right: -4px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 30%, var(--tc, var(--ink)) 70%);
+  box-shadow: 0 0 10px var(--tc, var(--ink));
+}
+
+.panel .progress-mini i[style*='--w:0.0%']::after {
+  display: none;
+}
+
+.panel .reward {
+  padding: 7px 10px;
   border-radius: 13px;
   font-size: 14px;
-  color: #a86a00;
-  background: linear-gradient(180deg, #fffaf0, #fff0c8);
-  border: 1px solid #f7e0a0;
-  box-shadow: 0 3px 0 #f1d58c;
+  background: rgba(255, 200, 87, 0.1);
+  border: 1px solid rgba(255, 200, 87, 0.35);
+  box-shadow: 0 0 12px rgba(255, 200, 87, 0.12);
 }
 
-.panel.light .row.mission.done {
-  border-color: #a7f0e5;
-  box-shadow: 0 0 0 3px rgba(20, 184, 170, 0.14), var(--lt-shadow);
+.panel .row.mission.done {
+  border-color: rgba(61, 245, 138, 0.45);
+  box-shadow: 0 0 18px rgba(61, 245, 138, 0.18), 0 8px 20px rgba(0, 0, 0, 0.3);
 }
 
 .lvl-line {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  row-gap: 5px;
   margin-top: 9px;
 }
 
 .lvl-line small {
   font-size: 11px;
   font-weight: 800;
-  color: #9a97b5;
+  color: #8f8cc0;
   white-space: nowrap;
 }
 
-.panel.light .lvl-dots {
+.panel .lvl-dots {
   margin-top: 0;
 }
 
-.panel.light .lvl-dots i {
-  width: 18px;
+.panel .lvl-dots i {
+  width: 17px;
   height: 7px;
   border-radius: 4px;
-  background: #ece7f3;
+  background: rgba(255, 255, 255, 0.1);
 }
 
-.panel.light .lvl-dots i.on {
+.panel .lvl-dots i.on {
   background: linear-gradient(90deg, color-mix(in srgb, var(--tc) 55%, #fff), var(--tc));
-  box-shadow: none;
-  animation: ltPop 0.45s var(--pop) both;
+  box-shadow: 0 0 8px var(--tc);
+  animation: pipOn 0.45s var(--pop) both;
   animation-delay: calc(var(--d, 0) * 55ms + var(--k, 0) * 70ms + 0.3s);
 }
 
-.panel.light .row.ws.maxed .ic {
-  box-shadow: 0 0 0 3px #ffe7a0, 0 8px 16px -6px color-mix(in srgb, var(--tc) 70%, transparent);
+.panel .row.ws.maxed {
+  border-color: rgba(255, 200, 87, 0.45);
 }
 
-/* ── düğmeler ── */
-.panel.light .buy {
+/* ── düğmeler: ana ekranın altın düğmesi + parıltı ── */
+.panel .buy {
   position: relative;
   overflow: hidden;
   height: 44px;
   border-radius: 14px;
-  color: #3b2300;
-  background: linear-gradient(180deg, #ffe9a8, #ffc53d);
-  box-shadow: 0 4px 0 #d99a10, 0 10px 18px -8px rgba(217, 154, 16, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  box-shadow: 0 4px 0 var(--gold-deep), 0 8px 18px rgba(255, 200, 87, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
-.panel.light .buy:active {
+.panel .buy:active {
   transform: translateY(3px);
-  box-shadow: 0 1px 0 #d99a10, inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  box-shadow: 0 1px 0 var(--gold-deep), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
-.panel.light .buy.can::after {
+.panel .buy.can::after {
   content: '';
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
   width: 45%;
-  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.75), transparent);
   transform: translateX(-140%);
-  animation: ltShine 3.8s ease-in-out infinite;
+  animation: sweep 3.8s ease-in-out infinite;
   animation-delay: calc(var(--d, 0) * 0.35s + 0.9s);
 }
 
-.panel.light .buy.disabled {
+.panel .buy.disabled {
   filter: none;
-  color: #a09cbb;
-  background: #f1eef7;
-  box-shadow: 0 3px 0 #dfd9ec;
-}
-
-.panel.light .buy.ghost {
-  color: var(--lt-ink);
-  background: #fff;
-  border: 1.5px solid #e4dfef;
-  box-shadow: 0 3px 0 #e4dfef;
-}
-
-.panel.light .buy.ghost.disabled {
-  color: #a09cbb;
-  background: #f7f5fb;
-}
-
-.panel.light .buy.done {
-  color: #0d8a80;
-  background: linear-gradient(180deg, #effdfb, #d9f8f3);
-  border: 1.5px solid #a7ede4;
+  color: #7f7cad;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(150, 165, 255, 0.16);
   box-shadow: none;
 }
 
-.panel.light .btn-ghost {
-  color: var(--lt-ink);
-  background: #fff;
-  border: 1.5px solid #e4dfef;
-  box-shadow: 0 3px 0 #e4dfef;
+.panel .buy.ghost {
+  color: var(--paper);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(150, 165, 255, 0.28);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
 }
 
-.panel.light .btn-ghost:active {
-  background: #faf8fd;
+.panel .buy.done {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ink) 45%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--ink) 18%, transparent);
 }
 
-.panel.light .btn-ghost.danger {
-  color: #e11d48;
-  border-color: #fbc7d2;
-  box-shadow: 0 3px 0 #fbc7d2;
-}
-
-/* ── kalemler: beyaz kart, içinde gece renginde küçük bir "mürekkep kuyusu" ── */
-.panel.light .pen-grid {
+/* ── kalemler: cam kart, içinde yıldızlı küçük bir gece; mürekkep kendini çizer ── */
+.panel .pen-grid {
   gap: 12px;
 }
 
-.panel.light .pen {
+.panel .pen {
+  position: relative;
   padding: 10px 10px 12px;
-  border-radius: 24px;
-  background: #fff;
-  border: 1.5px solid var(--lt-line);
-  box-shadow: var(--lt-shadow);
-  animation: ltCardIn 0.55s var(--smooth) both;
+  border-radius: 22px;
+  background:
+    radial-gradient(90% 60% at 50% 0%, color-mix(in srgb, var(--pc) 14%, transparent), transparent 70%),
+    linear-gradient(180deg, rgba(26, 32, 96, 0.82), rgba(11, 15, 50, 0.88));
+  border: 1.5px solid rgba(150, 165, 255, 0.15);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  animation: cardIn 0.5s var(--smooth) both;
   animation-delay: calc(var(--d, 0) * 55ms);
 }
 
-.panel.light .pen.equipped {
+.panel .pen.equipped {
   border-color: var(--pc);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--pc) 22%, transparent), var(--lt-shadow);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--pc) 35%, transparent), 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* takılı kalemin çevresinde nabız gibi atan ışık */
+.panel .pen.equipped::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 23px;
+  border: 2px solid var(--pc);
+  box-shadow: 0 0 18px var(--pc);
+  pointer-events: none;
+  animation: auraPulse 2.2s ease-in-out infinite;
 }
 
 .pen-well {
   position: relative;
   width: 100%;
   height: 80px;
-  border-radius: 17px;
+  border-radius: 16px;
   display: grid;
   place-items: center;
   overflow: hidden;
   background:
-    radial-gradient(1.2px 1.2px at 18% 26%, rgba(255, 255, 255, 0.8), transparent),
+    radial-gradient(1.2px 1.2px at 18% 26%, rgba(255, 255, 255, 0.85), transparent),
     radial-gradient(1px 1px at 72% 18%, rgba(255, 255, 255, 0.7), transparent),
     radial-gradient(1.4px 1.4px at 86% 72%, rgba(255, 255, 255, 0.6), transparent),
     radial-gradient(1px 1px at 38% 80%, rgba(255, 255, 255, 0.55), transparent),
-    radial-gradient(75% 95% at 50% 45%, color-mix(in srgb, var(--pc) 26%, #151a4d), #0a0e32 78%);
-  box-shadow: inset 0 3px 12px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.9);
+    radial-gradient(75% 95% at 50% 45%, color-mix(in srgb, var(--pc) 22%, #121748), #070a26 78%);
+  border: 1px solid rgba(150, 165, 255, 0.12);
+  box-shadow: inset 0 3px 14px rgba(0, 0, 0, 0.55);
 }
 
-.panel.light .pen-swatch {
+.panel .pen-swatch {
   width: 90%;
   height: 56px;
 }
 
-.panel.light .pen-swatch path {
+.panel .pen-swatch path {
   stroke-dasharray: 170;
   stroke-dashoffset: 170;
-  animation: ltDraw 1.1s var(--smooth) forwards;
+  animation: penDraw 1.1s var(--smooth) forwards;
   animation-delay: calc(var(--d, 0) * 70ms + 0.15s);
 }
 
@@ -5677,61 +5873,56 @@ svg {
   color: #052229;
   background: var(--pc);
   box-shadow: 0 0 12px var(--pc);
-  animation: ltPop 0.5s var(--pop) 0.5s both;
+  animation: pipOn 0.5s var(--pop) 0.5s both;
 }
 
-.panel.light .pen h4 {
-  color: var(--lt-ink);
+.panel .pen h4 {
   margin-top: 2px;
 }
 
-.panel.light .pen.locked .pen-well {
-  filter: grayscale(1) brightness(0.85);
+.panel .pen.locked .pen-well {
+  filter: grayscale(0.9) brightness(0.8);
 }
 
-.panel.light .pen.locked .pen-swatch {
-  opacity: 0.45;
+.panel .pen.locked .pen-swatch {
+  opacity: 0.4;
 }
 
 /* ── rekorlar ── */
-.panel.light .rank-card {
+.panel .rank-card {
   padding: 16px;
-  border: 0;
   border-radius: 24px;
-  color: var(--paper);
   background:
-    radial-gradient(90% 120% at 100% 0%, rgba(255, 200, 87, 0.28), transparent 60%),
-    linear-gradient(135deg, #20276e, #3b2a8c);
-  box-shadow: 0 14px 28px -12px rgba(59, 42, 140, 0.7), 0 5px 0 #1a1550, inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    radial-gradient(90% 130% at 100% 0%, rgba(255, 200, 87, 0.22), transparent 60%),
+    radial-gradient(70% 120% at 0% 100%, color-mix(in srgb, var(--rc, var(--ink)) 20%, transparent), transparent 60%),
+    linear-gradient(160deg, rgba(28, 34, 104, 0.95), rgba(10, 13, 46, 0.96));
+  border: 1.5px solid rgba(255, 200, 87, 0.35);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.42), 0 0 24px rgba(255, 200, 87, 0.12);
 }
 
-.panel.light .rank-card .label,
-.panel.light .rank-card .best-box small {
-  color: #c9c4f0;
-}
-
-.panel.light .rec {
+.panel .rec {
   grid-template-columns: 42px minmax(0, 1fr) auto;
   gap: 12px;
   padding: 10px 14px 10px 10px;
   border-radius: 18px;
-  background: #fff;
-  border: 1px solid var(--lt-line);
-  box-shadow: var(--lt-shadow);
-  animation: ltCardIn 0.5s var(--smooth) both;
+  background: linear-gradient(180deg, rgba(26, 32, 96, 0.82), rgba(11, 15, 50, 0.88));
+  border: 1px solid rgba(150, 165, 255, 0.15);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  animation: cardIn 0.5s var(--smooth) both;
   animation-delay: calc(var(--d, 0) * 45ms);
 }
 
-.panel.light .rec .pos {
+.panel .rec .pos {
   position: relative;
   width: 40px;
   height: 40px;
-  border-radius: 13px;
+  border-radius: 50%;
   display: grid;
   place-items: center;
   font-size: 15px;
-  color: #8c89a8;
-  background: #f3f0f9;
+  color: #aeabd6;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(150, 165, 255, 0.2);
 }
 
 .rec .pos em {
@@ -5742,60 +5933,63 @@ svg {
   display: none;
 }
 
-.panel.light .rec.podium .pos svg {
+.panel .rec.podium .pos svg {
   display: block;
   position: absolute;
-  top: -10px;
+  top: -11px;
   font-size: 15px;
-  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.15));
 }
 
-.panel.light .rec.p1 .pos {
-  color: #5b3a00;
-  background: linear-gradient(160deg, #ffe58a, #f5b31b);
-  box-shadow: 0 3px 0 #c98a0b;
+.panel .rec.p1 .pos {
+  color: #3b2300;
+  border: 0;
+  background: radial-gradient(circle at 34% 28%, #fff6c8 0 10%, #ffd45c 45%, #c98a1c 100%);
+  box-shadow: 0 0 16px rgba(255, 200, 87, 0.55);
 }
 
-.panel.light .rec.p1 .pos svg {
-  color: #f5b31b;
+.panel .rec.p1 .pos svg {
+  color: var(--gold);
+  filter: drop-shadow(0 0 6px var(--gold));
 }
 
-.panel.light .rec.p2 .pos {
-  color: #39435a;
-  background: linear-gradient(160deg, #f4f6fb, #c4ccda);
-  box-shadow: 0 3px 0 #9aa4b8;
+.panel .rec.p2 .pos {
+  color: #26304a;
+  border: 0;
+  background: radial-gradient(circle at 34% 28%, #fff 0 10%, #d5dcec 45%, #7f8aa6 100%);
+  box-shadow: 0 0 14px rgba(213, 220, 236, 0.4);
 }
 
-.panel.light .rec.p2 .pos svg {
-  color: #9aa4b8;
+.panel .rec.p2 .pos svg {
+  color: #d5dcec;
 }
 
-.panel.light .rec.p3 .pos {
-  color: #5a2a0a;
-  background: linear-gradient(160deg, #ffd9bd, #e08a52);
-  box-shadow: 0 3px 0 #b8652f;
+.panel .rec.p3 .pos {
+  color: #3a1a06;
+  border: 0;
+  background: radial-gradient(circle at 34% 28%, #ffe6d2 0 10%, #f0a46c 45%, #9c5424 100%);
+  box-shadow: 0 0 14px rgba(240, 164, 108, 0.4);
 }
 
-.panel.light .rec.p3 .pos svg {
-  color: #e08a52;
+.panel .rec.p3 .pos svg {
+  color: #f0a46c;
 }
 
-.panel.light .rec b {
+.panel .rec b {
   display: block;
-  color: var(--lt-ink);
   font-size: 17px;
 }
 
-.panel.light .rec small {
+.panel .rec small {
   display: block;
   margin-top: 2px;
-  color: var(--lt-muted);
+  color: #aeabd6;
 }
 
 .rec-best {
   font-size: 22px;
-  color: #f5b31b;
-  animation: heroBob 3s ease-in-out infinite;
+  color: var(--gold);
+  filter: drop-shadow(0 0 8px rgba(255, 200, 87, 0.6));
+  animation: planetBob 3s ease-in-out infinite;
 }
 
 .empty-card {
@@ -5804,15 +5998,16 @@ svg {
   gap: 12px;
   padding: 16px;
   border-radius: 18px;
-  background: #fff;
-  border: 1.5px dashed #dad4e8;
-  color: var(--lt-muted);
+  background: rgba(20, 26, 80, 0.55);
+  border: 1.5px dashed rgba(150, 165, 255, 0.28);
+  color: #c3c0e4;
 }
 
 .empty-card svg {
   flex: none;
   font-size: 28px;
-  color: #f2a516;
+  color: var(--gold);
+  filter: drop-shadow(0 0 8px rgba(255, 200, 87, 0.5));
 }
 
 .empty-card p {
@@ -5820,381 +6015,111 @@ svg {
   line-height: 1.4;
 }
 
-.panel.light .kv > div {
-  background: #fff;
-  border: 1px solid var(--lt-line);
-  box-shadow: var(--lt-shadow);
+.panel .kv > div {
+  background: linear-gradient(180deg, rgba(26, 32, 96, 0.82), rgba(11, 15, 50, 0.88));
+  border: 1px solid rgba(150, 165, 255, 0.15);
   border-radius: 18px;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.26);
 }
 
-.panel.light .kv .label {
-  color: var(--lt-muted);
-}
-
-.panel.light .kv b {
-  color: var(--lt-ink);
-}
-
-.panel.light .kv.stats > .stat {
-  padding: 12px;
-  animation: ltCardIn 0.5s var(--smooth) both;
-  animation-delay: calc(var(--d, 0) * 45ms);
-}
-
-.st-ic {
-  width: 34px;
-  height: 34px;
-  margin-bottom: 8px;
-  border-radius: 11px;
-  display: grid;
-  place-items: center;
-  font-size: 18px;
-  color: #fff;
-  background: linear-gradient(150deg, color-mix(in srgb, var(--tc) 62%, #fff), var(--tc) 70%);
-  box-shadow: 0 6px 12px -5px color-mix(in srgb, var(--tc) 70%, transparent);
-}
-
-/* ── ayarlar ── */
-.panel.light .toggle-row {
-  color: var(--lt-ink);
-  background: #fff;
-  border: 1px solid var(--lt-line);
-  box-shadow: var(--lt-shadow);
-  border-radius: 18px;
-  animation: ltCardIn 0.5s var(--smooth) both;
-}
-
-.panel.light .toggle-row .l svg {
-  width: 36px;
-  height: 36px;
-  padding: 8px;
-  border-radius: 12px;
-  color: #fff;
-  background: linear-gradient(150deg, #5eead4, #0fb5a8);
-  box-shadow: 0 6px 12px -5px rgba(15, 181, 168, 0.7);
-}
-
-.panel.light .switch {
-  background: #e4e0ee;
-  box-shadow: inset 0 1px 3px rgba(43, 32, 95, 0.2);
-}
-
-.panel.light .switch::after {
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(43, 32, 95, 0.3);
-}
-
-.panel.light .switch.on {
-  background: linear-gradient(90deg, #0fb5a8, #3ef0e0);
-}
-
-.panel.light .switch.on::after {
-  background: #fff;
-}
-
-.panel.light .seg {
-  background: #f0ecf6;
-}
-
-.panel.light .seg button {
-  color: var(--lt-muted);
-}
-
-.panel.light .seg button.on {
-  color: var(--lt-ink);
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(43, 32, 95, 0.16);
-}
-
-.panel.light .credits {
-  color: #a3a1bc;
-}
-
-/* ── günlük ── */
-.panel.light .daily-hero {
-  color: #fff;
-  border: 0;
-  background:
-    radial-gradient(90% 120% at 100% 0%, rgba(255, 255, 255, 0.3), transparent 60%),
-    linear-gradient(135deg, #ffb547, #ff5a3d);
-  box-shadow: 0 14px 28px -12px rgba(255, 90, 61, 0.7), 0 5px 0 #c9401f;
-}
-
-.panel.light .daily-hero .mod {
-  color: #fff;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-}
-
-.panel.light .daily-hero p {
-  color: rgba(255, 255, 255, 0.94);
-}
-
-.panel.light .streak-days i {
-  background: #ede8f4;
-}
-
-/* ── mağaza ── */
-.panel.light .shop-h {
-  color: #8c89a8;
-}
-
-.panel.light .pack {
-  color: var(--lt-ink);
-  background:
-    radial-gradient(90% 70% at 50% 8%, rgba(255, 200, 87, 0.32), transparent 70%),
-    #fff;
-  border: 1.5px solid #f6e3ad;
-  box-shadow: var(--lt-shadow);
-}
-
-.panel.light .pack.popular {
-  border-color: #7ee8dd;
-  box-shadow: 0 0 0 3px rgba(20, 184, 170, 0.14), var(--lt-shadow);
-}
-
-.panel.light .pack.best {
-  border-color: #f5c343;
-  box-shadow: 0 0 0 3px rgba(245, 179, 27, 0.2), var(--lt-shadow);
-}
-
-.panel.light .pack-coins {
-  color: #f5b31b;
-  filter: drop-shadow(0 4px 8px rgba(217, 154, 16, 0.45));
-}
-
-.panel.light .pack-bonus {
-  color: #0d8a80;
-}
-
-.panel.light .pack-price {
-  color: #3b2300;
-  background: linear-gradient(180deg, #ffe9a8, #ffc53d);
-  box-shadow: 0 4px 0 #d99a10;
-}
-
-.panel.light .offer {
-  color: var(--lt-ink);
-  background: #fff;
-  border: 1.5px solid var(--lt-line);
-  box-shadow: var(--lt-shadow);
-}
-
-.panel.light .offer p {
-  color: var(--lt-muted);
-}
-
-.panel.light .offer.starter {
-  color: #fff;
-  border: 0;
-  background:
-    radial-gradient(120% 90% at 0% 0%, rgba(255, 255, 255, 0.25), transparent 60%),
-    linear-gradient(135deg, #ff4f8b, #8b5cf6);
-  box-shadow: 0 14px 28px -12px rgba(139, 92, 246, 0.7), 0 5px 0 #6d3fd1;
-}
-
-.panel.light .offer.starter p {
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.panel.light .offer.starter .offer-art {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.45);
-}
-
-.panel.light .offer.starter .offer-badge {
-  color: #8b2c5a;
-  background: #fff;
-}
-
-.panel.light .offer.noads .offer-art {
-  color: #0fb5a8;
-  background: #e3faf7;
-  border-color: #a7ede4;
-}
-
-.panel.light .shop-free {
-  color: var(--lt-ink);
-  background: #fff;
-  border: 1.5px dashed #9fe6dd;
-  box-shadow: var(--lt-shadow);
-}
-
-.panel.light .shop-free .ic {
-  color: #fff;
-  background: linear-gradient(150deg, #5eead4, #0fb5a8);
-}
-
-.panel.light .shop-free p {
-  color: var(--lt-muted);
-}
-
-/* ── alt sekme çubuğu açık menüyle birlikte açılır ── */
-.tabbar-layer.light .tabbar {
-  background: linear-gradient(180deg, #ffffff, #f7f3ea);
-  border-top: 1px solid rgba(28, 31, 74, 0.08);
-  box-shadow: 0 -10px 30px rgba(43, 32, 95, 0.14);
-}
-
-.tabbar-layer.light .tab {
-  color: #9a97b5;
-}
-
-.tabbar-layer.light .tab.active {
-  color: #1c1f4a;
-}
-
-.tabbar-layer.light .tab.active .tab-ic {
-  color: #0fb5a8;
-  filter: none;
-}
-
-.tabbar-layer.light .tab.active::before {
-  background: #0fb5a8;
-  box-shadow: none;
-}
-
-@keyframes ltCardIn {
-  from {
-    opacity: 0;
-    transform: translateY(16px) scale(0.97);
-  }
-}
-
-@keyframes heroIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px) scale(0.96);
-  }
-}
-
-@keyframes heroBob {
-  50% {
-    transform: translateY(-4px) rotate(-5deg);
-  }
-}
-
-@keyframes heroGlow {
-  to {
-    transform: translate(-35%, 18%);
-  }
-}
-
-@keyframes ltShine {
-  0% {
-    transform: translateX(-140%);
-  }
-  32%,
-  100% {
-    transform: translateX(330%);
-  }
-}
-
-@keyframes ltFill {
-  from {
-    transform: scaleX(0);
-  }
-}
-
-@keyframes ltPop {
-  from {
-    opacity: 0;
-    transform: scale(0.3);
-  }
-}
-
-@keyframes ltDraw {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@media (max-width: 370px) {
-  .p-hero {
-    grid-template-columns: 54px minmax(0, 1fr) auto;
-    gap: 11px;
-    padding: 14px 12px;
-  }
-  .ph-art {
-    width: 54px;
-    height: 54px;
-    border-radius: 17px;
-  }
-  .ph-ic {
-    font-size: 29px;
-  }
-  .ph-txt h3 {
-    font-size: 17px;
-  }
-  .ph-txt p {
-    font-size: 12px;
-  }
-  .ph-stat {
-    min-width: 56px;
-    padding: 7px 8px;
-  }
-  .panel.light .row {
-    grid-template-columns: 48px minmax(0, 1fr) auto;
-    gap: 10px;
-    padding: 11px 10px;
-  }
-  .panel.light .row .ic {
-    width: 48px;
-    height: 48px;
-    font-size: 24px;
-  }
-}
-
-.panel.light .kv.stats {
+.panel .kv.stats {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
-.panel.light .kv.stats > .stat {
+.panel .kv.stats > .stat {
+  text-align: left;
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr);
+  grid-template-columns: 40px minmax(0, 1fr);
   grid-template-rows: auto auto;
   column-gap: 10px;
   align-items: center;
-  text-align: left;
+  padding: 12px;
+  animation: cardIn 0.5s var(--smooth) both;
+  animation-delay: calc(var(--d, 0) * 45ms);
 }
 
-.panel.light .kv.stats .st-ic {
+.st-ic {
   grid-row: 1 / 3;
-  width: 38px;
-  height: 38px;
-  margin: 0;
-  font-size: 19px;
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  color: var(--tc);
+  background:
+    radial-gradient(100% 100% at 30% 20%, color-mix(in srgb, var(--tc) 32%, transparent), transparent 70%),
+    linear-gradient(180deg, rgba(28, 36, 104, 0.98), rgba(10, 14, 48, 0.98));
+  border: 1.5px solid color-mix(in srgb, var(--tc) 55%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--tc) 25%, transparent);
 }
 
-.panel.light .kv.stats .label {
+.panel .kv.stats .label {
   font-size: 10px;
   letter-spacing: 0.08em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
-.panel.light .kv.stats b {
+.panel .kv.stats b {
   margin-top: 1px;
   font-size: 18px;
   white-space: nowrap;
 }
 
-.lvl-line {
-  flex-wrap: wrap;
-  row-gap: 5px;
+/* ── ayarlar ── */
+.panel .toggle-row {
+  background: linear-gradient(180deg, rgba(26, 32, 96, 0.82), rgba(11, 15, 50, 0.88));
+  border: 1px solid rgba(150, 165, 255, 0.15);
+  border-radius: 18px;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.26);
+  animation: cardIn 0.5s var(--smooth) both;
 }
 
-.panel.light .kv.stats .label {
-  white-space: normal;
-  line-height: 1.2;
+.panel .toggle-row .l svg {
+  width: 38px;
+  height: 38px;
+  padding: 8px;
+  border-radius: 13px;
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(28, 36, 104, 0.98), rgba(10, 14, 48, 0.98));
+  border: 1.5px solid color-mix(in srgb, var(--ink) 45%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--ink) 22%, transparent);
 }
 
-@media (max-width: 370px) {
-  .panel.light .lvl-dots i {
-    width: 14px;
-  }
+.panel .switch.on {
+  background: linear-gradient(90deg, #13a79f, var(--ink));
+  box-shadow: 0 0 14px rgba(62, 240, 224, 0.45);
+}
+
+.panel .btn-ghost {
+  background: linear-gradient(180deg, rgba(26, 32, 96, 0.82), rgba(11, 15, 50, 0.88));
+  border: 1px solid rgba(150, 165, 255, 0.22);
+}
+
+/* ── mağaza ve günlük: aynı cam dil ── */
+.panel .pack,
+.panel .offer,
+.panel .shop-free {
+  background-color: rgba(14, 18, 60, 0.86);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.panel .pack-coins {
+  animation: planetBob 3.2s ease-in-out infinite;
+  animation-delay: calc(var(--d, 0) * 0.3s);
+}
+
+.panel .daily-hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(90% 130% at 100% 0%, rgba(255, 122, 69, 0.3), transparent 60%),
+    radial-gradient(70% 120% at 0% 100%, rgba(255, 200, 87, 0.18), transparent 60%),
+    linear-gradient(160deg, rgba(28, 34, 104, 0.95), rgba(10, 13, 46, 0.96));
+  border: 1.5px solid rgba(255, 122, 69, 0.45);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.4), 0 0 24px rgba(255, 122, 69, 0.14);
 }
 
 /* aynı menü yeniden çizilince (satın alma, takma) giriş animasyonları tekrar oynamaz */
@@ -6210,11 +6135,139 @@ svg {
 .panel.still .enter,
 .panel.still .progress-mini i,
 .panel.still .lvl-dots i.on,
-.panel.still .pen-badge {
+.panel.still .pen-badge,
+.panel.still .panel-body {
   animation: none;
 }
 
-.panel.still .pen-swatch path {
+.panel.still .pen-swatch path,
+.panel.still .ph-ink path,
+.panel.still .head-stroke path {
   animation: none;
   stroke-dashoffset: 0;
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+}
+
+@keyframes heroIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+}
+
+@keyframes planetBob {
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes nebDrift {
+  to {
+    transform: translate(-30%, 16%) scale(1.1);
+  }
+}
+
+@keyframes sweep {
+  0% {
+    transform: translateX(-140%);
+  }
+  32%,
+  100% {
+    transform: translateX(330%);
+  }
+}
+
+@keyframes barFill {
+  from {
+    width: 0;
+  }
+}
+
+@keyframes pipOn {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+}
+
+@keyframes penDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes auraPulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 370px) {
+  .p-hero {
+    grid-template-columns: 58px minmax(0, 1fr) auto;
+    gap: 11px;
+    padding: 14px 12px 20px;
+  }
+  .ph-art {
+    width: 58px;
+    height: 58px;
+  }
+  .ph-planet {
+    width: 42px;
+    height: 42px;
+    font-size: 22px;
+  }
+  .ph-txt h3 {
+    font-size: 17px;
+  }
+  .ph-txt p {
+    font-size: 12px;
+  }
+  .ph-stat {
+    min-width: 56px;
+    padding: 7px 8px;
+  }
+  .panel .row {
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 11px 10px 11px 12px;
+  }
+  .panel .row .ic {
+    width: 48px;
+    height: 48px;
+    font-size: 24px;
+  }
+  .panel .lvl-dots i {
+    width: 14px;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* menü açıkken ana ekranın düğmeleri örtünün altında görünmesin */
+.screen-layer > .home {
+  transition: opacity 0.25s ease;
+}
+
+.screen-layer.under > .home {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.panel-head h2.long {
+  font-size: clamp(15px, 4.4vw, 19px);
 }

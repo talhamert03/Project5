@@ -73,10 +73,7 @@ import {
   worldsHTML,
 } from './ui/screens';
 
-/** açık (kağıt) temalı menüler */
-const LIGHT_PANELS: string[] = ['pens', 'workshop', 'missions', 'records', 'shop', 'settings', 'daily'];
-
-export const VERSION = '1.8.0';
+export const VERSION = '1.8.1';
 
 type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'revive' | 'over';
 type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds' | 'shop' | 'skills';
@@ -336,8 +333,6 @@ export class App {
     const canBuy = WORKSHOP.some((w) => (this.save.workshop[w.id] ?? 0) < w.max && this.save.coins >= w.cost(this.save.workshop[w.id] ?? 0));
     const had = this.tabbarEl.firstElementChild !== null;
     this.tabbarEl.innerHTML = tabbarHTML(active, this.newMissions, canBuy);
-    // açık renkli menü açıkken sekme çubuğu da açık renge geçer
-    this.tabbarEl.classList.toggle('light', !!this.panel && LIGHT_PANELS.includes(this.panel));
     if (had) (this.tabbarEl.firstElementChild as HTMLElement).style.animation = 'none';
   }
 
@@ -396,6 +391,9 @@ export class App {
   private openPanel(name: PanelName): void {
     const wasTab = this.panel && (TAB_PANELS as string[]).includes(this.panel);
     this.panel = name;
+    // menülerin ortak uzay örtüsü (karartma + yıldızlar) sekmeler arasında hep açık kalır
+    this.panelEl.classList.add('on');
+    this.screenEl.classList.add('under');
     this.resetArmed = false;
     if (name === 'missions') this.newMissions = 0;
     if (name === 'worlds') {
@@ -459,6 +457,8 @@ export class App {
   private closePanel(): void {
     if (!this.panel) return;
     this.panel = null;
+    this.panelEl.classList.remove('on');
+    this.screenEl.classList.remove('under');
     const el = this.panelEl.querySelector('.panel');
     if (el) {
       el.classList.add('out');
@@ -596,6 +596,8 @@ export class App {
   private startRun(daily: boolean): void {
     this.panel = null;
     this.panelEl.innerHTML = '';
+    this.panelEl.classList.remove('on');
+    this.screenEl.classList.remove('under');
     this.modalEl.innerHTML = '';
     this.setTabs(false);
     this.runDaily = daily;

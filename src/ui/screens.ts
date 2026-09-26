@@ -401,7 +401,7 @@ export function shopHTML(save: SaveData, native: boolean): string {
     <div class="shop-foot">
       ${native ? `<button class="btn-ghost" data-a="restore">${t('shop.restore')}</button>` : `<p class="note">${t('shop.demo')}</p>`}
     </div>`;
-  return panel('shop', t('shop.title'), body, save.coins, true);
+  return panel('shop', t('shop.title'), body, save.coins);
 }
 
 /** Yetenekler: bir tanesi takılır, dolunca oyunda tek dokunuşla tetiklenir */
@@ -646,29 +646,51 @@ export function overHTML(r: RunResult, st: Settlement, best: number, dailyBest: 
     </section>`;
 }
 
-function panel(id: string, title: string, body: string, coins: number, light = false): string {
+/** menü başına vurgu rengi (başlık altı mürekkep çizgisi, vitrin) */
+const PANEL_AC: Record<string, string> = {
+  pens: '#3EF0E0',
+  workshop: '#5CC8FF',
+  missions: '#FF7A45',
+  records: '#FFC857',
+  shop: '#FFC857',
+  settings: '#B57BFF',
+  daily: '#FF7A45',
+  worlds: '#3EF0E0',
+  skills: '#B57BFF',
+};
+
+/**
+ * Menü iskeleti: üst çubuk ana ekranla aynı (geri, başlık, altın pili); başlığın altında menünün
+ * renginde kendini çizen bir mürekkep çizgisi. Sekmeler arası geçişte yalnızca içerik kayar.
+ */
+function panel(id: string, title: string, body: string, coins: number): string {
   return `
-    <section class="screen panel ${light ? 'light' : ''}" id="panel-${id}">
+    <section class="screen panel" id="panel-${id}" style="--pac:${PANEL_AC[id] ?? 'var(--ink)'}">
       <div class="panel-head">
         <button class="icon-btn" data-a="close" aria-label="${t('common.back')}">${icon('back')}</button>
-        <h2>${title}</h2>
-        <div class="chip coin">${icon('coin')}<span class="coin-count">${fmt(coins)}</span></div>
+        <h2 class="${title.length > 14 ? 'long' : ''}"><span>${title}</span><svg class="head-stroke" viewBox="0 0 120 10" preserveAspectRatio="none" aria-hidden="true"><path d="M3 6 C 28 1, 52 9, 78 5 S 108 3, 117 6"/></svg></h2>
+        <button class="currency" data-a="shop">${icon('coin')}<b class="coin-count">${fmt(coins)}</b><span class="plus">+</span></button>
       </div>
       <div class="panel-body">${body}</div>
     </section>`;
 }
 
 /**
- * Açık menülerin başındaki renkli vitrin: büyük simge (hafif süzülür), başlık, açıklama ve sağda
- * küçük bir sayaç. c1/c2: vitrin gradyanı.
+ * Menü vitrini: derin uzay kartı, renkli bulutsu, göz kırpan yıldızlar; solda yörüngesinde uydu
+ * dönen parlak bir gezegen (menü simgesi), altta kendini çizen bir mürekkep çizgisi.
  */
 function hero(ic: string, title: string, sub: string, stat: string, statLabel: string, c1: string, c2: string): string {
   return `
     <div class="p-hero" style="--h1:${c1};--h2:${c2}">
-      <i class="ph-glow"></i>
-      <div class="ph-art"><span class="ph-ic">${icon(ic)}</span></div>
+      <i class="ph-neb"></i><i class="ph-stars"></i>
+      <div class="ph-art">
+        <svg class="ph-orbit" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46"/></svg>
+        <i class="ph-moon"></i>
+        <span class="ph-planet">${icon(ic)}</span>
+      </div>
       <div class="ph-txt"><h3>${title}</h3><p>${sub}</p></div>
       ${stat ? `<div class="ph-stat"><b>${stat}</b><small>${statLabel}</small></div>` : ''}
+      <svg class="ph-ink" viewBox="0 0 300 14" preserveAspectRatio="none" aria-hidden="true"><path d="M4 9 C 60 2, 118 13, 176 7 S 258 3, 296 8"/></svg>
     </div>`;
 }
 
@@ -692,22 +714,22 @@ export function dailyHTML(save: SaveData, d: DailyInfo): string {
     <p class="lead enter" style="--d:2">${t('daily.streakHint')} ${t('daily.coins')}.</p>
     <button class="btn-play gold enter" style="--d:3" data-a="playDaily">${icon('play')}${t('daily.play')}</button>
     <p class="note enter" style="--d:4">${t('daily.resets', { h: Math.floor(mins / 60), m: mins % 60 })}</p>`;
-  return panel('daily', t('daily.title'), body, save.coins, true);
+  return panel('daily', t('daily.title'), body, save.coins);
 }
 
 export function missionsHTML(save: SaveData): string {
   const colors: Record<string, string> = {
-    kills: '#FF6A3D',
-    combo: '#F2A516',
-    wave: '#14B8AA',
-    score: '#6366F1',
-    perfect: '#10B981',
-    boss: '#EF3B5D',
-    golden: '#E8A200',
-    oneline: '#0EA5E9',
-    chain: '#8B5CF6',
-    deflects: '#14B8AA',
-    daily: '#F59E0B',
+    kills: '#FF7A45',
+    combo: '#FFC857',
+    wave: '#3EF0E0',
+    score: '#8B9CFF',
+    perfect: '#3DF58A',
+    boss: '#FF4D6D',
+    golden: '#FFC857',
+    oneline: '#5CC8FF',
+    chain: '#B57BFF',
+    deflects: '#3EF0E0',
+    daily: '#FF9A3D',
   };
   const icons: Record<string, string> = {
     kills: 'blast',
@@ -728,7 +750,7 @@ export function missionsHTML(save: SaveData): string {
       const frac = Math.min(1, m.progress / m.target);
       total += m.reward;
       return `
-      <div class="row mission ${frac >= 1 ? 'done' : ''}" style="--d:${i + 1};--tc:${colors[m.id] ?? '#14B8AA'}">
+      <div class="row mission ${frac >= 1 ? 'done' : ''}" style="--d:${i + 1};--tc:${colors[m.id] ?? '#3EF0E0'}">
         <div class="ic">${icon(icons[m.id] ?? 'target')}</div>
         <div class="row-main">
           <h4>${t('m.' + m.id, { n: fmt(m.target) })}</h4>
@@ -739,12 +761,12 @@ export function missionsHTML(save: SaveData): string {
       </div>`;
     })
     .join('');
-  const head = hero('target', t('missions.hero'), t('missions.desc'), `${icon('coin')}${fmt(total)}`, t('hero.rewards'), '#FF7A45', '#E11D74');
-  return panel('missions', t('missions.title'), `${head}<div class="list">${rows}</div>`, save.coins, true);
+  const head = hero('target', t('missions.hero'), t('missions.desc'), `${icon('coin')}${fmt(total)}`, t('hero.rewards'), '#FF7A45', '#FF4F8B');
+  return panel('missions', t('missions.title'), `${head}<div class="list">${rows}</div>`, save.coins);
 }
 
 export function workshopHTML(save: SaveData): string {
-  const colors = ['#14B8AA', '#0EA5E9', '#8B5CF6', '#EC4899', '#F2A516', '#E8A200', '#6366F1'];
+  const colors = ['#3EF0E0', '#5CC8FF', '#B57BFF', '#FF6AA8', '#FFC857', '#FF9A3D', '#8B9CFF'];
   let lv = 0;
   let lvMax = 0;
   const rows = WORKSHOP.map((w, i) => {
@@ -770,8 +792,8 @@ export function workshopHTML(save: SaveData): string {
         }
       </div>`;
   }).join('');
-  const head = hero('hammer', t('workshop.hero'), t('workshop.desc'), `${lv}/${lvMax}`, t('hero.levels'), '#0EA5E9', '#4F46E5');
-  return panel('workshop', t('workshop.title'), `${head}<div class="list">${rows}</div>`, save.coins, true);
+  const head = hero('hammer', t('workshop.hero'), t('workshop.desc'), `${lv}/${lvMax}`, t('hero.levels'), '#5CC8FF', '#8B5CF6');
+  return panel('workshop', t('workshop.title'), `${head}<div class="list">${rows}</div>`, save.coins);
 }
 
 function penSwatch(p: Pen, id: string): string {
@@ -806,8 +828,8 @@ export function pensHTML(save: SaveData): string {
         ${btn}
       </div>`;
   }).join('');
-  const head = hero('pen', t('pens.hero'), t('pens.desc'), `${owned}/${PENS.length}`, t('hero.owned'), '#0FB5A8', '#7C3AED');
-  return panel('pens', t('pens.title'), `${head}<div class="pen-grid">${cards}</div>`, save.coins, true);
+  const head = hero('pen', t('pens.hero'), t('pens.desc'), `${owned}/${PENS.length}`, t('hero.owned'), '#3EF0E0', '#B57BFF');
+  return panel('pens', t('pens.title'), `${head}<div class="pen-grid">${cards}</div>`, save.coins);
 }
 
 export function recordsHTML(save: SaveData): string {
@@ -827,19 +849,18 @@ export function recordsHTML(save: SaveData): string {
     `<div class="stat" style="--tc:${c};--d:${i}"><span class="st-ic">${icon(ic)}</span><span class="label">${label}</span><b>${v}</b></div>`;
   const stats = `
     <div class="kv stats">
-      ${stat('play', '#14B8AA', t('st.runs'), fmt(save.totalRuns), 3)}
-      ${stat('blast', '#FF6A3D', t('st.kills'), fmt(save.totalKills), 4)}
-      ${stat('lines', '#0EA5E9', t('st.wave'), String(save.bestWave), 5)}
-      ${stat('bolt', '#F2A516', t('st.combo'), String(save.bestCombo), 6)}
-      ${stat('crown', '#EF3B5D', t('st.boss'), String(save.bossKills), 7)}
-      ${stat('clock', '#8B5CF6', t('st.time'), fmtDuration(save.totalPlaySec), 8)}
+      ${stat('play', '#3EF0E0', t('st.runs'), fmt(save.totalRuns), 3)}
+      ${stat('blast', '#FF7A45', t('st.kills'), fmt(save.totalKills), 4)}
+      ${stat('lines', '#5CC8FF', t('st.wave'), String(save.bestWave), 5)}
+      ${stat('bolt', '#FFC857', t('st.combo'), String(save.bestCombo), 6)}
+      ${stat('crown', '#FF4D6D', t('st.boss'), String(save.bossKills), 7)}
+      ${stat('clock', '#B57BFF', t('st.time'), fmtDuration(save.totalPlaySec), 8)}
     </div>`;
   return panel(
     'records',
     t('records.title'),
     `${rankCard(rankProgress(save.best), save.best, 'enter')}<div class="section-title">${t('records.top')}</div><div class="list">${recs}</div><div class="section-title">${t('records.stats')}</div>${stats}`,
     save.coins,
-    true,
   );
 }
 
@@ -881,7 +902,7 @@ export function settingsHTML(save: SaveData, version: string, canFullscreen: boo
       <button class="btn-ghost danger" data-a="reset">${icon('restart')}${resetArmed ? t('settings.resetConfirm') : t('settings.reset')}</button>
     </div>
     <p class="credits">${t('settings.credits', { v: version })}</p>`;
-  return panel('settings', t('settings.title'), body, save.coins, true);
+  return panel('settings', t('settings.title'), body, save.coins);
 }
 
 export function bannerHTML(big: string, small: string, boss: boolean, color?: string): string {
