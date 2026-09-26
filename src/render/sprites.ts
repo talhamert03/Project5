@@ -189,6 +189,34 @@ export class Sprites {
   }
 
   private tinted = new Map<string, Canvas>();
+  private slowMix = new Map<string, Canvas>();
+
+  /**
+   * Ağır çekim kenarı: karartma (alfa 0,55 x profil) ile mürekkep renginde ışıma (0,18 x profil,
+   * toplamalı) tek dokuda. Normal karışımla çizilince iki ayrı tam ekran geçişle birebir aynı
+   * sonucu verir: çıkış = 0,18·renk·p + hedef·(1 − 0,55·p). Çizim sırasında her karede bir tam
+   * ekran geçişi kazandırır.
+   */
+  slowVignette(color: string): Canvas {
+    let c = this.slowMix.get(color);
+    if (!c) {
+      c = makeCanvas(256, 256);
+      const g = ctx2d(c);
+      const [r, gg, b] = hexToRgb(color);
+      const f = 0.18 / 0.55;
+      const cr = Math.round(r * f);
+      const cg = Math.round(gg * f);
+      const cb = Math.round(b * f);
+      const grad = g.createRadialGradient(128, 128, 60, 128, 128, 182);
+      grad.addColorStop(0, `rgba(${cr},${cg},${cb},0)`);
+      grad.addColorStop(0.6, `rgba(${cr},${cg},${cb},${0.35 * 0.55})`);
+      grad.addColorStop(1, `rgba(${cr},${cg},${cb},0.55)`);
+      g.fillStyle = grad;
+      g.fillRect(0, 0, 256, 256);
+      this.slowMix.set(color, c);
+    }
+    return c;
+  }
 
   /** Renkli kenar karartması (hasar: kırmızı, ağır çekim: mürekkep rengi) */
   vignetteOf(color: string): Canvas {

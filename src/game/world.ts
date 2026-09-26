@@ -3170,6 +3170,9 @@ export class World implements PointerSink {
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';
     this.bg.renderSky(g, this.q >= 0.7 ? 1 : 0);
+    // uzak silüet hazır gökyüzü karesinde sarsılmaz: ikaz ışıkları da onunla birlikte durur
+    v.setWorldTransform(0, 0);
+    this.bg.renderBeacons(g);
 
     const sx = this.fx.shakeX;
     const sy = this.fx.shakeY;
@@ -3200,12 +3203,9 @@ export class World implements PointerSink {
     const Hp = v.canvas.height;
     const slow = clamp((1 - this.timeScale) * 1.3, 0, 1);
     if (slow > 0.02) {
-      g.globalAlpha = slow * 0.55;
-      g.drawImage(this.sprites.vignette, 0, 0, W, Hp);
-      g.globalCompositeOperation = 'lighter';
-      g.globalAlpha = slow * 0.18;
-      g.drawImage(this.sprites.vignetteOf(this.pen.color), 0, 0, W, Hp);
-      g.globalCompositeOperation = 'source-over';
+      // karartma + mürekkep renginde parıltı tek geçişte (önceden birleştirilmiş doku, birebir aynı sonuç)
+      g.globalAlpha = slow;
+      g.drawImage(this.sprites.slowVignette(this.pen.color), 0, 0, W, Hp);
     }
     if (this.feverT > 0) {
       // Mürekkep Ateşi: kenarlarda nabız gibi atan altın ışık

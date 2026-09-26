@@ -82,6 +82,9 @@ interface Scene {
 }
 
 const SKYLINE_H = 440;
+/** Gökyüzü karesinin tazeleme aralığı (sn) ve kaç kareye yayıldığı */
+const SKY_REFRESH = 3;
+const SKY_STRIPS = 12;
 const SKYLINE_B = SKYLINE_H - 20;
 
 // ───────────────────────── GÖKYÜZÜ ─────────────────────────
@@ -789,24 +792,113 @@ export class Background {
     this.setAtmosphere(this.atm);
   }
 
+  /** Gökyüzü sahnesinin geometrisi: ekranın gerçek yoğunluğu (dinamik çözünürlükten bağımsız, HD) */
   private geom(): Geom {
     const v = this.view;
+    const d = v.skyDpr;
     return {
-      pw: v.canvas.width,
-      ph: v.canvas.height,
-      k: v.scale * v.dpr,
-      ox: v.offX * v.dpr,
-      oy: v.offY * v.dpr,
+      pw: Math.max(1, Math.round(v.cssW * d)),
+      ph: Math.max(1, Math.round(v.cssH * d)),
+      k: v.scale * d,
+      ox: v.offX * d,
+      oy: v.offY * d,
       H: v.H,
       letterboxed: v.letterboxed,
     };
   }
 
+  /** Sahne: gökyüzü ve uzak silüet ekranın gerçek yoğunluğunda hazırlanır (durağan) */
   private buildScene(atm: Atmosphere): Scene {
     const geo = this.geom();
     const sky = buildSky(atm, geo, 1);
     const { skyline, lights, beacons } = buildSkyline(atm, geo.k);
     return { sky, skyline, lights, beacons };
+  }
+
+  // ── Çift tamponlu gökyüzü: ön kare ekrana kopyalanır, arka kare arada şeritlerle hazırlanır.
+  // Ön kareye hiçbir zaman yazılmaz (GPU'da kopyalama/bekleme yok); arka kare bitince yer değişir.
+  private front: Canvas | null = null;
+  private back: Canvas | null = null;
+  /** arka karede sıradaki şerit (-1: hazırlık yok) */
+  private bakeRow = -1;
+  private bakeT = 0;
+  /** hazırlanan karenin ışık lekesi zamanı (tüm şeritler aynı ana göre çizilir) */
+  private bakeAt = 0;
+
+  private sizedCanvas(c: Canvas | null, w: number, h: number): Canvas {
+    if (c && c.width === w && c.height === h) return c;
+    return makeCanvas(w, h);
+  }
+
+  /** Bir kareye (ya da şeridine) gökyüzü + ışık lekeleri: lekeler t anındaki konumlarında */
+  private paintSky(target: Canvas, y0: number, y1: number, t: number): void {
+    const sc = this.scene;
+    if (!sc) return;
+    const g = ctx2d(target);
+    const v = this.view;
+    const w = target.width;
+    const d = v.skyDpr;
+    const k = v.scale * d;
+    const H = v.H;
+    const atm = this.atm;
+    g.save();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.beginPath();
+    g.rect(0, y0, w, y1 - y0);
+    g.clip();
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'copy';
+    g.drawImage(sc.sky, 0, y0, w, y1 - y0, 0, y0, w, y1 - y0);
+    g.globalCompositeOperation = 'lighter';
+    g.setTransform(k, 0, 0, k, v.offX * d, v.offY * d);
+    this.glow3(g, atm.glows[0], 180 + Math.sin(t * 0.07) * 120, H * 0.22 + Math.cos(t * 0.05) * 60, 620, 0.06);
+    this.glow3(g, atm.glows[1], 540 + Math.cos(t * 0.06) * 140, H * 0.36 + Math.sin(t * 0.04) * 80, 700, 0.07);
+    this.glow3(g, atm.glows[2], 360 + Math.sin(t * 0.045 + 2) * 200, H * 0.62, 760, 0.05);
+    // uzak silüet lekelerin üstünde (eski çizim sırası): yalnızca şerit ona değiyorsa
+    const sh = (sc.skyline.height / sc.skyline.width) * WORLD_W;
+    const top = H - 95 - SKYLINE_B;
+    const topPx = v.offY * d + top * k;
+    if (y1 > topPx && y0 < topPx + sh * k) {
+      g.globalAlpha = 1;
+      g.globalCompositeOperation = 'source-over';
+      g.drawImage(sc.skyline, 0, top, WORLD_W, sh);
+    }
+    g.restore();
+  }
+
+  /** Ön kareyi hemen hazırla (dünya değişince / ilk açılışta) */
+  private paintFront(): void {
+    const sc = this.scene;
+    if (!sc) return;
+    this.front = this.sizedCanvas(this.front, sc.sky.width, sc.sky.height);
+    this.paintSky(this.front, 0, sc.sky.height, this.t);
+    this.bakeRow = -1;
+    this.bakeT = 0;
+  }
+
+  /** Arka kareyi şerit şerit hazırla; bitince ön kareyle yer değiştir */
+  private stepBake(dt: number): void {
+    const sc = this.scene;
+    if (!sc || !this.front) return;
+    if (this.bakeRow < 0) {
+      this.bakeT += dt;
+      if (this.bakeT < SKY_REFRESH) return;
+      this.back = this.sizedCanvas(this.back, sc.sky.width, sc.sky.height);
+      this.bakeRow = 0;
+      this.bakeAt = this.t;
+    }
+    const back = this.back;
+    if (!back) return;
+    const hh = back.height;
+    const i = this.bakeRow;
+    this.paintSky(back, Math.floor((i * hh) / SKY_STRIPS), Math.floor(((i + 1) * hh) / SKY_STRIPS), this.bakeAt);
+    this.bakeRow++;
+    if (this.bakeRow >= SKY_STRIPS) {
+      this.back = this.front;
+      this.front = back;
+      this.bakeRow = -1;
+      this.bakeT = 0;
+    }
   }
 
   /** Atmosferi hemen değiştir (gerekirse inşa eder) */
@@ -820,6 +912,7 @@ export class Background {
     this.scene = s;
     this.trimCache(atm.id);
     this.resetLive();
+    this.paintFront();
   }
 
   /** Sonraki atmosferi önceden hazırla (geçişte takılma olmasın) */
@@ -830,10 +923,10 @@ export class Background {
   }
 
   private trimCache(...keep: string[]): void {
-    // bellek: en fazla 3 sahne (her biri tam ekran boyutunda)
-    if (this.cache.size <= 3) return;
+    // bellek: en fazla 2 sahne (şimdiki + sıradaki; her biri ekranın gerçek çözünürlüğünde)
+    if (this.cache.size <= 2) return;
     for (const key of [...this.cache.keys()]) {
-      if (this.cache.size <= 3) break;
+      if (this.cache.size <= 2) break;
       if (!keep.includes(key)) this.cache.delete(key);
     }
   }
@@ -977,6 +1070,7 @@ export class Background {
 
   update(dt: number): void {
     this.t += dt;
+    this.stepBake(dt);
     this.lightsShown += (this.lights - this.lightsShown) * Math.min(1, dt * 2);
     const H = this.view.H;
     for (let i = this.shooting.length - 1; i >= 0; i--) {
@@ -1064,8 +1158,33 @@ export class Background {
 
   /** Piksel uzayında gökyüzü */
   /** Piksel uzayında gökyüzü (tuval yalnızca piksel yoğunluğu değişerek küçülmüş olabilir: tam ekrana ölçekle) */
+  /** Hazır gökyüzünü (silüet dahil, gerçek çözünürlükte) tuvale tek opak kopyayla çiz */
   renderSky(g: CanvasRenderingContext2D, _quality: number): void {
-    if (this.scene) g.drawImage(this.scene.sky, 0, 0, this.view.canvas.width, this.view.canvas.height);
+    const f = this.front;
+    if (!f) return;
+    g.globalCompositeOperation = 'copy';
+    g.drawImage(f, 0, 0, this.view.canvas.width, this.view.canvas.height);
+    g.globalCompositeOperation = 'source-over';
+  }
+
+  /**
+   * Uzak silüetin pencere ışıkları ve ikaz lambaları. Silüet gökyüzüne basılı olduğundan
+   * bunlar da sarsıntısız dünya dönüşümünde çizilir (hizası hiç kaymaz).
+   */
+  renderBeacons(g: CanvasRenderingContext2D): void {
+    const sc = this.scene;
+    if (!sc) return;
+    const top = this.view.H - 95 - SKYLINE_B;
+    const h = (sc.lights.height / sc.lights.width) * WORLD_W;
+    g.globalCompositeOperation = 'lighter';
+    g.globalAlpha = clamp(this.lightsShown, 0, 1) * (0.78 + 0.22 * Math.sin(this.t * 1.3));
+    g.drawImage(sc.lights, 0, top, WORLD_W, h);
+    const blink = Math.sin(this.t * 3) > 0.3 ? 0.95 : 0.12;
+    g.globalAlpha = blink;
+    const red = this.sprites.glow('#FF3355', true);
+    for (const [bx, by] of sc.beacons) blit(g, red, bx - 8, top + by - 8, 16, 16);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
   }
 
   private glow3(g: CanvasRenderingContext2D, col: string, x: number, y: number, s: number, a: number): void {
@@ -1099,12 +1218,8 @@ export class Background {
       }
     }
 
-    if (quality > 0) {
-      // akan büyük ışık lekeleri (her karede doğrudan: ekran dışı tuval güncellemesi yok)
-      this.glow3(g, atm.glows[0], 180 + Math.sin(t * 0.07) * 120, H * 0.22 + Math.cos(t * 0.05) * 60, 620, 0.06);
-      this.glow3(g, atm.glows[1], 540 + Math.cos(t * 0.06) * 140, H * 0.36 + Math.sin(t * 0.04) * 80, 700, 0.07);
-      this.glow3(g, atm.glows[2], 360 + Math.sin(t * 0.045 + 2) * 200, H * 0.62, 760, 0.05);
-    }
+    // büyük ışık lekeleri çift tamponlu gökyüzü karesinde (paintSky): burada çizilmez
+    void quality;
 
     // kuzey ışığı perdeleri: yatay akan, nefes alan dokular
     if (this.curtains.length) {
@@ -1150,25 +1265,6 @@ export class Background {
     }
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';
-
-    // uzak silüet
-    const sc = this.scene;
-    if (sc) {
-      // oran üzerinden: silüet, piksel yoğunluğu sonradan değişse de doğru boyda kalır
-      const h = (sc.skyline.height / sc.skyline.width) * WORLD_W;
-      const top = H - 95 - SKYLINE_B;
-      g.drawImage(sc.skyline, 0, top, WORLD_W, h);
-      g.globalCompositeOperation = 'lighter';
-      g.globalAlpha = clamp(this.lightsShown, 0, 1) * (0.78 + 0.22 * Math.sin(t * 1.3));
-      g.drawImage(sc.lights, 0, top, WORLD_W, h);
-      // kule ve anten ikaz ışıkları
-      const blink = Math.sin(t * 3) > 0.3 ? 0.95 : 0.12;
-      g.globalAlpha = blink;
-      const red = this.sprites.glow('#FF3355', true);
-      for (const [bx, by] of sc.beacons) blit(g, red, bx - 8, top + by - 8, 16, 16);
-      g.globalAlpha = 1;
-      g.globalCompositeOperation = 'source-over';
-    }
   }
 
   /** Gök cisminin canlı katmanı (additive, dünya uzayı) */

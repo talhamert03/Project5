@@ -72,7 +72,7 @@ import {
   worldsHTML,
 } from './ui/screens';
 
-export const VERSION = '1.5.0';
+export const VERSION = '1.6.0';
 
 type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'revive' | 'over';
 type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds' | 'shop' | 'skills';
@@ -83,6 +83,9 @@ interface Timer {
 }
 
 const QUALITY_LEVEL: Record<Quality, number> = { high: 1, balanced: 0.75, saver: 0.45 };
+/** Dinamik çözünürlüğün alt sınırı ve cihazda saklanan anahtarı */
+const RES_MIN = 0.6;
+const RES_KEY = 'inkfall/res';
 const TAB_PANELS: PanelName[] = ['pens', 'workshop', 'missions', 'records'];
 const REVIVE_SECONDS = 9;
 /** Boss türlerinin afiş rengi */
@@ -150,6 +153,13 @@ export class App {
   private newMissions = 0;
   private fpsT = 0;
   private lowFpsT = 0;
+  // dinamik çözünürlük (tuneResolution)
+  private highFpsT = 0;
+  private resClock = 0;
+  private lastDown = -99;
+  private lastUp = -99;
+  private upWait = 6;
+  private settleT = 0;
   private bannerT = 0;
   private wiping = false;
   private giftShown = false;
@@ -165,6 +175,15 @@ export class App {
     this.ui = document.getElementById('ui') as HTMLElement;
     this.view = new View(canvas);
     this.view.quality = this.save.settings.quality;
+    // bu cihazda daha önce öğrenilmiş çözünürlük seviyesi; ilk açılışta güvenli 2x ile başlanır,
+    // cihaz 60 FPS'i rahat tutuyorsa birkaç adımda ekranın gerçek yoğunluğuna (HD) çıkılır
+    let learned = 0;
+    try {
+      learned = Number(window.localStorage.getItem(RES_KEY));
+    } catch {
+      /* depolama kapalı */
+    }
+    this.view.adaptive = learned >= RES_MIN && learned <= 1 ? learned : Math.max(RES_MIN, Math.min(1, 2 / this.view.baseDpr()));
     this.view.resize();
     this.sprites = new Sprites();
     this.bg = new Background(this.view, this.sprites);
@@ -1322,7 +1341,8 @@ export class App {
     if (k === 'quality') {
       st.quality = v as Quality;
       this.view.quality = st.quality;
-      this.view.adaptive = 1;
+      // yeni kalitede de güvenli yoğunluktan başla; akıcıysa kendiliğinden yükselir
+      this.view.adaptive = Math.max(RES_MIN, Math.min(1, 2 / this.view.baseDpr()));
       this.view.resize();
       this.world.setQuality(QUALITY_LEVEL[st.quality]);
     } else if (k === 'lang') {
@@ -1452,6 +1472,60 @@ export class App {
     }
   }
 
+  // ───────────────────────── DİNAMİK ÇÖZÜNÜRLÜK ─────────────────────────
+
+  /**
+   * Akıcılık önceliği: kare hızı 55'in altına düşerse tuval yoğunluğu adım adım iner (en fazla
+   * %40); kare hızı uzun süre tam kalırsa yavaşça geri çıkar (HD'ye döner). Yukarı-aşağı salınımı
+   * önlemek için bir çıkıştan hemen sonra yeniden düşülürse sonraki çıkış denemesi daha geç yapılır.
+   * Öğrenilen seviye cihazda saklanır: sonraki açılışta doğrudan uygun çözünürlükten başlar.
+   */
+  private tuneResolution(dt: number): void {
+    this.resClock += dt;
+    // durum değişiminden hemen sonraki yükleme dalgalanmalarını sayma
+    if (this.settleT > 0) {
+      this.settleT -= dt;
+      return;
+    }
+    const fps = this.loop.fps;
+    const v = this.view;
+    if (fps < 55) {
+      this.lowFpsT += dt * (fps < 40 ? 2 : 1);
+      this.highFpsT = 0;
+    } else {
+      this.lowFpsT = Math.max(0, this.lowFpsT - dt * 0.5);
+      if (fps >= 58) this.highFpsT += dt;
+    }
+    if (this.lowFpsT > 1.5 && v.adaptive > RES_MIN) {
+      const was = v.adaptive;
+      v.adaptive = Math.max(RES_MIN, v.adaptive * (fps < 40 ? 0.8 : 0.9));
+      this.lowFpsT = 0;
+      this.highFpsT = 0;
+      // yeni çıkılmışken tekrar düştüyse bu seviye sınırda: çıkışı daha seyrek dene
+      if (this.resClock - this.lastUp < 10) this.upWait = Math.min(90, this.upWait * 2);
+      this.lastDown = this.resClock;
+      if (Math.abs(was - v.adaptive) > 0.001) this.applyResolution();
+    } else if (this.highFpsT > this.upWait && v.adaptive < 1 && this.resClock - this.lastDown > 8) {
+      v.adaptive = Math.min(1, v.adaptive * 1.07);
+      this.highFpsT = 0;
+      this.lastUp = this.resClock;
+      this.applyResolution();
+    }
+  }
+
+  private applyResolution(): void {
+    const v = this.view;
+    v.resize(false);
+    // çok düşük yoğunlukta parçacık bütçesi de hafifler (görüntü aynı, sayı biraz azalır)
+    this.world.setQuality(v.adaptive < 0.75 ? Math.min(QUALITY_LEVEL[this.save.settings.quality], 0.7) : QUALITY_LEVEL[this.save.settings.quality]);
+    this.settleT = 0.6;
+    try {
+      window.localStorage.setItem(RES_KEY, v.adaptive.toFixed(3));
+    } catch {
+      /* depolama kapalı */
+    }
+  }
+
   // ───────────────────────── KARE ─────────────────────────
 
   private frame(dt: number): void {
@@ -1503,19 +1577,9 @@ export class App {
     this.fpsT += dt;
     if (this.fpsT > 0.5) {
       this.fpsT = 0;
-      if (this.save.settings.showFps) this.hud.setFps(`${Math.round(this.loop.fps)} FPS · ${this.loop.workMs.toFixed(1)}ms · ${this.world.parts.n}p`);
+      if (this.save.settings.showFps)
+        this.hud.setFps(`${Math.round(this.loop.fps)} FPS · ${this.view.dpr.toFixed(2)}x · ${this.loop.workMs.toFixed(1)}ms · ${this.world.parts.n}p`);
     }
-    if ((s === 'game' || s === 'menu') && !document.hidden && !this.world.transitioning) {
-      // çok yavaş cihaz/emülatör (yazılımsal çizim): hızlı ve büyük adım; hafif düşüşte yavaş, küçük adım
-      const fps = this.loop.fps;
-      if (fps < 48) this.lowFpsT += dt * (fps < 30 ? 2 : 1);
-      else this.lowFpsT = Math.max(0, this.lowFpsT - dt * 0.5);
-      if (this.lowFpsT > 3 && this.view.adaptive > 0.5) {
-        this.lowFpsT = 0;
-        this.view.adaptive *= fps < 30 ? 0.72 : 0.85;
-        this.view.resize(false);
-        if (this.view.adaptive < 0.8) this.world.setQuality(Math.min(QUALITY_LEVEL[this.save.settings.quality], 0.7));
-      }
-    }
+    if ((s === 'game' || s === 'menu') && !document.hidden && !this.world.transitioning && !covered && !this.adBusy) this.tuneResolution(dt);
   }
 }

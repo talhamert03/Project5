@@ -490,6 +490,7 @@ export function overHTML(r: RunResult, st: Settlement, best: number, dailyBest: 
   const toBest = !st.newBest && st.prevBest > 0 ? `<div class="tobest">${t('over.toBest', { n: fmt(st.prevBest - r.score) })}</div>` : '';
   return `
     <section class="screen over" id="over">
+      <div class="over-scroll">
       <div class="over-inner">
       <div class="over-title">${t('over.title')}</div>
       ${(() => {
@@ -510,6 +511,9 @@ export function overHTML(r: RunResult, st: Settlement, best: number, dailyBest: 
         <div><span class="label">${t('over.time')}</span><b>${fmtTime(r.time)}</b></div>
       </div>
       <div class="rewards">${rows.join('')}</div>
+      </div>
+      </div>
+      <div class="over-foot">
       ${
         canDouble && st.coins > 0
           ? `<button class="btn-video double" data-a="double">${icon(noAds ? 'x2' : 'video')}<span>${t('over.double', { n: fmt(st.coins) })}</span></button>`

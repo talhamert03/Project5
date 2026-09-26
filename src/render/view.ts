@@ -24,8 +24,14 @@ export class View {
   offX = 0;
   offY = 0;
   quality: Quality = 'high';
-  /** Performans izleyicinin düşürdüğü ek çarpan */
+  /** Dinamik çözünürlük çarpanı (0.6..1): akıcılık düşerse iner, toparlanınca geri çıkar */
   adaptive = 1;
+  /**
+   * Gökyüzü sahnesinin (bulutsu, ebru damarları, yıldızlar) hazırlandığı yoğunluk: ekranın gerçek
+   * yoğunluğu (bellek bütçesiyle). Dinamik çözünürlükten bağımsızdır; tuval tam yoğunluktayken
+   * damarlar ekranda piksel piksel keskin görünür.
+   */
+  skyDpr = 1;
   private listeners: Array<() => void> = [];
 
   constructor(canvas: HTMLCanvasElement) {
@@ -53,14 +59,20 @@ export class View {
     this.listeners.push(fn);
   }
 
-  maxDpr(): number {
-    const cap = this.quality === 'high' ? 2 : this.quality === 'balanced' ? 1.6 : 1.1;
-    // piksel bütçesi: tabletlerde (büyük ekran x 2 DPR) tuval 5-6 MP'ye çıkıp GPU'yu boğmasın.
-    // 3,2 MP, 11" tablette bile keskin görüntü verir; telefonlar bu sınırın altında kalır.
-    const budget = this.quality === 'high' ? 3.2e6 : this.quality === 'balanced' ? 2.2e6 : 1.3e6;
+  /**
+   * Kaliteye göre en yüksek yoğunluk (dinamik çarpan hariç). Yüksek: ekranın gerçek yoğunluğu
+   * (HD, en fazla 3x). Piksel bütçesi tabletlerde tuvalin GPU'yu boğmasını önler: 3,4 MP bir
+   * 1080p telefonu tam karşılar, büyük tabletlerde ~1,8x'e iner (yine keskin).
+   */
+  baseDpr(): number {
+    const cap = this.quality === 'high' ? 3 : this.quality === 'balanced' ? 2 : 1.3;
+    const budget = this.quality === 'high' ? 3.4e6 : this.quality === 'balanced' ? 2.2e6 : 1.2e6;
     const area = Math.max(1, window.innerWidth * window.innerHeight);
-    const byBudget = Math.sqrt(budget / area);
-    return Math.max(1, Math.min(window.devicePixelRatio || 1, cap, byBudget) * this.adaptive);
+    return Math.max(1, Math.min(window.devicePixelRatio || 1, cap, Math.sqrt(budget / area)));
+  }
+
+  maxDpr(): number {
+    return Math.max(1, this.baseDpr() * this.adaptive);
   }
 
   /**
@@ -74,6 +86,7 @@ export class View {
     this.cssW = w;
     this.cssH = h;
     this.dpr = this.maxDpr();
+    if (layout) this.skyDpr = this.baseDpr();
     const pw = Math.round(w * this.dpr);
     const ph = Math.round(h * this.dpr);
     if (this.canvas.width !== pw || this.canvas.height !== ph) {
