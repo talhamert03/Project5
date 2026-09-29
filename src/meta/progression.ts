@@ -80,7 +80,7 @@ export function metaBonus(save: SaveData): MetaBonus {
     coinMult: 1 + w('coin') * 0.1,
     goldenBonus: w('golden') * 0.012,
     rerolls: w('reroll'),
-    startRarity: w('start') > 0 ? w('start') : -1,
+    startCards: w('start') > 0 ? w('start') : -1,
   };
 }
 

@@ -76,16 +76,8 @@ export function baseStats(): Stats {
   };
 }
 
-export const enum Rarity {
-  Common = 0,
-  Rare = 1,
-  Epic = 2,
-  Legendary = 3,
-}
-
 export interface UpgradeDef {
   id: string;
-  rarity: Rarity;
   max: number;
   /** ikon anahtarı (ui/icons) */
   icon: string;
@@ -96,13 +88,12 @@ export interface UpgradeDef {
 
 export const UPGRADES: UpgradeDef[] = [
   // ── Sıradan: temel ekonomi, küçük ama güvenilir adımlar
-  { id: 'ink_regen', rarity: Rarity.Common, max: 5, icon: 'drop', apply: (s) => (s.inkRegen *= 1.2), value: () => '20' },
-  { id: 'ink_max', rarity: Rarity.Common, max: 5, icon: 'well', apply: (s) => (s.maxInk += 22), value: () => '22' },
+  { id: 'ink_regen', max: 5, icon: 'drop', apply: (s) => (s.inkRegen *= 1.2), value: () => '20' },
+  { id: 'ink_max', max: 5, icon: 'well', apply: (s) => (s.maxInk += 22), value: () => '22' },
   // stratejik çizgi: küçük bir artış (sık seçilir, duvar kurmayı kolaylaştırmasın)
-  { id: 'line_life', rarity: Rarity.Common, max: 3, icon: 'hourglass', apply: (s) => (s.lineLife *= 1.06), value: () => '6' },
+  { id: 'line_life', max: 3, icon: 'hourglass', apply: (s) => (s.lineLife *= 1.06), value: () => '6' },
   {
     id: 'bounce',
-    rarity: Rarity.Common,
     max: 3,
     icon: 'bounce',
     apply: (s) => {
@@ -110,22 +101,20 @@ export const UPGRADES: UpgradeDef[] = [
       s.deflectScoreMult += 0.5;
     },
   },
-  { id: 'blast', rarity: Rarity.Common, max: 4, icon: 'blast', apply: (s) => (s.explosionR *= 1.18), value: () => '18' },
-  { id: 'repair', rarity: Rarity.Common, max: 99, icon: 'house', apply: () => undefined },
+  { id: 'blast', max: 4, icon: 'blast', apply: (s) => (s.explosionR *= 1.18), value: () => '18' },
+  { id: 'repair', max: 99, icon: 'house', apply: () => undefined },
   {
     id: 'lucky',
-    rarity: Rarity.Common,
     max: 3,
     icon: 'star',
     apply: (s) => (s.luckyCoins += 3),
   },
-  { id: 'ink_surge', rarity: Rarity.Common, max: 3, icon: 'wave', apply: (s) => (s.inkSurge += 18), value: (l) => String(l * 18) },
+  { id: 'ink_surge', max: 3, icon: 'wave', apply: (s) => (s.inkSurge += 18), value: (l) => String(l * 18) },
   // ── Nadir: oynanışı değiştiren araçlar
-  { id: 'extra_line', rarity: Rarity.Rare, max: 2, icon: 'lines', apply: (s) => (s.maxLines += 1) },
-  { id: 'leech', rarity: Rarity.Rare, max: 2, icon: 'leech', apply: (s) => (s.inkPerKill *= 1.8) },
+  { id: 'extra_line', max: 2, icon: 'lines', apply: (s) => (s.maxLines += 1) },
+  { id: 'leech', max: 2, icon: 'leech', apply: (s) => (s.inkPerKill *= 1.8) },
   {
     id: 'timewarp',
-    rarity: Rarity.Rare,
     max: 2,
     icon: 'clock',
     apply: (s) => {
@@ -135,7 +124,6 @@ export const UPGRADES: UpgradeDef[] = [
   },
   {
     id: 'thick',
-    rarity: Rarity.Rare,
     max: 1,
     icon: 'nib',
     apply: (s) => {
@@ -143,24 +131,23 @@ export const UPGRADES: UpgradeDef[] = [
       s.heavyProof = true;
     },
   },
-  { id: 'comet', rarity: Rarity.Rare, max: 3, icon: 'comet', apply: (s) => (s.cometBurst += 1) },
-  { id: 'dome', rarity: Rarity.Rare, max: 3, icon: 'dome', apply: (s) => (s.domePerWave += 1) },
-  { id: 'magnet', rarity: Rarity.Rare, max: 2, icon: 'magnet', apply: (s) => (s.magnet += 1) },
-  { id: 'frost', rarity: Rarity.Rare, max: 2, icon: 'snow', apply: (s) => (s.frost += 1.4), value: (l) => (l * 1.4).toFixed(1) },
-  { id: 'ricochet', rarity: Rarity.Rare, max: 2, icon: 'ricochet', apply: (s) => (s.ricochet += 1), value: (l) => String(l) },
-  { id: 'overcharge', rarity: Rarity.Rare, max: 3, icon: 'battery', apply: (s) => (s.charge += 0.25), value: (l) => String(l * 25) },
-  { id: 'second_wind', rarity: Rarity.Rare, max: 1, icon: 'wind', apply: (s) => (s.secondWind = 1) },
+  { id: 'comet', max: 3, icon: 'comet', apply: (s) => (s.cometBurst += 1) },
+  { id: 'dome', max: 3, icon: 'dome', apply: (s) => (s.domePerWave += 1) },
+  { id: 'magnet', max: 2, icon: 'magnet', apply: (s) => (s.magnet += 1) },
+  { id: 'frost', max: 2, icon: 'snow', apply: (s) => (s.frost += 1.4), value: (l) => (l * 1.4).toFixed(1) },
+  { id: 'ricochet', max: 2, icon: 'ricochet', apply: (s) => (s.ricochet += 1), value: (l) => String(l) },
+  { id: 'overcharge', max: 3, icon: 'battery', apply: (s) => (s.charge += 0.25), value: (l) => String(l * 25) },
+  { id: 'second_wind', max: 1, icon: 'wind', apply: (s) => (s.secondWind = 1) },
   // ── Destansı: güçlü kombinasyonlar
-  { id: 'mirror', rarity: Rarity.Epic, max: 2, icon: 'mirror', apply: (s) => (s.mirror += 1) },
-  { id: 'chain', rarity: Rarity.Epic, max: 3, icon: 'bolt', apply: (s) => (s.chain += 1), value: (l) => String(l) },
-  { id: 'fire', rarity: Rarity.Epic, max: 3, icon: 'flame', apply: (s) => (s.fireChance += 0.15), value: (l) => String(l * 15) },
-  { id: 'pierce', rarity: Rarity.Epic, max: 3, icon: 'arrow', apply: (s) => (s.pierce += 1), value: (l) => String(l) },
-  { id: 'guardian', rarity: Rarity.Epic, max: 2, icon: 'satellite', apply: (s) => (s.guardian += 1), value: (l) => (l >= 2 ? '4' : '7') },
+  { id: 'mirror', max: 2, icon: 'mirror', apply: (s) => (s.mirror += 1) },
+  { id: 'chain', max: 3, icon: 'bolt', apply: (s) => (s.chain += 1), value: (l) => String(l) },
+  { id: 'fire', max: 3, icon: 'flame', apply: (s) => (s.fireChance += 0.15), value: (l) => String(l * 15) },
+  { id: 'pierce', max: 3, icon: 'arrow', apply: (s) => (s.pierce += 1), value: (l) => String(l) },
+  { id: 'guardian', max: 2, icon: 'satellite', apply: (s) => (s.guardian += 1), value: (l) => (l >= 2 ? '4' : '7') },
   // ── Efsanevi: tur kazandıran nadir güçler
-  { id: 'blackhole', rarity: Rarity.Legendary, max: 1, icon: 'hole', apply: (s) => (s.blackHole += 1) },
+  { id: 'blackhole', max: 1, icon: 'hole', apply: (s) => (s.blackHole += 1) },
   {
     id: 'midas',
-    rarity: Rarity.Legendary,
     max: 2,
     icon: 'crown',
     apply: (s) => {
@@ -168,7 +155,7 @@ export const UPGRADES: UpgradeDef[] = [
       s.coinMult += 0.4;
     },
   },
-  { id: 'phoenix', rarity: Rarity.Legendary, max: 1, icon: 'phoenix', apply: (s) => (s.phoenix += 1) },
+  { id: 'phoenix', max: 1, icon: 'phoenix', apply: (s) => (s.phoenix += 1) },
 ];
 
 export const UPGRADE_BY_ID = new Map(UPGRADES.map((u) => [u.id, u]));

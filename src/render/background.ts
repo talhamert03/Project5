@@ -1,4 +1,5 @@
 import { TAU, clamp, hexToRgb, lerp } from '../core/math';
+import { jobs } from '../core/jobs';
 import { Rng } from '../core/rng';
 import { ATMOSPHERES, type Atmosphere } from './atmospheres';
 import { type Canvas, type Sprites, ctx2d, makeCanvas, blit } from './sprites';
@@ -79,6 +80,8 @@ interface Scene {
   skyline: Canvas;
   lights: Canvas;
   beacons: Array<[number, number]>;
+  /** önceden (ışık lekeleriyle) boyanmış ilk kare: dünya açılınca doğrudan ekrana geçer */
+  front0?: Canvas | null;
 }
 
 const SKYLINE_H = 440;
@@ -86,11 +89,29 @@ const SKYLINE_H = 440;
 const SKY_REFRESH = 3;
 const SKY_STRIPS = 12;
 const SKYLINE_B = SKYLINE_H - 20;
+/** Dünyalar ekranı önizleme boyutu (kart sanatı; 3x ekranda da keskin) */
+const THUMB_W = 480;
+const THUMB_H = 740;
+/** önizlemede ufuk (silüet tabanı) yüksekliğin bu oranında: altı kartın yazı alanı */
+const THUMB_HORIZON = 0.64;
 
 // ───────────────────────── GÖKYÜZÜ ─────────────────────────
 
-/** Ebru bulutsusu gövdesi + HD damarlar + yıldızlar + gök cismi */
+/** Ebru bulutsusu gövdesi + HD damarlar + yıldızlar + gök cismi (tek seferde) */
 function buildSky(atm: Atmosphere, geo: Geom, detail: number): Canvas {
+  const out: { c: Canvas | null } = { c: null };
+  const it = skySteps(atm, geo, detail, out);
+  while (!it.next().done) {
+    /* sürdür */
+  }
+  return out.c!;
+}
+
+/**
+ * Gökyüzü üretimi adım adım: her `yield` arası birkaç ms'lik iş (bulutsunun birkaç satırı,
+ * bir damar, bir grup yıldız). İş kuyruğu bunu kare başına sınırlı sürede ilerletir.
+ */
+function* skySteps(atm: Atmosphere, geo: Geom, detail: number, out: { c: Canvas | null }): Generator<void, void, unknown> {
   const { pw, ph, k, ox, oy, H } = geo;
   const c = makeCanvas(pw, ph);
   const g = ctx2d(c);
@@ -144,6 +165,7 @@ function buildSky(atm: Atmosphere, geo: Geom, detail: number): Canvas {
       d[i + 2] = lerp(ab, bb, mix);
       d[i + 3] = clamp(body * m * atm.nebulaAlpha, 0, 1) * 255;
     }
+    if ((y & 7) === 7) yield;
   }
   ng.putImageData(img, 0, 0);
   g.save();
@@ -232,8 +254,10 @@ function buildSky(atm: Atmosphere, geo: Geom, detail: number): Canvas {
         }
       }
     }
+    yield;
   }
   g.restore();
+  yield;
 
   // 4) yıldızlar
   const srng = new Rng(99);
@@ -250,7 +274,9 @@ function buildSky(atm: Atmosphere, geo: Geom, detail: number): Canvas {
     g.beginPath();
     g.arc(x, y, s, 0, TAU);
     g.fill();
+    if (i % 400 === 399) yield;
   }
+  yield;
 
   // 5) gök cismi
   drawCelestial(g, atm, ox + atm.celestialPos[0] * WORLD_W * k, oy + atm.celestialPos[1] * H * k, k);
@@ -261,7 +287,7 @@ function buildSky(atm: Atmosphere, geo: Geom, detail: number): Canvas {
     g.fillRect(0, 0, ox, ph);
     g.fillRect(ox + WORLD_W * k, 0, pw - (ox + WORLD_W * k), ph);
   }
-  return c;
+  out.c = c;
 }
 
 function halo(g: CanvasRenderingContext2D, x: number, y: number, r: number, col: string, a: number): void {
@@ -787,6 +813,8 @@ export class Background {
   ) {
     view.onResize(() => {
       this.cache.clear();
+      // hazırlanan sahneler eski boyutta: iptal
+      jobs.cancel('scene:');
       this.setAtmosphere(this.atm);
     });
     this.setAtmosphere(this.atm);
@@ -831,8 +859,7 @@ export class Background {
   }
 
   /** Bir kareye (ya da şeridine) gökyüzü + ışık lekeleri: lekeler t anındaki konumlarında */
-  private paintSky(target: Canvas, y0: number, y1: number, t: number): void {
-    const sc = this.scene;
+  private paintSky(target: Canvas, y0: number, y1: number, t: number, sc: Scene | null = this.scene, atm: Atmosphere = this.atm): void {
     if (!sc) return;
     const g = ctx2d(target);
     const v = this.view;
@@ -840,7 +867,6 @@ export class Background {
     const d = v.skyDpr;
     const k = v.scale * d;
     const H = v.H;
-    const atm = this.atm;
     g.save();
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.beginPath();
@@ -870,6 +896,16 @@ export class Background {
   private paintFront(): void {
     const sc = this.scene;
     if (!sc) return;
+    const pre = sc.front0;
+    if (pre && pre.width === sc.sky.width && pre.height === sc.sky.height) {
+      // önceden boyanmış kare: boyama yok, yalnızca yer değişir (eski ön kare arka tampon olur)
+      sc.front0 = null;
+      this.back = this.front;
+      this.front = pre;
+      this.bakeRow = -1;
+      this.bakeT = 0;
+      return;
+    }
     this.front = this.sizedCanvas(this.front, sc.sky.width, sc.sky.height);
     this.paintSky(this.front, 0, sc.sky.height, this.t);
     this.bakeRow = -1;
@@ -905,6 +941,8 @@ export class Background {
   setAtmosphere(atm: Atmosphere): void {
     this.atm = atm;
     let s = this.cache.get(atm.id);
+    // hazırlığı süren sahne varsa hemen bitir (normalde dünya açılmadan çok önce biter)
+    if (!s && jobs.finish('scene:' + atm.id)) s = this.cache.get(atm.id);
     if (!s) {
       s = this.buildScene(atm);
       this.cache.set(atm.id, s);
@@ -915,10 +953,32 @@ export class Background {
     this.paintFront();
   }
 
-  /** Sonraki atmosferi önceden hazırla (geçişte takılma olmasın) */
+  /**
+   * Sonraki atmosferi arka planda, kare başına birkaç ms'lik adımlarla hazırla (geçişte ve
+   * kart seçiminde takılma olmasın). İlk kare de ışık lekeleriyle önceden boyanır.
+   */
   prebuild(atm: Atmosphere): void {
+    if (this.cache.has(atm.id) || atm.id === this.atm.id) return;
+    jobs.add('scene:' + atm.id, this.sceneJob(atm), true);
+  }
+
+  private *sceneJob(atm: Atmosphere): Generator<void, void, unknown> {
+    const geo = this.geom();
+    const out: { c: Canvas | null } = { c: null };
+    yield* skySteps(atm, geo, 1, out);
+    const sky = out.c!;
+    const { skyline, lights, beacons } = buildSkyline(atm, geo.k);
+    yield;
+    const sc: Scene = { sky, skyline, lights, beacons, front0: null };
+    const f = makeCanvas(sky.width, sky.height);
+    const t = this.t + 1;
+    for (let i = 0; i < SKY_STRIPS; i++) {
+      this.paintSky(f, Math.floor((i * sky.height) / SKY_STRIPS), Math.floor(((i + 1) * sky.height) / SKY_STRIPS), t, sc, atm);
+      yield;
+    }
+    sc.front0 = f;
     if (this.cache.has(atm.id)) return;
-    this.cache.set(atm.id, this.buildScene(atm));
+    this.cache.set(atm.id, sc);
     this.trimCache(this.atm.id, atm.id);
   }
 
@@ -1047,25 +1107,65 @@ export class Background {
     };
   }
 
-  /** Dünyalar ekranı için küçük önizleme (data URL, önbellekli) */
-  thumb(atm: Atmosphere, w = 288, h = 360): string {
+  /** Hazır önizleme (yoksa undefined) */
+  thumbReady(atm: Atmosphere): string | undefined {
+    return this.thumbs.get(atm.id);
+  }
+
+  /** Dünyalar ekranı önizlemesi: arka planda adım adım hazırlanır, bitince cb çağrılır */
+  requestThumb(atm: Atmosphere, cb: (url: string) => void, w = THUMB_W, h = THUMB_H): void {
     const cached = this.thumbs.get(atm.id);
-    if (cached) return cached;
+    if (cached) {
+      cb(cached);
+      return;
+    }
+    const waiters = this.thumbWait.get(atm.id);
+    if (waiters) {
+      waiters.push(cb);
+      return;
+    }
+    this.thumbWait.set(atm.id, [cb]);
+    jobs.add('thumb:' + atm.id, this.thumbJob(atm, w, h));
+  }
+
+  private thumbWait = new Map<string, Array<(url: string) => void>>();
+
+  private *thumbJob(atm: Atmosphere, w: number, h: number): Generator<void, void, unknown> {
     const k = w / WORLD_W;
-    const H = h / k;
-    const sky = buildSky(atm, { pw: w, ph: h, k, ox: 0, oy: 0, H, letterboxed: false }, 0.5);
+    // gökyüzü üst kısma, ufuk kartın yazı alanının hemen üstüne
+    const skyH = Math.round(h * THUMB_HORIZON);
+    const H = skyH / k;
+    const out: { c: Canvas | null } = { c: null };
+    yield* skySteps(atm, { pw: w, ph: skyH, k, ox: 0, oy: 0, H, letterboxed: false }, 0.6, out);
+    const sky = out.c!;
     const c = makeCanvas(w, h);
     const g = ctx2d(c);
+    const ground = g.createLinearGradient(0, skyH - 40, 0, h);
+    ground.addColorStop(0, atm.sky[atm.sky.length - 1][1]);
+    ground.addColorStop(1, '#05071c');
+    g.fillStyle = ground;
+    g.fillRect(0, skyH - 40, w, h - skyH + 40);
     g.drawImage(sky, 0, 0);
     const { skyline, lights } = buildSkyline(atm, k);
     const sh = (skyline.height / skyline.width) * w;
-    const y = h + 14 - (SKYLINE_B / SKYLINE_H) * sh;
+    const y = skyH + 14 - (SKYLINE_B / SKYLINE_H) * sh;
     g.drawImage(skyline, 0, y, w, sh);
     g.globalCompositeOperation = 'lighter';
     g.drawImage(lights, 0, y, w, sh);
-    const url = c.toDataURL('image/jpeg', 0.86);
-    this.thumbs.set(atm.id, url);
-    return url;
+    yield;
+    const done = (url: string): void => {
+      this.thumbs.set(atm.id, url);
+      const ws = this.thumbWait.get(atm.id) ?? [];
+      this.thumbWait.delete(atm.id);
+      for (const f of ws) f(url);
+    };
+    // JPEG kodlaması ana iş parçacığı dışında (toBlob); sayfaya kısa bir blob adresi girer
+    // (dev data URL'lerini HTML'e gömmek menüyü açarken ayrıştırma takılmasına yol açıyordu)
+    if (typeof c.toBlob === 'function' && typeof URL.createObjectURL === 'function') {
+      c.toBlob((b) => done(b ? URL.createObjectURL(b) : c.toDataURL('image/jpeg', 0.86)), 'image/jpeg', 0.86);
+    } else {
+      done(c.toDataURL('image/jpeg', 0.86));
+    }
   }
 
   update(dt: number): void {

@@ -1,10 +1,10 @@
+import { jobs } from './core/jobs';
 import { audio } from './core/audio';
 import { haptics } from './core/haptics';
 import { Input } from './core/input';
 import { Loop } from './core/loop';
 import { type Quality, type SaveData, defaultSave, loadSave, writeSave } from './core/storage';
 import { PENS, PEN_BY_ID, type Pen } from './game/pens';
-import { Rarity } from './game/upgrades';
 import { type RunOptions, type RunResult, type SkillId, type SkillLoadout, World, type WorldEvent } from './game/world';
 import { getLang, setLang, t } from './i18n';
 import {
@@ -73,7 +73,7 @@ import {
   worldsHTML,
 } from './ui/screens';
 
-export const VERSION = '1.8.1';
+export const VERSION = '1.9.0';
 
 type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'revive' | 'over';
 type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds' | 'shop' | 'skills';
@@ -215,7 +215,7 @@ export class App {
     if (this.save.menuAtm > 0) this.world.applyAtmosphere(this.save.menuAtm);
     // ağır görselleri menüdeyken boşta hazırla: meteorlar ve (menü başka dünyadaysa) oyunun ilk dünyası
     const warm = [...this.sprites.glowSteps(glowPalette()), ...this.sprites.warmSteps()];
-    if (this.save.menuAtm > 0) warm.push(() => this.world.prebuildStep(0, 0), () => this.world.prebuildStep(0, 1));
+    if (this.save.menuAtm > 0) warm.push(() => this.world.prebuildWorld(0));
     const runWarm = (i: number): void => {
       if (i >= warm.length) return;
       warm[i]();
@@ -378,14 +378,20 @@ export class App {
     );
   }
 
-  /** Dünya önizlemelerini boşta, tek tek hazırla (menü akıcı kalsın) */
+  /** Dünya önizlemeleri arka planda, kare başına birkaç ms'lik adımlarla hazırlanır */
   private prepareThumbs(): void {
-    const next = (i: number): void => {
-      if (i >= ATMOSPHERES.length || this.state !== 'menu') return;
-      if (!this.thumbs[i]) this.thumbs[i] = this.bg.thumb(ATMOSPHERES[i]);
-      window.setTimeout(() => next(i + 1), 250);
-    };
-    window.setTimeout(() => next(0), 900);
+    ATMOSPHERES.forEach((a, i) => {
+      if (this.thumbs[i]) return;
+      this.bg.requestThumb(a, (url) => {
+        this.thumbs[i] = url;
+        // Dünyalar ekranı açıksa resim yerine oturur (ekran yeniden çizilmez)
+        const img = this.panelEl.querySelector(`[data-thumb="${i}"]`) as HTMLElement | null;
+        if (img) {
+          img.style.backgroundImage = `url(${url})`;
+          img.classList.add('ready');
+        }
+      });
+    });
   }
 
   private openPanel(name: PanelName): void {
@@ -397,7 +403,9 @@ export class App {
     this.resetArmed = false;
     if (name === 'missions') this.newMissions = 0;
     if (name === 'worlds') {
-      for (let i = 0; i < ATMOSPHERES.length; i++) if (!this.thumbs[i]) this.thumbs[i] = this.bg.thumb(ATMOSPHERES[i]);
+      this.prepareThumbs();
+      // her açılışta seçili dünyadan başla (yeniden çizimlerde kaydırma yeri korunur)
+      this.worldsIdx = -1;
     }
     this.renderPanel();
     // sekmeler arası geçişte yandan kayarak gelsin
@@ -445,6 +453,8 @@ export class App {
     const same = prev && this.panelEl.querySelector(`#panel-${this.panel}`);
     this.panelEl.innerHTML = html;
     const body = this.panelEl.querySelector('.panel-body') as HTMLElement | null;
+    // galeri konumu bir sonraki karede (panel önce çizilir; tek uzun kare yerine iki kısa kare)
+    if (this.panel === 'worlds') requestAnimationFrame(() => this.bindWorlds());
     if (same && body) {
       body.scrollTop = scroll;
       const pe = this.panelEl.querySelector('.panel');
@@ -452,6 +462,61 @@ export class App {
       // satın alma vb. sonrası yeniden çizimde giriş animasyonları tekrar oynamasın
       pe?.classList.add('still');
     }
+  }
+
+  /** Dünya galerisi: açılışta seçili dünya ortada; kaydırdıkça ortadaki kart ve gezegen vurgulanır */
+  private worldsIdx = -1;
+
+  private bindWorlds(): void {
+    const car = this.panelEl.querySelector('.wcar') as HTMLElement | null;
+    if (!car) return;
+    const cards = Array.from(car.querySelectorAll<HTMLElement>('.wc'));
+    const dots = Array.from(this.panelEl.querySelectorAll<HTMLElement>('.wdot'));
+    const centerOf = (): number => {
+      const mid = car.scrollLeft + car.clientWidth / 2;
+      let best = 0;
+      let bd = Infinity;
+      cards.forEach((c, i) => {
+        const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - mid);
+        if (d < bd) {
+          bd = d;
+          best = i;
+        }
+      });
+      return best;
+    };
+    let cur = -1;
+    const mark = (): void => {
+      const i = centerOf();
+      if (i === cur) return;
+      cur = i;
+      this.worldsIdx = i;
+      cards.forEach((c, k) => c.classList.toggle('center', k === i));
+      dots.forEach((d, k) => d.classList.toggle('on', k === i));
+    };
+    const start = cards[this.worldsIdx >= 0 ? this.worldsIdx : this.save.menuAtm] ?? cards[0];
+    if (start) car.scrollLeft = start.offsetLeft + start.offsetWidth / 2 - car.clientWidth / 2;
+    mark();
+    car.classList.add('bound');
+    let raf = 0;
+    car.addEventListener(
+      'scroll',
+      () => {
+        if (raf) return;
+        raf = requestAnimationFrame(() => {
+          raf = 0;
+          mark();
+        });
+      },
+      { passive: true },
+    );
+  }
+
+  private scrollWorld(i: number): void {
+    const car = this.panelEl.querySelector('.wcar') as HTMLElement | null;
+    const c = car?.querySelectorAll<HTMLElement>('.wc')[i];
+    if (!car || !c) return;
+    car.scrollTo({ left: c.offsetLeft + c.offsetWidth / 2 - car.clientWidth / 2, behavior: 'smooth' });
   }
 
   private closePanel(): void {
@@ -630,10 +695,10 @@ export class App {
     void keepAwake(true);
     audio.resume();
     if (this.world.phase === 'cleared') {
-      // yalnızca Hattat atölye bonusu: tek başlangıç kartı (ileri dünyada da ek kart yok)
-      this.startPickTotal = 1;
-      this.startPicks = 0;
-      this.showUpgrade(this.world.offerStart(opts.meta.startRarity >= 2 ? Rarity.Epic : Rarity.Rare), true);
+      // yalnızca Hattat atölye bonusu: seviyesi kadar başlangıç kartı (ileri dünyada da ek kart yok)
+      this.startPickTotal = Math.max(1, opts.meta.startCards);
+      this.startPicks = this.startPickTotal - 1;
+      this.showUpgrade(this.world.offerStart(), true);
     }
   }
 
@@ -653,15 +718,6 @@ export class App {
         : t('up.subStart');
     this.setScreen(upgradeHTML(ids, this.world.levels, sub, this.world.rerolls));
     audio.whoosh();
-    // kartlar yerleştikten sonra sıradaki dünyayı boşta, parça parça hazırla (geçişte takılma olmasın)
-    const nx = this.world.atmIndex + 1;
-    if (nx < ATMOSPHERES.length) {
-      const step = (i: number): void => {
-        if (this.state !== 'upgrade') return;
-        if (this.world.prebuildStep(nx, i)) whenIdle(() => step(i + 1));
-      };
-      window.setTimeout(() => whenIdle(() => step(0)), 1000);
-    }
   }
 
   private pick(id: string, el: HTMLElement): void {
@@ -695,9 +751,7 @@ export class App {
   private reroll(): void {
     if (this.world.rerolls <= 0 || this.picking) return;
     this.world.rerolls--;
-    // Hattat kartı yalnızca ilk hazırlık seçiminde; sonrakiler normal teklif
-    const hattatPick = this.upgradeStart && metaBonus(this.save).startRarity >= 1 && this.startPicks === this.startPickTotal - 1;
-    const ids = hattatPick ? this.world.offerStart((this.save.workshop.start ?? 0) >= 2 ? Rarity.Epic : Rarity.Rare) : this.world.offer();
+    const ids = this.upgradeStart ? this.world.offerStart() : this.world.offer();
     this.showUpgrade(ids, this.upgradeStart);
   }
 
@@ -1299,6 +1353,9 @@ export class App {
       case 'worldGo':
         this.playWorld(Number(el.dataset.i));
         break;
+      case 'worldDot':
+        this.scrollWorld(Number(el.dataset.i));
+        break;
       case 'revive':
         this.doRevive();
         break;
@@ -1385,6 +1442,8 @@ export class App {
       this.save.menuAtm = i;
       this.commit();
     }
+    // seçilen dünya dokunur dokunmaz hazırlanmaya başlar (mürekkep geçişi altında biter)
+    this.world.prebuildWorld(i);
     this.play(false);
   }
 
@@ -1612,6 +1671,9 @@ export class App {
       this.world.update(dt);
       this.world.render();
     }
+    // ağır hazırlıklar (sonraki dünya, önizlemeler) kare başına küçük bir süre bütçesiyle
+    const ph = this.world.phase;
+    jobs.pump(s === 'game' ? (ph === 'play' || ph === 'intro' ? 2.5 : 5) : covered ? 10 : 4);
 
     if (s === 'game' || s === 'upgrade' || s === 'revive') this.hud.update(this.world.hud, dt);
 

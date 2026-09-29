@@ -89,10 +89,6 @@ extend('tr', {
   'up.reroll': 'Yenile · {n}',
   'up.level': 'Sv. {n}',
   'up.new': 'YENİ',
-  'rarity.0': 'Yaygın',
-  'rarity.1': 'Nadir',
-  'rarity.2': 'Destansı',
-  'rarity.3': 'Efsanevi',
 
   'upg.ink_regen': 'Hızlı Dolum',
   'upg.ink_regen.d': 'Mürekkep %{v} daha hızlı dolar.',
@@ -212,7 +208,7 @@ extend('tr', {
   'ws.golden': 'Altın Radar',
   'ws.golden.d': 'Altın meteorlar daha sık gelir',
   'ws.start': 'Hattat Başlangıcı',
-  'ws.start.d': 'Oyuna nadir bir güçle başla (Sv. 2: destansı)',
+  'ws.start.d': 'Oyuna istediğin bir güç kartını seçerek başla (Sv. 2: iki kart)',
 
   'pens.title': 'Kalemler',
   'pens.desc': 'Mürekkebinin rengini seç. Bazıları yalnızca rütbeyle açılır.',
@@ -361,10 +357,6 @@ extend('en', {
   'up.reroll': 'Reroll · {n}',
   'up.level': 'Lv. {n}',
   'up.new': 'NEW',
-  'rarity.0': 'Common',
-  'rarity.1': 'Rare',
-  'rarity.2': 'Epic',
-  'rarity.3': 'Legendary',
 
   'upg.ink_regen': 'Quick Refill',
   'upg.ink_regen.d': 'Ink refills {v}% faster.',
@@ -484,7 +476,7 @@ extend('en', {
   'ws.golden': 'Gold Radar',
   'ws.golden.d': 'Golden meteors appear more often',
   'ws.start': 'Calligrapher Start',
-  'ws.start.d': 'Begin with a rare power (Lv. 2: epic)',
+  'ws.start.d': 'Begin by picking any power card you like (Lv. 2: two cards)',
 
   'pens.title': 'Pens',
   'pens.desc': 'Pick your ink color. Some unlock only with rank.',

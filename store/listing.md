@@ -18,7 +18,7 @@ Parmağını sürükle, ışıldayan bir mürekkep çizgisi çiz. Meteorlar çiz
 Çizerken zaman yavaşlar ve nişan almak kolaylaşır. Ama mürekkebin sınırlı: kısa ve doğru açılı çizgiler kazandırır.
 
 ★ HER OYUN FARKLI
-Her dalga sonunda 3 güçten birini seç: Mıknatıs Uç, Koruyucu Uydu, Zincir Şimşek, Kara Delik, Anka Kuşu ve dahası. 27 güç, 4 nadirlik seviyesi.
+Her dalga sonunda 3 güçten birini seç: Mıknatıs Uç, Koruyucu Uydu, Zincir Şimşek, Kara Delik, Anka Kuşu ve dahası. 27 güç, hepsi eşit: istediğini seç.
 
 ★ ŞEKİL ÇİZ, YETENEK AT
 Ekrana daire çiz: Yıldız Patlaması. Üçgen: Zaman Kırılması. Kare: Aegis Kalkanı. Zikzak: Yıldız Yağmuru. Sonsuzluk: Sonsuz Yansıma. Sarmal: Kara Girdap. Yıldız: Yıldız Işınları. Orion takımyıldızındaki her yıldız bir yetenek: aç, üç seviyeye kadar geliştir, en sevdiğin üçünü parşömene koy.
@@ -62,7 +62,7 @@ Drag your finger to draw a glowing ink line. Meteors bounce off it. Deflect one 
 Time slows while you draw so you can aim. But ink is limited: short, well-angled lines win.
 
 ★ EVERY RUN IS DIFFERENT
-After each wave pick one of three powers: Magnet Nib, Guardian Satellite, Chain Lightning, Black Hole, Phoenix and more. 27 powers across 4 rarities.
+After each wave pick one of three powers: Magnet Nib, Guardian Satellite, Chain Lightning, Black Hole, Phoenix and more. 27 powers, all equal: pick the one you like.
 
 ★ DRAW A SHAPE, CAST A SKILL
 Draw a circle for Starburst, a triangle for Time Fracture, a square for Aegis Shield, a zigzag for Starfall, an infinity sign for Infinite Echo, a spiral for Dark Vortex and a star for Star Beams. Every star of the Orion constellation is a skill: unlock it, upgrade it and pin your favourite three to your scrolls.
@@ -95,6 +95,12 @@ No forced ads. Watch a video only when you want to continue or double your gold.
 - Reklam içerir: Evet (isteğe bağlı ödüllü videolar ve her 5 oyunda bir geçiş reklamı; Reklamsız paketle kalkar)
 - Uygulama içi satın alma: Evet
 - İletişim e-postası: (Play Console'da kendi adresini gir)
+
+## Sürüm notları (1.9.0)
+
+**TR:** Geçişler, kart seçimi, dalga sonu ve ekran yazılarındaki takılmalar giderildi: ağır hazırlıklar arka planda küçük adımlarla yapılıyor. Güç kartlarında nadirlik kalktı, hepsi eşit. Dünyalar ekranı eşit boyutlu, yana kaydırmalı yeni bir galeri oldu.
+
+**EN:** Removed stutters during transitions, card picks, wave ends and on-screen texts: heavy preparation now runs in the background in small steps. Power cards no longer have rarities; all cards are equal. The Worlds screen is a new swipeable gallery of equal-size cards.
 
 ## Sürüm notları (1.8.1)
 

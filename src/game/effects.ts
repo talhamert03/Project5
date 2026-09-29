@@ -36,6 +36,57 @@ export interface Floater {
   /** yaklaşık kutu (dünya birimi): yerleşimde çakışma denetimi için */
   w: number;
   h: number;
+  /** önceden çizilmiş hali (ilk görünüşte bir kez hazırlanır) */
+  spr: TextSprite | null;
+}
+
+/** Yazının kenarlıklı hali küçük bir tuvale bir kez çizilir; her karede yalnızca görüntü basılır */
+interface TextSprite {
+  c: HTMLCanvasElement;
+  /** dünya birimi cinsinden boyut */
+  w: number;
+  h: number;
+}
+
+/** Aynı yazılar (KOMBO, MÜKEMMEL, SEKME...) yeniden kullanılır; en eski atılır */
+const TEXT_CACHE_MAX = 48;
+const textCache = new Map<string, TextSprite>();
+
+function bakeText(text: string, font: string, size: number, color: string, k: number): TextSprite {
+  const key = `${k.toFixed(2)}|${font}|${color}|${text}`;
+  const hit = textCache.get(key);
+  if (hit) {
+    // en son kullanılan en sona (LRU)
+    textCache.delete(key);
+    textCache.set(key, hit);
+    return hit;
+  }
+  const pad = size * 0.3;
+  const w = measure(text, font, size) + pad * 2;
+  const h = size * 1.3 + pad * 2;
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.ceil(w * k));
+  c.height = Math.max(1, Math.ceil(h * k));
+  const g = c.getContext('2d');
+  if (g) {
+    g.scale(k, k);
+    g.font = font;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.lineJoin = 'round';
+    g.lineWidth = size * 0.22;
+    g.strokeStyle = 'rgba(8,6,30,0.85)';
+    g.strokeText(text, w / 2, h / 2);
+    g.fillStyle = color;
+    g.fillText(text, w / 2, h / 2);
+  }
+  const spr = { c, w, h };
+  textCache.set(key, spr);
+  if (textCache.size > TEXT_CACHE_MAX) {
+    const first = textCache.keys().next().value;
+    if (first !== undefined) textCache.delete(first);
+  }
+  return spr;
 }
 
 /** Yazı genişliği ölçümü için tek, küçük bir bağlam (yalnızca yazı oluşturulurken) */
@@ -153,7 +204,7 @@ export class Effects {
         cy = up >= top ? up : hit.y + (hit.h + h) / 2 + 2;
       }
     }
-    this.floaters.push({ text, x: cx, y: cy, vy: big ? -30 : -70, t: 0, life, size, color, big, font, w, h });
+    this.floaters.push({ text, x: cx, y: cy, vy: big ? -30 : -70, t: 0, life, size, color, big, font, w, h, spr: null });
   }
 
   /** Dünya noktasından hedefe (HUD) kavisli uçan parıltı */
@@ -260,11 +311,9 @@ export class Effects {
     g.globalCompositeOperation = 'source-over';
   }
 
-  renderText(g: CanvasRenderingContext2D, _k: number): void {
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.lineJoin = 'round';
-    let lastFont = '';
+  renderText(g: CanvasRenderingContext2D, k: number): void {
+    // büyük yazılar açılırken ~%10 büyür: o ölçekte keskin kalsın diye biraz yüksek çözünürlükte
+    const bk = Math.max(0.5, Math.round(k * 1.12 * 4) / 4);
     for (const f of this.floaters) {
       const p = f.t / f.life;
       let scale: number;
@@ -276,21 +325,12 @@ export class Effects {
         scale = p < 0.15 ? 0.6 + easeOutBack(p / 0.15) * 0.4 : 1;
         a = p > 0.6 ? (1 - p) / 0.4 : 1;
       }
-      if (a <= 0.01) continue;
-      if (f.font !== lastFont) {
-        g.font = f.font;
-        lastFont = f.font;
-      }
-      g.save();
-      g.translate(f.x, f.y);
-      g.scale(scale, scale);
+      if (a <= 0.01 || scale <= 0.01) continue;
+      const spr = f.spr ?? (f.spr = bakeText(f.text, f.font, f.size, f.color, bk));
+      const w = spr.w * scale;
+      const h = spr.h * scale;
       g.globalAlpha = a;
-      g.lineWidth = f.size * 0.22;
-      g.strokeStyle = 'rgba(8,6,30,0.85)';
-      g.strokeText(f.text, 0, 0);
-      g.fillStyle = f.color;
-      g.fillText(f.text, 0, 0);
-      g.restore();
+      g.drawImage(spr.c, f.x - w / 2, f.y - h / 2, w, h);
     }
     g.globalAlpha = 1;
   }

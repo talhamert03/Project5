@@ -17,7 +17,7 @@ import { type GestureResult, type Shape as GestureShape, recognize, shapeGuide }
 import { type InkLine, LineManager } from './lines';
 import { BLINK_WARN, BT, KINDS, MK, Meteor, PRISM_COLS, renderBossRing, renderMeteors, shieldPos } from './meteors';
 import type { Pen } from './pens';
-import { type Stats, UPGRADES, UPGRADE_BY_ID, baseStats, Rarity } from './upgrades';
+import { type Stats, UPGRADES, UPGRADE_BY_ID, baseStats } from './upgrades';
 import { SKILLS } from '../meta/progression';
 
 export interface DailyMod {
@@ -39,7 +39,7 @@ export interface MetaBonus {
   coinMult: number;
   goldenBonus: number;
   rerolls: number;
-  startRarity: number;
+  startCards: number;
 }
 
 export interface RunOptions {
@@ -150,7 +150,8 @@ interface DrumTransition {
   t: number;
   dur: number;
   to: number;
-  stage: 0 | 1;
+  /** 0: başlamadı, 2: eski kare alındı (yeni sahne sonraki karede), 1: tambur dönüyor */
+  stage: 0 | 1 | 2;
   back: Phase;
   old: HTMLCanvasElement;
   neu: HTMLCanvasElement;
@@ -415,13 +416,15 @@ export class World implements PointerSink {
     audio.setScene(a.music.root, a.music.bpm);
   }
 
-  /** Sıradaki dünyayı parça parça hazırla (her çağrı tek bir ağır işi yapar; bitince false) */
-  prebuildStep(index: number, step: number): boolean {
+  /**
+   * Bir dünyayı arka planda hazırla: gökyüzü ve ev görselleri iş kuyruğuna girer, kare başına
+   * birkaç ms'lik adımlarla ilerler (kart seçiminde ve geçişte takılma olmaz).
+   */
+  prebuildWorld(index: number): void {
     const a = ATMOSPHERES[index];
-    if (!a) return false;
-    if (step === 0) this.bg.prebuild(a);
-    else if (step === 1) this.city.prebuild(a.house.tint);
-    return step < 1;
+    if (!a || index === this.atmIndex) return;
+    this.bg.prebuild(a);
+    this.city.prebuild(a.house.tint);
   }
 
   setPen(pen: Pen): void {
@@ -612,7 +615,7 @@ export class World implements PointerSink {
       this.phase = 'tutorial';
       this.tutStep = -1;
       this.setTutStep(0);
-    } else if (opts.meta.startRarity >= 1) {
+    } else if (opts.meta.startCards >= 1) {
       // Hattat atölye bonusu: ilk dalgadan önce güç seçimi (arayüz 'cleared' durumunu yakalar)
       this.phase = 'cleared';
       this.wave = startWave - 1;
@@ -634,6 +637,9 @@ export class World implements PointerSink {
     this.waveDamaged = false;
     this.city.domeCharges = Math.max(this.city.domeCharges, this.stats.domePerWave);
     this.onEvent({ type: 'wave', wave: n, boss: this.director.bossWave, bossType: this.director.bossType });
+    // bölümün sonraki dünyası dalgalar sürerken arka planda hazırlanır
+    const nextAtm = atmosphereIndexForWave(n + 5);
+    if (nextAtm !== this.atmIndex) this.prebuildWorld(nextAtm);
     this.musicLevel = this.director.bossWave ? 4 : n >= 7 ? 3 : n >= 3 ? 2 : 1;
     audio.setIntensity(this.feverT > 0 ? 4 : this.musicLevel);
     audio.waveStart();
@@ -672,33 +678,30 @@ export class World implements PointerSink {
     audio.repair();
   }
 
-  /** Dalga sonunda 3 kart (tekrarsız, seviyesi dolmamış). Nadirlik dalgayla artar. */
+  /** Dalga sonunda 3 kart: hepsi eşit şanslı (nadirlik yok), tekrarsız, seviyesi dolmamış */
   offer(count = 3): string[] {
     const r = this.runRng;
-    const w = this.wave;
-    const rarityW = [60, 28 + w * 0.6, 9 + w * 0.5, 2.2 + w * 0.22];
     const damaged = this.city.blocks.some((b) => b.hp < b.maxHp);
-    const pool = UPGRADES.filter((u) => (this.levels[u.id] ?? 0) < u.max && (u.id !== 'repair' || damaged));
+    const pool = UPGRADES.filter((u) => (this.levels[u.id] ?? 0) < u.max && u.id !== 'repair');
     const out: string[] = [];
     // hasar varsa onarım kartı öncelikli çıkabilir
-    if (damaged && this.city.alive <= 3 && r.chance(0.7)) out.push('repair');
-    let guard = 0;
-    while (out.length < count && guard++ < 200) {
-      const rar = r.weighted(rarityW);
-      const cands = pool.filter((u) => u.rarity === rar && !out.includes(u.id));
-      if (cands.length === 0) continue;
-      out.push(r.pick(cands).id);
+    if (damaged && (this.city.alive <= 3 ? r.chance(0.7) : r.chance(0.25))) out.push('repair');
+    while (out.length < count && pool.length) {
+      const i = r.int(0, pool.length - 1);
+      out.push(pool[i].id);
+      pool.splice(i, 1);
     }
     return out;
   }
 
-  /** Başlangıç kartı (atölye): verilen nadirlikte rastgele */
-  offerStart(rarity: Rarity): string[] {
-    const cands = UPGRADES.filter((u) => u.rarity === rarity && u.id !== 'repair');
+  /** Başlangıç kartı (Hattat atölye bonusu): onarım dışındaki kartlardan rastgele üçü */
+  offerStart(): string[] {
+    const pool = UPGRADES.filter((u) => u.id !== 'repair' && (this.levels[u.id] ?? 0) < u.max);
     const out: string[] = [];
-    while (out.length < Math.min(3, cands.length)) {
-      const p = this.runRng.pick(cands).id;
-      if (!out.includes(p)) out.push(p);
+    while (out.length < 3 && pool.length) {
+      const i = this.runRng.int(0, pool.length - 1);
+      out.push(pool[i].id);
+      pool.splice(i, 1);
     }
     return out;
   }
@@ -3141,7 +3144,13 @@ export class World implements PointerSink {
   render(): void {
     const tr = this.trans;
     if (tr) {
-      if (tr.stage === 0) this.captureTransition(tr);
+      // yakalama iki kareye bölünür (tek uzun kare yerine iki kısa kare): önce eski sahne + yeni
+      // atmosfer, sonraki karede yeni sahnenin ilk çizimi. Arada tuval eski kareyi gösterir.
+      if (tr.stage === 0) {
+        this.captureOld(tr);
+        return;
+      }
+      if (tr.stage === 2) this.captureNew(tr);
       this.renderDrum(tr);
       return;
     }
@@ -3183,18 +3192,22 @@ export class World implements PointerSink {
     return this.trans !== null;
   }
 
-  private captureTransition(tr: DrumTransition): void {
+  private captureOld(tr: DrumTransition): void {
     const v = this.view;
-    // eski sahne: tuvaldeki son kare (yeniden çizmeye gerek yok; geçiş karesi yarı maliyette)
+    // eski sahne: tuvaldeki son kare (yeniden çizmeye gerek yok)
     tr.old.getContext('2d')!.drawImage(v.canvas, 0, 0);
-    // yeni sahne: atmosferi uygula, sahneyi temiz çiz
     for (const m of this.meteors) m.active = false;
     this.lines.clear();
     this.parts.clear();
     this.fx.clear();
+    // yeni atmosfer (gökyüzü ve evler önceden arka planda hazırlandı: yalnızca yer değişir)
     this.applyAtmosphere(tr.to);
+    tr.stage = 2;
+  }
+
+  private captureNew(tr: DrumTransition): void {
     this.renderScene();
-    tr.neu.getContext('2d')!.drawImage(v.canvas, 0, 0);
+    tr.neu.getContext('2d')!.drawImage(this.view.canvas, 0, 0);
     tr.stage = 1;
   }
 
@@ -3204,7 +3217,7 @@ export class World implements PointerSink {
       this.phase = 'cleared';
       return;
     }
-    if (tr.stage === 0) return;
+    if (tr.stage !== 1) return;
     tr.t += realDt;
     // dönüşün ortasında yeni dünyanın müziği ve ışıltısı
     if (tr.t >= tr.dur) {

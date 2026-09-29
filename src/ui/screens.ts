@@ -217,6 +217,10 @@ export function tabbarHTML(active: TabName, missionsBadge: number, canBuy: boole
 }
 
 /** Dünyalar galerisi: açılan atmosferler, menü arka planı seçimi */
+/**
+ * Dünya seçimi: yana kaydırmalı galeri. Bütün kartlar aynı boyda; dünyanın resmi kartı tamamen
+ * kaplar, ortadaki kart öne çıkar. Altta dokunulabilir gezegen şeridi (açık / seçili / kilitli).
+ */
 export function worldsHTML(save: SaveData, thumbs: string[], current: number): string {
   const open = Math.min(save.maxAtm + 1, ATMOSPHERES.length);
   const cards = ATMOSPHERES.map((a, i) => {
@@ -224,41 +228,43 @@ export function worldsHTML(save: SaveData, thumbs: string[], current: number): s
     const selected = unlocked && i === current;
     const first = firstWaveOf(i);
     const range = i === ATMOSPHERES.length - 1 ? t('worlds.wavesEnd', { a: first }) : t('worlds.waves', { a: first, b: first + 4 });
+    const art = thumbs[i] ? ` ready" style="background-image:url(${thumbs[i]})` : '';
     const go = unlocked
       ? `<button class="wc-go" data-a="worldGo" data-i="${i}">${icon('play')}<span>${selected ? t('worlds.continue') : t('worlds.go')}</span></button>`
       : `<button class="wc-go locked" data-a="worldGo" data-i="${i}">${icon('lock')}<span>${t('worlds.lockedAt', { n: first })}</span></button>`;
     return `
-      <div class="wcard ${unlocked ? '' : 'locked'} ${selected ? 'selected' : ''}" style="--ac:${a.accent};--d:${i}">
-        <div class="wc-top">
-          <button class="wc-art" data-a="worldGo" data-i="${i}" aria-label="${t('atm.' + a.id)}">
-            ${thumbs[i] ? `<img src="${thumbs[i]}" alt="">` : ''}
-            <span class="wc-num">${i + 1}</span>
-            ${unlocked ? '' : `<span class="wc-lock">${icon('lock')}</span>`}
-          </button>
-          <div class="wc-info">
-            <div class="wc-tags">
-              <small class="wc-chapter">${t('banner.chapter', { n: i + 1 })}</small>
-              ${selected ? `<small class="wc-sel">${icon('check')}${t('worlds.selected')}</small>` : ''}
-            </div>
-            <h3>${t('atm.' + a.id)}</h3>
-            <span class="wc-range">${range}</span>
-            <p>${t('atm.' + a.id + '.d')}</p>
-          </div>
+      <article class="wc ${unlocked ? '' : 'locked'} ${selected ? 'selected' : ''}" style="--ac:${a.accent}">
+        <div class="wc-art${art}" data-thumb="${i}"></div>
+        <i class="wc-shade"></i>
+        <span class="wc-chap">${t('banner.chapter', { n: i + 1 })}</span>
+        ${selected ? `<span class="wc-sel">${icon('check')}${t('worlds.selected')}</span>` : ''}
+        ${unlocked ? '' : `<span class="wc-lock">${icon('lock')}</span>`}
+        <div class="wc-body">
+          <h3>${t('atm.' + a.id)}</h3>
+          <span class="wc-range">${range}</span>
+          <p>${t('atm.' + a.id + '.d')}</p>
+          ${go}
         </div>
-        ${go}
-      </div>`;
+      </article>`;
   }).join('');
-  const hero = `
-    <div class="worlds-hero">
-      <div class="wh-ic">${icon('planet')}</div>
-      <h3>${t('worlds.ask')}</h3>
-      <p>${t('worlds.sub')}</p>
-      <div class="wh-prog">
-        <span class="wh-bar"><i style="width:${Math.round((open / ATMOSPHERES.length) * 100)}%"></i></span>
-        <b>${t('worlds.open', { a: open, b: ATMOSPHERES.length })}</b>
+  const dots = ATMOSPHERES.map((a, i) => {
+    const unlocked = i <= save.maxAtm;
+    return `<button class="wdot ${unlocked ? '' : 'locked'} ${i === current ? 'cur' : ''}" data-a="worldDot" data-i="${i}" style="--ac:${a.accent}" aria-label="${t('atm.' + a.id)}"><i></i></button>`;
+  }).join('');
+  return panel(
+    'worlds',
+    t('worlds.title'),
+    `<div class="wsel">
+      <div class="wsel-head">
+        <h3>${t('worlds.ask')}</h3>
+        <p>${t('worlds.sub')}</p>
       </div>
-    </div>`;
-  return panel('worlds', t('worlds.title'), `${hero}<div class="worlds">${cards}</div>`, save.coins);
+      <div class="wcar">${cards}</div>
+      <div class="wtrack"><span class="wtrack-line"></span>${dots}</div>
+      <p class="wtrack-cap">${t('worlds.open', { a: open, b: ATMOSPHERES.length })}</p>
+    </div>`,
+    save.coins,
+  );
 }
 
 /** Günlük hediye penceresi (7 günlük takvim) */
@@ -549,10 +555,10 @@ export function upgradeHTML(ids: string[], levels: Record<string, number>, sub: 
       const lvl = levels[id] ?? 0;
       const tag = id === 'repair' ? '' : lvl === 0 ? t('up.new') : t('up.level', { n: lvl + 1 });
       return `
-      <button class="card r${def.rarity}" data-a="pick" data-id="${id}" style="--d:${i}">
+      <button class="card" data-a="pick" data-id="${id}" style="--d:${i}">
         <div class="card-icon">${icon(def.icon)}</div>
         <div class="card-body">
-          <div class="card-top"><span class="rarity">${t('rarity.' + def.rarity)}</span>${tag ? `<span class="lvl">${tag}</span>` : ''}</div>
+          ${tag ? `<span class="lvl">${tag}</span>` : ''}
           <h3>${t('upg.' + id)}</h3>
           <p>${upgradeDesc(id, lvl + 1)}</p>
         </div>
@@ -908,7 +914,7 @@ export function settingsHTML(save: SaveData, version: string, canFullscreen: boo
 export function bannerHTML(big: string, small: string, boss: boolean, color?: string): string {
   return `
     <div class="banner ${boss ? 'boss' : ''}" ${color ? `style="--bc:${color}"` : ''}>
-      <div class="big">${big}</div>
+      <div class="big ${big.length > 10 ? 'long' : ''}">${big}</div>
       <svg class="stroke" viewBox="0 0 300 16" preserveAspectRatio="none"><path d="M6 10 C 70 2, 120 14, 170 8 S 260 4, 294 9"/></svg>
       ${small ? `<div class="small">${small}</div>` : ''}
     </div>`;

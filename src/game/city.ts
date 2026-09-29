@@ -1,3 +1,4 @@
+import { jobs } from '../core/jobs';
 import { clamp, easeInCubic, easeOutBack } from '../core/math';
 import { Rng } from '../core/rng';
 import { type Canvas, type Sprites, ctx2d, makeCanvas, blit } from '../render/sprites';
@@ -157,9 +158,29 @@ export class City {
     this.apply();
   }
 
-  /** Sıradaki dünyanın evlerini önceden hazırla */
+  /** Sıradaki dünyanın evlerini arka planda, ev ev hazırla (kare takılmasın) */
   prebuild(tint: string): void {
-    this.setFor(tint);
+    if (this.sets.has(tint)) return;
+    jobs.add('city:' + tint, this.prebuildJob(tint), true);
+  }
+
+  private *prebuildJob(tint: string): Generator<void, void, unknown> {
+    const k = this.view.scale * this.view.dpr;
+    const set: Canvas[][] = [];
+    for (const b of this.blocks) {
+      const row: Canvas[] = [];
+      for (let st = 0; st < 3; st++) {
+        row.push(this.toned(this.drawBlock(b, k, st), tint));
+        yield;
+      }
+      set.push(row);
+    }
+    if (this.sets.has(tint) || k !== this.view.scale * this.view.dpr) return;
+    this.sets.set(tint, set);
+    for (const key of this.sets.keys()) {
+      if (this.sets.size <= 3) break;
+      if (key !== tint && key !== this.tint) this.sets.delete(key);
+    }
   }
 
   private build(): void {
@@ -168,6 +189,7 @@ export class City {
   }
 
   private setFor(tint: string): Canvas[][] {
+    if (!this.sets.has(tint)) jobs.finish('city:' + tint);
     let set = this.sets.get(tint);
     if (!set) {
       const k = this.view.scale * this.view.dpr;
