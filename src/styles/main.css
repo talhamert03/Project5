@@ -3043,6 +3043,7 @@ svg {
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
+  touch-action: pan-x;
 }
 
 .wcar::-webkit-scrollbar {

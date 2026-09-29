@@ -73,7 +73,7 @@ import {
   worldsHTML,
 } from './ui/screens';
 
-export const VERSION = '1.9.0';
+export const VERSION = '1.9.1';
 
 type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'revive' | 'over';
 type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds' | 'shop' | 'skills';
@@ -498,6 +498,26 @@ export class App {
     if (start) car.scrollLeft = start.offsetLeft + start.offsetWidth / 2 - car.clientWidth / 2;
     mark();
     car.classList.add('bound');
+    // parmakla sola/sağa kaydırma: yatay hareket bir karta geçer (tarayıcı kaydırması engellense de çalışır)
+    let sx = 0;
+    let sy = 0;
+    let down = false;
+    car.addEventListener('pointerdown', (e) => {
+      down = true;
+      sx = e.clientX;
+      sy = e.clientY;
+    });
+    const end = (e: PointerEvent): void => {
+      if (!down) return;
+      down = false;
+      const dx = e.clientX - sx;
+      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(e.clientY - sy)) {
+        const i = Math.max(0, Math.min(cards.length - 1, cur + (dx < 0 ? 1 : -1)));
+        this.scrollWorld(i);
+      }
+    };
+    car.addEventListener('pointerup', end);
+    car.addEventListener('pointercancel', end);
     let raf = 0;
     car.addEventListener(
       'scroll',
