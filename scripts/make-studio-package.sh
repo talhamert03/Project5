@@ -40,8 +40,12 @@ done
 sed -i "s#new File('./capacitor-cordova-android-plugins/')#new File(settingsDir, 'capacitor-cordova-android-plugins')#" "$PKG/android/settings.gradle"
 
 # kaynak kod (ileride değişiklik için) + mağaza dosyaları + rehber
-tar -cf - src public scripts store docs index.html package.json package-lock.json capacitor.config.ts tsconfig.json \
-  vite.config.ts README.md | tar -xf - -C "$PKG"
+EXTRA=()
+for f in src public scripts store docs index.html package.json package-lock.json capacitor.config.ts tsconfig.json \
+  vite.config.ts README.md; do
+  if [ -e "$f" ]; then EXTRA+=("$f"); fi
+done
+tar -cf - "${EXTRA[@]}" | tar -xf - -C "$PKG"
 cp docs/google-play-yayin.md "$PKG/GOOGLE-PLAY-YAYIN-REHBERI.txt"
 
 (cd "$OUT" && rm -f "Inkfall-AndroidStudio-$VER.zip" && zip -qr -9 "Inkfall-AndroidStudio-$VER.zip" Inkfall)
