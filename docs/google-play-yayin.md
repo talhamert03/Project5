@@ -8,18 +8,18 @@ Gradle'ın ihtiyaç duyduğu Capacitor modülleri pakette hazır.
 ```
 Inkfall/
 ├─ android/                  ← Android Studio'da AÇACAĞIN klasör
+│  ├─ capacitor-plugins/     ← Capacitor modülleri (hazır; silme)
 │  └─ app/src/main/
 │     ├─ AndroidManifest.xml ← AdMob uygulama kimliği (APPLICATION_ID)
 │     └─ assets/public/index.html ← oyun (en üstte reklam ayarları)
-├─ node_modules/             ← yalnızca Capacitor'ın Android modülleri (silme, yerini değiştirme)
 ├─ store/                    ← Play Store görselleri ve mağaza metinleri
 ├─ docs/privacy-policy.md    ← gizlilik politikası metni
 ├─ src/, index.html, ...     ← oyunun kaynak kodu (ileride değişiklik için)
 └─ GOOGLE-PLAY-YAYIN-REHBERI.txt (bu dosya)
 ```
 
-> Önemli: `android` ve `node_modules` klasörleri yan yana durmalı. Paketi ayrı klasörlere
-> dağıtırsan Gradle Capacitor modüllerini bulamaz.
+> Gereken her şey `android` klasörünün içinde: paket nereye çıkarılırsa çıkarılsın Android Studio
+> modülleri bulur.
 
 ## 2. Android Studio'da açma ve deneme
 

@@ -55,6 +55,14 @@ jobs:
           name: inkfall-apk
           path: Inkfall-*.apk
 
+      # Android Studio paketi: depodan ayrı bir klasörde, node_modules olmadan derlenebildiği denenir
+      - name: Android Studio paketi (derleme denemesi)
+        run: |
+          scripts/make-studio-package.sh "$RUNNER_TEMP/studio" "$MK_VERSION_NAME"
+          cd "$RUNNER_TEMP/studio/Inkfall/android"
+          chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+          ls -la app/build/outputs/apk/debug/
+
       # En güncel APK'yı 'apk' dalına da koy (tek dosya, geçmişsiz; git ile kolayca indirilebilir)
       - name: APK dalını güncelle
         if: github.event_name == 'push' && !startsWith(github.ref_name, 'apk')
@@ -62,6 +70,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p "$RUNNER_TEMP/apk" && cp Inkfall-*.apk "$RUNNER_TEMP/apk/"
+          cp "$RUNNER_TEMP/studio/Inkfall-AndroidStudio-$MK_VERSION_NAME.zip" "$RUNNER_TEMP/apk/"
           cd "$RUNNER_TEMP/apk"
           git init -q -b apk
           git add .
