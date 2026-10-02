@@ -162,7 +162,7 @@ keytool -genkey -v -keystore upload.jks -keyalg RSA -keysize 2048 -validity 1000
 ### Play Console kontrol listesi
 
 - [ ] Geliştirici hesabı (tek seferlik 25 $)
-- [ ] Uygulama oluştur: ad **Inkfall: Meteor Defense**, paket adı `com.talhamert.inkfall`
+- [ ] Uygulama oluştur: ad **Inkfall: Meteor Defense**, paket adı `com.alphagames.inkfall`
 - [ ] Mağaza girişi: metinler `store/listing.md`, ikon `store/icon-512.png`, tanıtım görseli `store/feature-graphic-tr.jpg`, ekran görüntüleri `store/screenshots/`
 - [ ] Gizlilik politikası: `docs/privacy-policy.md` dosyasını herkese açık bir adreste yayınla (örneğin GitHub Pages) ve adresini gir
 - [ ] Veri güvenliği formu: oyun kendi sunucusuna veri göndermez; **AdMob reklam kimliği ve cihaz verisi toplar** (reklam ve analiz amaçlı), Google Play Billing ödeme bilgisini işler. Formda "Reklam kimliği" ve "Uygulama etkileşimleri" beyan edilmeli.

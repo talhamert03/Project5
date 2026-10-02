@@ -75,7 +75,7 @@ versionName (System.getenv("MK_VERSION_NAME") ?: "1.9.1")               // gör�
 
 1. https://play.google.com/console adresinde geliştirici hesabı aç (tek seferlik ücret).
 2. **Uygulama oluştur** → ad: `Inkfall: Meteor Defense`, varsayılan dil Türkçe, **Oyun**, **Ücretsiz**.
-   Paket adı `com.talhamert.inkfall` olarak gelir (ilk yüklemeden sonra değiştirilemez).
+   Paket adı `com.alphagames.inkfall` olarak gelir (ilk yüklemeden sonra değiştirilemez).
 3. **Test → Dahili test** bölümünde yeni sürüm oluştur ve AAB dosyasını yükle.
    Google Play Uygulama İmzalama varsayılan olarak açık kalsın.
 4. **Uygulama içi ürünler** (Para kazanma → Ürünler). İlk AAB'yi yükledikten sonra açılır.

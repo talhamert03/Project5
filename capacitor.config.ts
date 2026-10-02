@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.talhamert.inkfall',
+  appId: 'com.alphagames.inkfall',
   appName: 'Inkfall',
   webDir: 'dist',
   backgroundColor: '#060A22',

@@ -1,4 +1,4 @@
-package com.talhamert.murekkepkalkani;
+package com.alphagames.inkfall;
 
 import android.os.Build;
 import android.os.Bundle;

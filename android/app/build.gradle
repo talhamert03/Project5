@@ -14,10 +14,10 @@ base {
 }
 
 android {
-    namespace = "com.talhamert.murekkepkalkani"
+    namespace = "com.alphagames.inkfall"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.talhamert.inkfall"
+        applicationId "com.alphagames.inkfall"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode ((System.getenv("MK_VERSION_CODE") ?: "10910") as Integer)
