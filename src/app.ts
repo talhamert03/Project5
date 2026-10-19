@@ -75,7 +75,7 @@ import {
   worldsHTML,
 } from './ui/screens';
 
-export const VERSION = '1.10.0';
+export const VERSION = '1.10.1';
 
 type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'revive' | 'over';
 type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds' | 'shop' | 'skills';

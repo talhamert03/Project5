@@ -67,8 +67,8 @@ Google Play APK değil **AAB (Android App Bundle)** ister.
 
 Her güncellemede `android/app/build.gradle` içindeki sürüm numarasını artır:
 ```
-versionCode ((System.getenv("MK_VERSION_CODE") ?: "11000") as Integer)   // 11001, 11002... (hep büyümeli)
-versionName (System.getenv("MK_VERSION_NAME") ?: "1.10.0")               // görünen sürüm
+versionCode ((System.getenv("MK_VERSION_CODE") ?: "11001") as Integer)   // 11002, 11003... (hep büyümeli)
+versionName (System.getenv("MK_VERSION_NAME") ?: "1.10.1")               // görünen sürüm
 ```
 
 ## 5. Google Play Console
