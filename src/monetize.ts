@@ -62,6 +62,8 @@ export const SHOP_BY_ID = new Map(SHOP.map((s) => [s.id, s]));
 
 /** Başlangıç paketiyle açılan yetenek */
 export const STARTER_SKILL = 'warp';
+/** Başlangıç Paketiyle açılan şehir kostümü */
+export const STARTER_CITY = 'moon';
 /** Günlük ücretsiz altın videosu: ödül ve hak */
 export const FREE_COINS = 80;
 export const FREE_COINS_PER_DAY = 5;

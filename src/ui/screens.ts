@@ -1,6 +1,7 @@
 import type { SaveData } from '../core/storage';
 import type { RunResult } from '../game/world';
 import { PENS, type Pen } from '../game/pens';
+import { CITY_SKINS } from '../game/cityskins';
 import { UPGRADE_BY_ID } from '../game/upgrades';
 import { getLang, t } from '../i18n';
 import { ATMOSPHERES, atmosphereIndexForWave, firstWaveOf } from '../render/atmospheres';
@@ -293,6 +294,29 @@ export function giftHTML(g: GiftState, noAds = false): string {
                <button class="btn-ghost wide" data-a="claimGift">${icon('coin')}${t('gift.claim', { n: fmt(GIFT_REWARDS[g.day]) })}</button>`
             : `<button class="btn-ghost wide" data-a="closeModal">${t('gift.tomorrow')}</button>`
         }
+      </div>
+    </section>`;
+}
+
+/** Tek seferlik başlangıç teklifi (birkaç oyundan sonra açılır) */
+export function offerHTML(price: string, coins: number): string {
+  const row = (ic: string, title: string, sub: string, d: number) =>
+    `<div class="offer-row" style="--d:${d}"><span class="or-ic">${icon(ic)}</span><div><b>${title}</b><small>${sub}</small></div></div>`;
+  return `
+    <section class="screen modal" id="offer-modal">
+      <div class="modal-card offer-card">
+        <button class="icon-btn sm modal-x" data-a="closeModal" aria-label="${t('common.close')}">${icon('close')}</button>
+        <span class="offer-flag">${t('offer.flag')}</span>
+        <div class="offer-hero">${icon('bag')}<i class="offer-val">${t('offer.value')}</i></div>
+        <h2>${t('shop.starter')}</h2>
+        <p>${t('offer.desc')}</p>
+        <div class="offer-rows">
+          ${row('coin', fmt(coins) + ' ' + t('offer.gold'), t('offer.goldSub'), 0)}
+          ${row('hourglass', t('offer.skill'), t('offer.skillSub'), 1)}
+          ${row('planet', t('city.moon'), t('offer.citySub'), 2)}
+        </div>
+        <button class="btn-play gold offer-buy" data-a="buy" data-id="inkfall_starter"><span class="offer-price"><b>${price}</b></span></button>
+        <button class="btn-ghost wide" data-a="closeModal">${t('offer.later')}</button>
       </div>
     </section>`;
 }
@@ -814,7 +838,27 @@ function penSwatch(p: Pen, id: string): string {
     <path d="M10 38 C 40 6, 72 50, 130 16" stroke="${p.core}" stroke-width="2.4"/></svg>`;
 }
 
-export function pensHTML(save: SaveData): string {
+function citiesHTML(save: SaveData, thumbs: Map<string, string>): string {
+  return CITY_SKINS.map((sk, i) => {
+    const has = save.citySkins.includes(sk.id);
+    const equipped = save.citySkin === sk.id;
+    let btn: string;
+    if (equipped) btn = `<span class="buy done">${icon('check')}${t('pens.equipped')}</span>`;
+    else if (has) btn = `<button class="buy ghost" data-a="equipCity" data-id="${sk.id}">${t('pens.equip')}</button>`;
+    else btn = `<button class="buy ${save.coins >= sk.price ? 'can' : ''}" data-a="buyCity" data-id="${sk.id}">${icon('coin')}${fmt(sk.price)}</button>`;
+    const url = thumbs.get(sk.id);
+    return `
+      <div class="city-card ${equipped ? 'equipped' : ''}" style="--pc:${sk.accent};--d:${i + 1}">
+        <div class="city-view ${url ? 'ready' : ''}" data-cthumb="${sk.id}" ${url ? `style="background-image:url(${url})"` : ''}></div>
+        <div class="city-info">
+          <div><h4>${t('city.' + sk.id)}</h4><p>${t('city.' + sk.id + '.d')}</p>${sk.starter && !has ? `<small class="city-tag">${icon('bag')}${t('city.inStarter')}</small>` : ''}</div>
+          ${btn}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+export function pensHTML(save: SaveData, tab: 'pens' | 'cities' = 'pens', thumbs: Map<string, string> = new Map()): string {
   const bestRank = rankProgress(save.best).idx;
   let owned = 0;
   const cards = PENS.map((p, i) => {
@@ -835,8 +879,17 @@ export function pensHTML(save: SaveData): string {
         ${btn}
       </div>`;
   }).join('');
+  const seg = `<div class="coll-seg">
+      <button class="${tab === 'pens' ? 'on' : ''}" data-a="collTab" data-id="pens">${icon('pen')}${t('coll.pens')}</button>
+      <button class="${tab === 'cities' ? 'on' : ''}" data-a="collTab" data-id="cities">${icon('planet')}${t('coll.cities')}</button>
+    </div>`;
+  if (tab === 'cities') {
+    const n = CITY_SKINS.filter((s) => save.citySkins.includes(s.id)).length;
+    const head = hero('planet', t('city.hero'), t('city.desc'), `${n}/${CITY_SKINS.length}`, t('hero.cities'), '#FFB45A', '#FF4FA0');
+    return panel('pens', t('pens.title'), `${head}${seg}<div class="city-list">${citiesHTML(save, thumbs)}</div>`, save.coins);
+  }
   const head = hero('pen', t('pens.hero'), t('pens.desc'), `${owned}/${PENS.length}`, t('hero.owned'), '#3EF0E0', '#B57BFF');
-  return panel('pens', t('pens.title'), `${head}<div class="pen-grid">${cards}</div>`, save.coins);
+  return panel('pens', t('pens.title'), `${head}${seg}<div class="pen-grid">${cards}</div>`, save.coins);
 }
 
 export function recordsHTML(save: SaveData): string {

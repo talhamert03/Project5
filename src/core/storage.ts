@@ -73,9 +73,23 @@ export interface SaveData {
   adCoins: { date: string; n: number };
   /** son geçiş reklamından beri oynanan oyun sayısı */
   adRuns: number;
+  /** açık şehir kostümleri ve kullanılan */
+  citySkins: string[];
+  citySkin: string;
+  /** tek seferlik başlangıç teklifi kaç kez gösterildi */
+  offerShown: number;
 }
 
 const KEY = 'murekkep-kalkani/save/v1';
+
+/**
+ * Düşük donanımlı cihaz (≤2 GB bellek ya da ≤4 çekirdek): ilk açılışta "dengeli" kaliteyle başlanır.
+ * Görüntü yine keskin kalır (2x yoğunluk sınırı); oyuncu ayarlardan yükseltebilir.
+ */
+function weakDevice(): boolean {
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  return (nav.deviceMemory !== undefined && nav.deviceMemory <= 2) || (navigator.hardwareConcurrency || 8) <= 4;
+}
 
 export function defaultSave(): SaveData {
   return {
@@ -101,7 +115,7 @@ export function defaultSave(): SaveData {
       music: true,
       sfx: true,
       haptics: true,
-      quality: 'high',
+      quality: weakDevice() ? 'balanced' : 'high',
       lang: 'auto',
       showFps: false,
     },
@@ -119,6 +133,9 @@ export function defaultSave(): SaveData {
     skillHints: [],
     adCoins: { date: '', n: 0 },
     adRuns: 0,
+    citySkins: ['istanbul'],
+    citySkin: 'istanbul',
+    offerShown: 0,
   };
 }
 
@@ -147,6 +164,7 @@ export function loadSave(): SaveData {
       workshop: { ...(parsed.workshop ?? {}) },
       missionTiers: { ...(parsed.missionTiers ?? {}) },
       pens: Array.isArray(parsed.pens) && parsed.pens.length ? parsed.pens : def.pens,
+      citySkins: Array.isArray(parsed.citySkins) && parsed.citySkins.length ? parsed.citySkins : def.citySkins,
       records: Array.isArray(parsed.records) ? parsed.records : [],
       missions: Array.isArray(parsed.missions) ? parsed.missions : [],
     };

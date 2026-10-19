@@ -3,6 +3,7 @@ import { clamp, easeInCubic, easeOutBack } from '../core/math';
 import { Rng } from '../core/rng';
 import { type Canvas, type Sprites, ctx2d, makeCanvas, blit } from '../render/sprites';
 import { WORLD_W, type View } from '../render/view';
+import { SKIN_PAINTERS, type SkinPainter, shade } from './cityskins';
 
 export const BLOCKS = 5;
 export const BLOCK_W = WORLD_W / BLOCKS;
@@ -146,6 +147,25 @@ export class City {
 
   private tint = '#FFFFFF';
   private glowCol = '#FFB45A';
+  /** şehir kostümü (istanbul: cumbalı evler) */
+  private skin = 'istanbul';
+
+  setSkin(id: string): void {
+    if (id === this.skin) return;
+    this.skin = id;
+    jobs.cancel('city:');
+    this.sets.clear();
+    this.apply();
+  }
+
+  /** Mağaza önizlemesi: beş mahalle yan yana, sağlam (genişlik piksel) */
+  preview(skin: string, px: number): Canvas {
+    const k = px / WORLD_W;
+    const c = makeCanvas(Math.round(px), Math.round(SPR_H * k));
+    const g = ctx2d(c);
+    for (const b of this.blocks) g.drawImage(this.drawBlock(b, k, 0, skin), Math.round(b.i * BLOCK_W * k), 0);
+    return c;
+  }
 
   /** Atmosfer ışığı: evler çarpma (multiply) tonuyla yeniden boyanır */
   /** renk tonuna göre hazır ev görselleri (dünya geçişinde yeniden çizilmesin) */
@@ -160,26 +180,27 @@ export class City {
 
   /** Sıradaki dünyanın evlerini arka planda, ev ev hazırla (kare takılmasın) */
   prebuild(tint: string): void {
-    if (this.sets.has(tint)) return;
-    jobs.add('city:' + tint, this.prebuildJob(tint), true);
+    if (this.sets.has(this.skin + tint)) return;
+    jobs.add('city:' + this.skin + tint, this.prebuildJob(tint, this.skin), true);
   }
 
-  private *prebuildJob(tint: string): Generator<void, void, unknown> {
+  private *prebuildJob(tint: string, skin: string): Generator<void, void, unknown> {
     const k = this.view.scale * this.view.dpr;
     const set: Canvas[][] = [];
     for (const b of this.blocks) {
       const row: Canvas[] = [];
       for (let st = 0; st < 3; st++) {
-        row.push(this.toned(this.drawBlock(b, k, st), tint));
+        row.push(this.toned(this.drawBlock(b, k, st, skin), tint));
         yield;
       }
       set.push(row);
     }
-    if (this.sets.has(tint) || k !== this.view.scale * this.view.dpr) return;
-    this.sets.set(tint, set);
-    for (const key of this.sets.keys()) {
+    const key = skin + tint;
+    if (skin !== this.skin || this.sets.has(key) || k !== this.view.scale * this.view.dpr) return;
+    this.sets.set(key, set);
+    for (const old of this.sets.keys()) {
       if (this.sets.size <= 3) break;
-      if (key !== tint && key !== this.tint) this.sets.delete(key);
+      if (old !== key && old !== this.skin + this.tint) this.sets.delete(old);
     }
   }
 
@@ -189,16 +210,17 @@ export class City {
   }
 
   private setFor(tint: string): Canvas[][] {
-    if (!this.sets.has(tint)) jobs.finish('city:' + tint);
-    let set = this.sets.get(tint);
+    const key = this.skin + tint;
+    if (!this.sets.has(key)) jobs.finish('city:' + key);
+    let set = this.sets.get(key);
     if (!set) {
       const k = this.view.scale * this.view.dpr;
-      set = this.blocks.map((b) => [0, 1, 2].map((st) => this.toned(this.drawBlock(b, k, st), tint)));
-      this.sets.set(tint, set);
+      set = this.blocks.map((b) => [0, 1, 2].map((st) => this.toned(this.drawBlock(b, k, st, this.skin), tint)));
+      this.sets.set(key, set);
       // bellek: en fazla 3 ton
-      for (const key of this.sets.keys()) {
+      for (const old of this.sets.keys()) {
         if (this.sets.size <= 3) break;
-        if (key !== tint && key !== this.tint) this.sets.delete(key);
+        if (old !== key && old !== this.skin + this.tint) this.sets.delete(old);
       }
     }
     return set;
@@ -229,7 +251,7 @@ export class City {
   }
 
   /** state: 0 sağlam, 1 hasarlı, 2 enkaz */
-  private drawBlock(b: Block, k: number, state: number): Canvas {
+  private drawBlock(b: Block, k: number, state: number, skin: string): Canvas {
     const c = makeCanvas(BLOCK_W * k + 2, SPR_H * k);
     const g = ctx2d(c);
     g.scale(k, k);
@@ -277,7 +299,12 @@ export class City {
       return c;
     }
 
-    for (const h of b.houses) {
+    const painter = SKIN_PAINTERS[skin] as SkinPainter | undefined;
+    if (painter) {
+      const dr = new Rng(b.i * 61 + 7);
+      painter(g, b.i, base, state === 1 ? () => dr.chance(0.55) : () => false);
+    }
+    for (const h of painter ? [] : b.houses) {
       const top = base - h.h;
       // duvar
       const wg = g.createLinearGradient(0, top, 0, base);
@@ -528,21 +555,3 @@ export class City {
     return cy - Math.sqrt(Math.max(0, r * r - dx * dx));
   }
 }
-
-function shade(hex: string, amt: number): string {
-  const v = parseInt(hex.slice(1), 16);
-  let r = (v >> 16) & 255;
-  let g = (v >> 8) & 255;
-  let b = v & 255;
-  if (amt < 0) {
-    r *= 1 + amt;
-    g *= 1 + amt;
-    b *= 1 + amt;
-  } else {
-    r += (255 - r) * amt;
-    g += (255 - g) * amt;
-    b += (255 - b) * amt;
-  }
-  return `rgb(${r | 0},${g | 0},${b | 0})`;
-}
-

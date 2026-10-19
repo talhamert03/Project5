@@ -5,6 +5,7 @@ import { Input } from './core/input';
 import { Loop } from './core/loop';
 import { type Quality, type SaveData, defaultSave, loadSave, writeSave } from './core/storage';
 import { PENS, PEN_BY_ID, type Pen } from './game/pens';
+import { CITY_SKINS, CITY_SKIN_BY_ID } from './game/cityskins';
 import { type RunOptions, type RunResult, type SkillId, type SkillLoadout, World, type WorldEvent } from './game/world';
 import { getLang, setLang, t } from './i18n';
 import {
@@ -31,6 +32,8 @@ import {
   INTERSTITIAL_EVERY,
   type RewardPlacement,
   SHOP_BY_ID,
+  priceOf,
+  STARTER_CITY,
   STARTER_SKILL,
   type ShopItem,
   buyNative,
@@ -58,6 +61,7 @@ import {
   bootHTML,
   dailyHTML,
   giftHTML,
+  offerHTML,
   menuHTML,
   missionsHTML,
   overHTML,
@@ -75,7 +79,7 @@ import {
   worldsHTML,
 } from './ui/screens';
 
-export const VERSION = '1.10.1';
+export const VERSION = '1.11.0';
 
 type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'revive' | 'over';
 type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds' | 'shop' | 'skills';
@@ -91,6 +95,8 @@ const RES_MIN = 0.6;
 const RES_KEY = 'inkfall/res';
 const TAB_PANELS: PanelName[] = ['pens', 'workshop', 'missions', 'records'];
 const REVIVE_SECONDS = 9;
+/** başlangıç teklifi bu kadar oyundan sonra (ilk ve ikinci gösterim) */
+const OFFER_AFTER = [4, 15];
 /** ilk bu kadar oyunda geçiş reklamı gösterilmez */
 const FIRST_FREE_RUNS = 3;
 /** Boss türlerinin afiş rengi */
@@ -214,6 +220,8 @@ export class App {
     audio.setSfx(this.save.settings.sfx);
     haptics.enabled = this.save.settings.haptics;
     this.applyPenColor();
+    if (!this.save.citySkins.includes(this.save.citySkin)) this.save.citySkin = 'istanbul';
+    this.world.city.setSkin(this.save.citySkin);
     // menü arka planı: oyuncunun seçtiği (açık) dünya
     this.save.menuAtm = Math.min(this.save.menuAtm, this.save.maxAtm);
     if (this.save.menuAtm > 0) this.world.applyAtmosphere(this.save.menuAtm);
@@ -357,17 +365,37 @@ export class App {
       this.renderMenu();
       this.renderTabs();
       this.prepareThumbs();
+      // tek seferlik başlangıç teklifi (birkaç oyundan sonra, hiç almamış oyuncuya; en fazla iki kez)
+      const offerDue =
+        !this.save.starter &&
+        ((this.save.offerShown === 0 && this.save.totalRuns >= OFFER_AFTER[0]) || (this.save.offerShown === 1 && this.save.totalRuns >= OFFER_AFTER[1]));
+      if (offerDue && !this.wasBoot) {
+        window.setTimeout(() => {
+          if (this.state !== 'menu' || this.panel || this.adBusy || this.modalEl.innerHTML) return;
+          this.save.offerShown++;
+          this.commit();
+          this.modalEl.innerHTML = offerHTML(priceOf('inkfall_starter', getLang()), SHOP_BY_ID.get('inkfall_starter')!.coins);
+          void loadPrices().then(() => {
+            const pr = this.modalEl.querySelector('.offer-price b');
+            if (pr) pr.textContent = priceOf('inkfall_starter', getLang());
+          });
+          audio.whoosh();
+        }, 650);
+      }
       // günlük hediye: oturumda ilk menüye girişte kendiliğinden aç
-      if (!this.giftShown && giftState(this.save).ready) {
+      else if (!this.giftShown && giftState(this.save).ready) {
         this.giftShown = true;
         window.setTimeout(() => {
           if (this.state === 'menu' && !this.panel) this.openGift();
         }, 700);
       }
     };
+    this.wasBoot = this.state === 'boot';
     if (this.state === 'boot') enter();
     else this.wipe(enter);
   }
+
+  private wasBoot = false;
 
   private renderMenu(): void {
     const idx = this.world.atmIndex;
@@ -380,6 +408,62 @@ export class App {
         worldIndex: idx,
       }),
     );
+  }
+
+  /** Koleksiyon sekmesi: kalemler ya da şehir kostümleri */
+  private collTab: 'pens' | 'cities' = 'pens';
+  private cityThumbs = new Map<string, string>();
+
+  /** Şehir kostümü önizlemeleri: her karede bir kostüm, bitince karttaki resme oturur */
+  private prepareCityThumbs(): void {
+    const px = Math.min(720, Math.round(360 * Math.min(2, window.devicePixelRatio || 1)));
+    for (const sk of CITY_SKINS) {
+      if (this.cityThumbs.has(sk.id) || jobs.has('cthumb:' + sk.id)) continue;
+      const self = this;
+      jobs.add(
+        'cthumb:' + sk.id,
+        (function* () {
+          yield;
+          const c = self.world.city.preview(sk.id, px);
+          yield;
+          const done = (url: string) => {
+            self.cityThumbs.set(sk.id, url);
+            const img = self.panelEl.querySelector(`[data-cthumb="${sk.id}"]`) as HTMLElement | null;
+            if (img) {
+              img.style.backgroundImage = `url(${url})`;
+              img.classList.add('ready');
+            }
+          };
+          if ('toBlob' in c) (c as HTMLCanvasElement).toBlob((b) => b && done(URL.createObjectURL(b)), 'image/png');
+        })(),
+      );
+    }
+  }
+
+  private buyCity(id: string): void {
+    const sk = CITY_SKIN_BY_ID.get(id);
+    if (!sk || this.save.citySkins.includes(id)) return;
+    if (this.save.coins < sk.price) {
+      audio.inkEmpty();
+      haptics.error();
+      // altın yetmiyorsa mağaza
+      this.openPanel('shop');
+      return;
+    }
+    this.save.coins -= sk.price;
+    this.save.citySkins.push(id);
+    this.equipCity(id);
+    audio.purchase();
+    haptics.success();
+    this.renderTabs();
+  }
+
+  private equipCity(id: string): void {
+    if (!this.save.citySkins.includes(id)) return;
+    this.save.citySkin = id;
+    this.commit();
+    this.world.city.setSkin(id);
+    this.renderPanel();
   }
 
   /** Dünya önizlemeleri arka planda, kare başına birkaç ms'lik adımlarla hazırlanır */
@@ -431,7 +515,8 @@ export class App {
         html = workshopHTML(s);
         break;
       case 'pens':
-        html = pensHTML(s);
+        html = pensHTML(s, this.collTab, this.cityThumbs);
+        if (this.collTab === 'cities') this.prepareCityThumbs();
         break;
       case 'records':
         html = recordsHTML(s);
@@ -985,11 +1070,13 @@ export class App {
     if (item.kind === 'starter') {
       this.save.starter = true;
       if (!this.save.skills.includes(STARTER_SKILL)) this.save.skills.push(STARTER_SKILL);
+      if (!this.save.citySkins.includes(STARTER_CITY)) this.save.citySkins.push(STARTER_CITY);
     }
     if (item.kind === 'noads') this.save.noAds = true;
     this.commit();
     audio.purchase();
     haptics.success();
+    if (this.modalEl.querySelector('#offer-modal')) this.closeModal();
     if (item.kind === 'noads') this.toast('noads', t('toast.noAdsOn'));
     else this.toast('coin', t('toast.bought', { n: fmt(item.coins) }));
     this.refreshCoins();
@@ -1008,6 +1095,7 @@ export class App {
       if (it?.kind === 'starter' && !this.save.starter) {
         this.save.starter = true;
         if (!this.save.skills.includes(STARTER_SKILL)) this.save.skills.push(STARTER_SKILL);
+        if (!this.save.citySkins.includes(STARTER_CITY)) this.save.citySkins.push(STARTER_CITY);
         n++;
       }
     }
@@ -1421,6 +1509,16 @@ export class App {
         break;
       case 'equip':
         this.equipPen(el.dataset.id!);
+        break;
+      case 'collTab':
+        this.collTab = el.dataset.id === 'cities' ? 'cities' : 'pens';
+        this.renderPanel();
+        break;
+      case 'buyCity':
+        this.buyCity(el.dataset.id!);
+        break;
+      case 'equipCity':
+        this.equipCity(el.dataset.id!);
         break;
       case 'skipTut':
         this.save.tutorialDone = true;

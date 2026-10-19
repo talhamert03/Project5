@@ -6277,3 +6277,261 @@ svg {
 .banner .big.long {
   font-size: clamp(26px, 8.2vw, 46px);
 }
+
+/* ── koleksiyon: kalemler / şehirler sekmesi ── */
+.coll-seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin: 12px 0 14px;
+  border-radius: 16px;
+  background: rgba(8, 11, 40, 0.7);
+  border: 1px solid rgba(150, 165, 255, 0.14);
+}
+
+.coll-seg button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 38px;
+  border-radius: 12px;
+  font: inherit;
+  font-weight: 800;
+  font-size: 14px;
+  color: rgba(220, 228, 255, 0.6);
+  background: transparent;
+  border: 0;
+}
+
+.coll-seg button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.coll-seg button.on {
+  color: #071026;
+  background: var(--pac, #3ef0e0);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.25), rgba(0, 0, 0, 0.12));
+  box-shadow: 0 0 16px rgba(62, 240, 224, 0.35);
+}
+
+/* ── şehir kostümü kartları ── */
+.city-list {
+  display: grid;
+  gap: 12px;
+}
+
+.city-card {
+  position: relative;
+  border-radius: 22px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(26, 32, 96, 0.82), rgba(11, 15, 50, 0.9));
+  border: 1.5px solid rgba(150, 165, 255, 0.15);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  animation: menuCardIn 0.5s var(--smooth) both;
+  animation-delay: calc(var(--d, 0) * 55ms);
+}
+
+.city-card.equipped {
+  border-color: var(--pc);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--pc) 35%, transparent), 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* gece göğü + ufuk parıltısı; önizleme hazır olunca alttan yükselir */
+.city-view {
+  height: 118px;
+  background-color: #0a0e30;
+  background-image: none;
+  background-repeat: no-repeat;
+  background-position: center bottom;
+  background-size: 100% auto;
+  position: relative;
+}
+
+.city-view::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(1.2px 1.2px at 14% 22%, rgba(255, 255, 255, 0.8), transparent),
+    radial-gradient(1px 1px at 64% 14%, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(1.3px 1.3px at 86% 34%, rgba(255, 255, 255, 0.6), transparent),
+    radial-gradient(120% 70% at 50% 100%, color-mix(in srgb, var(--pc) 30%, transparent), transparent 70%);
+  z-index: -0;
+  pointer-events: none;
+}
+
+.city-view.ready {
+  animation: cityRise 0.6s var(--smooth) both;
+}
+
+@keyframes cityRise {
+  from {
+    background-position: center 140%;
+    opacity: 0.2;
+  }
+  to {
+    background-position: center bottom;
+    opacity: 1;
+  }
+}
+
+.city-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 12px;
+}
+
+.city-info > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.city-info h4 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.city-info p {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: rgba(214, 222, 255, 0.65);
+}
+
+.city-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #ffc857;
+}
+
+.city-tag svg {
+  width: 13px;
+  height: 13px;
+}
+
+.city-info .buy {
+  flex: none;
+  min-width: 96px;
+}
+
+/* ── tek seferlik başlangıç teklifi ── */
+.offer-card {
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(255, 200, 87, 0.28), transparent 65%),
+    radial-gradient(90% 60% at 50% 100%, rgba(62, 240, 224, 0.16), transparent 70%),
+    linear-gradient(180deg, #1b2070, #0b0f36);
+  border: 1.5px solid rgba(255, 200, 87, 0.55);
+}
+
+.offer-flag {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #2a1600;
+  background: linear-gradient(180deg, #ffe08a, #ffb23d);
+  box-shadow: 0 0 18px rgba(255, 190, 70, 0.55);
+  animation: pipOn 0.5s var(--pop) 0.2s both;
+}
+
+.offer-hero {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  margin: 14px auto 6px;
+  border-radius: 28px;
+  display: grid;
+  place-items: center;
+  font-size: 48px;
+  color: #ffd36b;
+  background: radial-gradient(circle at 50% 35%, rgba(255, 210, 110, 0.35), rgba(30, 24, 80, 0.9) 70%);
+  border: 1.5px solid rgba(255, 210, 110, 0.5);
+  box-shadow: 0 0 34px rgba(255, 190, 70, 0.4);
+  animation: offerFloat 3s ease-in-out infinite;
+}
+
+.offer-val {
+  position: absolute;
+  right: -26px;
+  top: -10px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 900;
+  color: #fff;
+  background: #ff4f8b;
+  transform: rotate(10deg);
+  box-shadow: 0 4px 12px rgba(255, 79, 139, 0.5);
+}
+
+@keyframes offerFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.offer-rows {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 16px;
+  text-align: left;
+}
+
+.offer-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(10, 14, 50, 0.7);
+  border: 1px solid rgba(150, 165, 255, 0.16);
+  animation: menuCardIn 0.45s var(--smooth) both;
+  animation-delay: calc(0.25s + var(--d, 0) * 90ms);
+}
+
+.offer-row b {
+  display: block;
+  font-size: 15px;
+}
+
+.offer-row small {
+  font-size: 12px;
+  color: rgba(214, 222, 255, 0.65);
+}
+
+.or-ic {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 21px;
+  color: #ffd36b;
+  background: rgba(255, 200, 87, 0.14);
+}
+
+.offer-buy {
+  width: 100%;
+}
+
+.offer-price b {
+  font-size: 22px;
+}
