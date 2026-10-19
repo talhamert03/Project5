@@ -41,8 +41,11 @@ Her bölüm sonunda sahne tamburu döner, arkasından yeni bir dünya çıkar: G
 ★ ŞEHRİN GECESİ
 Ebru desenli bir gökyüzü, Boğaz Köprüsü'nün ışıkları, apartmanlar ve cumbalı evler. Hicaz makamında üretken müzik ve her sekmede yükselen melodik sesler.
 
+★ ŞEHRİNİ GİYDİR
+İstanbul'un cumbalı evleriyle başla; şehrini Tokyo'nun neon sokaklarına, Paris'in mansart çatılarına, Los Angeles'ın palmiyelerine, New York'un gökdelenlerine, Dubai'nin cam kulelerine ya da Ay Kolonisi'nin cam kubbelerine dönüştür.
+
 ★ ADİL VE ÜCRETSİZ
-Zorunlu reklam yok. Yalnızca istersen video izleyip devam et, altınlarını ikiye katla. Reklamları tamamen kaldırmak için Reklamsız paketi.
+Oyun tamamen ücretsiz. İstersen video izleyip kaldığın yerden devam et ya da bedava altın kazan. Birkaç oyunda bir kısa bir reklam çıkar; Reklamsız paketle tamamen kalkar.
 
 ## English (en-US)
 
@@ -85,8 +88,11 @@ Calligraphy ranks from Apprentice to Legend. A daily challenge where everyone pl
 ★ THE CITY AT NIGHT
 A marbled ebru sky, the lights of the Bosphorus Bridge, apartment blocks and wooden bay-window houses. Generative music in the Hicaz maqam, with melodic notes that climb with every bounce.
 
+★ DRESS YOUR CITY
+Start by guarding Istanbul's bay-window houses, then turn your city into the neon streets of Tokyo, the mansard roofs of Paris, the palm trees of Los Angeles, the skyscrapers of New York, the glass towers of Dubai or the glass domes of a Moon Colony.
+
 ★ FAIR AND FREE
-No forced ads. Watch a video only when you want to continue or double your gold. Remove ads entirely with the No Ads pack.
+The game is completely free. Watch a video only when you want to continue your run or earn free gold. A short ad appears every few games; the No Ads pack removes ads entirely.
 
 ## Kategori ve etiketler
 
@@ -95,6 +101,12 @@ No forced ads. Watch a video only when you want to continue or double your gold.
 - Reklam içerir: Evet (isteğe bağlı ödüllü videolar ve her 5 oyunda bir geçiş reklamı; Reklamsız paketle kalkar)
 - Uygulama içi satın alma: Evet
 - İletişim e-postası: (Play Console'da kendi adresini gir)
+
+## Sürüm notları (1.11.0)
+
+**TR:** Altı yeni şehir kostümü: Tokyo, Paris, Los Angeles, New York, Dubai ve Ay Kolonisi. Kalemler menüsü Koleksiyon oldu. Ölünce video izleyip devam etme, kartları videoyla yenileme ve düşük donanımlı cihazlarda daha akıcı açılış.
+
+**EN:** Six new city costumes: Tokyo, Paris, Los Angeles, New York, Dubai and Moon Colony. The Pens menu is now the Collection. Watch a video to continue after a fall, reroll power cards with a video, and smoother first launch on low-end devices.
 
 ## Sürüm notları (1.9.0)
 
