@@ -29,7 +29,7 @@
         <!-- AdMob uygulama kimliği. YAYIN ÖNCESİ kendi AdMob kimliğinle değiştir (şu an Google'ın test kimliği). -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713"/>
+            android:value="ca-app-pub-1770141144744598~7882362934"/>
 
         <provider
             android:name="androidx.core.content.FileProvider"

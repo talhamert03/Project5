@@ -87,6 +87,7 @@ extend('tr', {
   'up.sub': 'Dalga {n} için hazırlan',
   'up.subStart': 'Hattat başlangıcı: bir güçle başla',
   'up.reroll': 'Yenile · {n}',
+  'up.rerollVideo': 'Video izle · kartları yenile',
   'up.level': 'Sv. {n}',
   'up.new': 'YENİ',
 
@@ -355,6 +356,7 @@ extend('en', {
   'up.sub': 'Get ready for wave {n}',
   'up.subStart': 'Calligrapher start: begin with a power',
   'up.reroll': 'Reroll · {n}',
+  'up.rerollVideo': 'Watch a video · new cards',
   'up.level': 'Lv. {n}',
   'up.new': 'NEW',
 

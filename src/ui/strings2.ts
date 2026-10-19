@@ -71,7 +71,6 @@ extend('tr', {
   'revive.free': 'DEVAM ET · REKLAMSIZ',
 
   // oyun sonu / hediye
-  'over.double': 'Video izle, altınları ikiye katla (+{n})',
   'gift.claim2x': '2 KAT AL · {n}',
 
   // demo reklam
@@ -272,7 +271,6 @@ extend('en', {
   'revive.video': 'WATCH VIDEO · CONTINUE',
   'revive.free': 'CONTINUE · AD-FREE',
 
-  'over.double': 'Watch a video to double your gold (+{n})',
   'gift.claim2x': 'CLAIM 2X · {n}',
 
   'ad.tag': 'AD',

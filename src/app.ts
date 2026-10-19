@@ -27,7 +27,9 @@ import {
 import {
   FREE_COINS,
   FREE_COINS_PER_DAY,
+  INTERSTITIAL_AD_ID,
   INTERSTITIAL_EVERY,
+  type RewardPlacement,
   SHOP_BY_ID,
   STARTER_SKILL,
   type ShopItem,
@@ -73,7 +75,7 @@ import {
   worldsHTML,
 } from './ui/screens';
 
-export const VERSION = '1.9.1';
+export const VERSION = '1.10.0';
 
 type State = 'boot' | 'menu' | 'game' | 'paused' | 'upgrade' | 'revive' | 'over';
 type PanelName = 'daily' | 'missions' | 'workshop' | 'pens' | 'records' | 'settings' | 'worlds' | 'shop' | 'skills';
@@ -89,6 +91,8 @@ const RES_MIN = 0.6;
 const RES_KEY = 'inkfall/res';
 const TAB_PANELS: PanelName[] = ['pens', 'workshop', 'missions', 'records'];
 const REVIVE_SECONDS = 9;
+/** ilk bu kadar oyunda geçiş reklamı gösterilmez */
+const FIRST_FREE_RUNS = 3;
 /** Boss türlerinin afiş rengi */
 const BOSS_UI_COLORS = ['var(--crimson)', '#7FFFE0', '#8FE8FF', '#B066FF', '#FFB030'];
 
@@ -138,14 +142,14 @@ export class App {
   private splashHold = true;
   private bootFrames = 0;
   private reviveCount = 0;
-  private lastRunCoins = 0;
-  private doubled = false;
 
   state: State = 'boot';
   private panel: PanelName | null = null;
   private runDaily = false;
   private timers: Timer[] = [];
   private upgradeStart = false;
+  /** bu kart ekranında videoyla yenileme kullanıldı mı (her seçimden sonra sıfırlanır) */
+  private videoRerolled = false;
   /** ileri bir dünyadan başlarken kalan hazırlık kartı seçimleri ve toplamı */
   private startPicks = 0;
   private startPickTotal = 0;
@@ -606,7 +610,7 @@ export class App {
 
   private async claimGift(btn: HTMLElement, double = false): Promise<void> {
     if (double) {
-      if (!giftState(this.save).ready || !(await this.watchAd())) return;
+      if (!giftState(this.save).ready || !(await this.watchAd('coins'))) return;
     }
     let reward = claimGift(this.save);
     if (!reward) return;
@@ -686,6 +690,7 @@ export class App {
     this.modalEl.innerHTML = '';
     this.setTabs(false);
     this.runDaily = daily;
+    this.videoRerolled = false;
     this.timers = [];
     this.picking = false;
     const d = dailyInfo();
@@ -736,7 +741,7 @@ export class App {
             n: this.startPickTotal,
           })
         : t('up.subStart');
-    this.setScreen(upgradeHTML(ids, this.world.levels, sub, this.world.rerolls));
+    this.setScreen(upgradeHTML(ids, this.world.levels, sub, this.world.rerolls, !this.videoRerolled, this.save.noAds));
     audio.whoosh();
   }
 
@@ -752,6 +757,7 @@ export class App {
     haptics.medium();
     window.setTimeout(() => {
       if (this.state !== 'upgrade') return;
+      this.videoRerolled = false;
       this.world.applyUpgrade(id);
       if (this.upgradeStart && this.startPicks > 0) {
         // sıradaki hazırlık kartı
@@ -768,9 +774,15 @@ export class App {
     }, 480);
   }
 
-  private reroll(): void {
-    if (this.world.rerolls <= 0 || this.picking) return;
-    this.world.rerolls--;
+  private async reroll(): Promise<void> {
+    if (this.picking || this.state !== 'upgrade') return;
+    if (this.world.rerolls > 0) this.world.rerolls--;
+    else {
+      // hak bittiyse: video izle, kartları yenile (kart ekranı başına bir kez)
+      if (this.videoRerolled) return;
+      if (!(await this.watchAd('coins')) || this.state !== 'upgrade' || this.picking) return;
+      this.videoRerolled = true;
+    }
     const ids = this.upgradeStart ? this.world.offerStart() : this.world.offer();
     this.showUpgrade(ids, this.upgradeStart);
   }
@@ -843,7 +855,7 @@ export class App {
     if (this.state !== 'revive' || this.adBusy) return;
     // video oynarken geri sayım durur
     this.timers = [];
-    const ok = await this.watchAd();
+    const ok = await this.watchAd('revive');
     if (this.state !== 'revive') return;
     if (!ok) {
       this.offerRevive(this.reviveCount);
@@ -857,7 +869,7 @@ export class App {
   // ───────────────────────── REKLAM & MAĞAZA ─────────────────────────
 
   /** Ödüllü video: reklamsız pakette ödül anında, yerelde AdMob, web'de demo */
-  private async watchAd(): Promise<boolean> {
+  private async watchAd(placement: RewardPlacement): Promise<boolean> {
     if (this.adBusy) return false;
     if (this.save.noAds) {
       this.toast('noads', t('toast.noAds'));
@@ -868,13 +880,20 @@ export class App {
       if (isNative) {
         this.toast('video', t('toast.adLoading'));
         audio.suspend();
-        const r = await showRewardedAd();
+        const r = await showRewardedAd(placement);
         audio.resume();
-        if (r === 'rewarded') return true;
+        if (r === 'rewarded') {
+          // ödüllü video izleyen oyuncuya o tur geçiş reklamı çıkmaz: sayaç sıfırlanır
+          this.save.adRuns = 0;
+          this.commit();
+          return true;
+        }
         this.toast('video', r === 'unavailable' ? t('toast.adFail') : t('toast.adSkip'));
         return false;
       }
-      return await this.demoAd();
+      const ok = await this.demoAd();
+      if (ok) this.save.adRuns = 0;
+      return ok;
     } finally {
       this.adBusy = false;
     }
@@ -908,7 +927,8 @@ export class App {
 
   /** Bir oyun bitti: sayaç artar; sıra geldiyse true (Reklamsız pakette ve eğitimde hiç) */
   private countGame(): boolean {
-    if (this.save.noAds || this.world.opts?.tutorial) return false;
+    // reklamsız pakette, eğitimde ve ilk 3 oyunda geçiş reklamı yok
+    if (this.save.noAds || this.world.opts?.tutorial || this.save.totalRuns < FIRST_FREE_RUNS) return false;
     this.save.adRuns = (this.save.adRuns ?? 0) + 1;
     this.commit();
     return this.save.adRuns >= INTERSTITIAL_EVERY;
@@ -918,6 +938,7 @@ export class App {
   private async showInterstitial(): Promise<void> {
     if (this.save.noAds || this.adBusy || (this.save.adRuns ?? 0) < INTERSTITIAL_EVERY) return;
     this.save.adRuns = 0;
+    if (isNative && !INTERSTITIAL_AD_ID) return;
     this.commit();
     this.adBusy = true;
     this.input.cancel();
@@ -1002,7 +1023,7 @@ export class App {
       haptics.error();
       return;
     }
-    if (!(await this.watchAd())) return;
+    if (!(await this.watchAd('coins'))) return;
     this.save.adCoins.n++;
     this.save.coins += FREE_COINS;
     this.commit();
@@ -1010,22 +1031,6 @@ export class App {
     haptics.success();
     this.toast('coin', t('toast.bought', { n: fmt(FREE_COINS) }));
     this.refreshCoins();
-  }
-
-  /** Oyun sonu: video izle, kazanılan altınlar iki katına çıksın */
-  private async doubleCoins(btn: HTMLElement): Promise<void> {
-    if (this.doubled || this.lastRunCoins <= 0 || this.state !== 'over') return;
-    if (!(await this.watchAd())) return;
-    if (this.doubled) return;
-    this.doubled = true;
-    this.save.coins += this.lastRunCoins;
-    this.commit();
-    audio.purchase();
-    haptics.success();
-    btn.classList.add('done');
-    btn.setAttribute('disabled', '');
-    const coinEl = this.screenEl.querySelector('#o-coins') as HTMLElement | null;
-    if (coinEl) this.countUps.push({ el: coinEl, from: this.lastRunCoins, to: this.lastRunCoins * 2, t: 0, dur: 0.9, tick: true });
   }
 
   /** Açık panel ve menüdeki altın sayısını tazele */
@@ -1167,9 +1172,7 @@ export class App {
     this.bannerEl.innerHTML = '';
     void keepAwake(false);
     const today = this.save.daily.date === dailyInfo().key ? this.save.daily.best : 0;
-    this.lastRunCoins = st.coins;
-    this.doubled = false;
-    this.setScreen(overHTML(r, st, this.save.best, today, true, this.save.noAds));
+    this.setScreen(overHTML(r, st, this.save.best, today));
     // her 5 oyunda bir: skor ekranı görüldükten kısa süre sonra zorunlu geçiş reklamı
     if (this.countGame()) this.after(1.2, () => void this.showInterstitial());
     const scoreEl = this.screenEl.querySelector('#o-score') as HTMLElement | null;
@@ -1348,9 +1351,6 @@ export class App {
       case 'freeCoins':
         void this.freeCoins();
         break;
-      case 'double':
-        void this.doubleCoins(el);
-        break;
       case 'skillHint':
         if (this.state === 'game') {
           this.world.showShapeHint(el.dataset.id as SkillId);
@@ -1399,7 +1399,7 @@ export class App {
         this.pick(el.dataset.id!, el);
         break;
       case 'reroll':
-        this.reroll();
+        void this.reroll();
         break;
       case 'again':
         this.play(this.runDaily);

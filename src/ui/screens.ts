@@ -548,7 +548,7 @@ function upgradeDesc(id: string, nextLevel: number): string {
   return t(`upg.${id}.d`, { v });
 }
 
-export function upgradeHTML(ids: string[], levels: Record<string, number>, sub: string, rerolls: number): string {
+export function upgradeHTML(ids: string[], levels: Record<string, number>, sub: string, rerolls: number, videoReroll = false, noAds = false): string {
   const cards = ids
     .map((id, i) => {
       const def = UPGRADE_BY_ID.get(id)!;
@@ -570,7 +570,13 @@ export function upgradeHTML(ids: string[], levels: Record<string, number>, sub: 
       <h2>${t('up.title')}</h2>
       <p class="sub">${sub}</p>
       <div class="cards">${cards}</div>
-      ${rerolls > 0 ? `<div class="reroll-row"><button class="btn-ghost" data-a="reroll">${icon('reroll')}${t('up.reroll', { n: rerolls })}</button></div>` : ''}
+      ${
+        rerolls > 0
+          ? `<div class="reroll-row"><button class="btn-ghost" data-a="reroll">${icon('reroll')}${t('up.reroll', { n: rerolls })}</button></div>`
+          : videoReroll
+            ? `<div class="reroll-row"><button class="btn-ghost video" data-a="reroll">${icon(noAds ? 'reroll' : 'video')}${t('up.rerollVideo')}</button></div>`
+            : ''
+      }
     </section>`;
 }
 
@@ -593,7 +599,7 @@ export function pauseHTML(save: SaveData): string {
     </section>`;
 }
 
-export function overHTML(r: RunResult, st: Settlement, best: number, dailyBest: number, canDouble = false, noAds = false): string {
+export function overHTML(r: RunResult, st: Settlement, best: number, dailyBest: number): string {
   const p = rankProgress(best);
   const rankUp = st.rankAfter > st.rankBefore;
   const rows: string[] = [];
@@ -639,11 +645,6 @@ export function overHTML(r: RunResult, st: Settlement, best: number, dailyBest: 
       </div>
       </div>
       <div class="over-foot">
-      ${
-        canDouble && st.coins > 0
-          ? `<button class="btn-video double" data-a="double">${icon(noAds ? 'x2' : 'video')}<span>${t('over.double', { n: fmt(st.coins) })}</span></button>`
-          : ''
-      }
       <div class="over-actions">
         <button class="btn-play" data-a="again">${icon('restart')}${t('over.again')}</button>
         <button class="btn-ghost" data-a="menu" aria-label="${t('over.menu')}">${icon('home')}</button>

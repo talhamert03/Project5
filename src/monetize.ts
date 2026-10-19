@@ -12,16 +12,27 @@ import { isNative } from './platform';
  */
 interface AdsConfig {
   testing?: boolean;
+  /** ödüllü: ölünce devam (inkfall_devam) */
   rewarded?: string;
+  /** ödüllü: altın, günlük hediye x2, kart yenileme (inkfall_altin) */
+  rewardedCoins?: string;
+  /** geçiş reklamı (inkfall_gecis); boşsa geçiş reklamı gösterilmez */
   interstitial?: string;
   interstitialEvery?: number;
 }
 const ADS: AdsConfig = (window as unknown as { INKFALL_ADS?: AdsConfig }).INKFALL_ADS ?? {};
 export const ADS_TESTING = ADS.testing !== false;
-/** Ödüllü video birimi (varsayılan: Google'ın resmi test birimi) */
-export const REWARDED_AD_ID = ADS.rewarded || 'ca-app-pub-3940256099942544/5224354917';
-/** Geçiş (araya giren) reklam birimi (varsayılan: test birimi) */
-export const INTERSTITIAL_AD_ID = ADS.interstitial || 'ca-app-pub-3940256099942544/1033173712';
+const TEST_REWARDED = 'ca-app-pub-3940256099942544/5224354917';
+const TEST_INTERSTITIAL = 'ca-app-pub-3940256099942544/1033173712';
+/** Ödüllü video yerleşimi: devam (ölünce) ya da altın (diğer tüm ödüller) */
+export type RewardPlacement = 'revive' | 'coins';
+/** Ödüllü video birimleri (test modunda Google'ın resmi test birimi) */
+const REWARDED_AD_IDS: Record<RewardPlacement, string> = {
+  revive: ADS_TESTING ? TEST_REWARDED : ADS.rewarded || TEST_REWARDED,
+  coins: ADS_TESTING ? TEST_REWARDED : ADS.rewardedCoins || ADS.rewarded || TEST_REWARDED,
+};
+/** Geçiş (araya giren) reklam birimi; gerçek modda kimlik yoksa geçiş reklamı kapalı */
+export const INTERSTITIAL_AD_ID = ADS_TESTING ? TEST_INTERSTITIAL : ADS.interstitial || '';
 /** Kaç oyunda bir zorunlu geçiş reklamı (Reklamsız pakette hiç çıkmaz) */
 export const INTERSTITIAL_EVERY = Math.max(1, Math.round(ADS.interstitialEvery ?? 5));
 
@@ -112,12 +123,12 @@ function ensureBilling(): Promise<void> {
 export type AdResult = 'rewarded' | 'skipped' | 'unavailable';
 
 /** Yerelde ödüllü video: o an yüklenir ve gösterilir. Ödül yalnızca sonuna kadar izlenirse. */
-export async function showRewardedAd(): Promise<AdResult> {
+export async function showRewardedAd(placement: RewardPlacement): Promise<AdResult> {
   if (!isNative) return 'unavailable';
   await ensureAds();
   if (!adsReady) return 'unavailable';
   try {
-    await AdMob.prepareRewardVideoAd({ adId: REWARDED_AD_ID, isTesting: ADS_TESTING, immersiveMode: true });
+    await AdMob.prepareRewardVideoAd({ adId: REWARDED_AD_IDS[placement], isTesting: ADS_TESTING, immersiveMode: true });
   } catch {
     return 'unavailable';
   }
@@ -141,7 +152,7 @@ export async function showRewardedAd(): Promise<AdResult> {
 
 /** Geçiş reklamı: o an yüklenir ve gösterilir (oyun sırasında önceden yükleme yok). Kapatılınca döner. */
 export async function showInterstitialAd(): Promise<boolean> {
-  if (!isNative) return false;
+  if (!isNative || !INTERSTITIAL_AD_ID) return false;
   await ensureAds();
   if (!adsReady) return false;
   try {
