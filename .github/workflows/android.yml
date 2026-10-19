@@ -55,7 +55,13 @@ jobs:
           name: inkfall-apk
           path: Inkfall-*.apk
 
-      # Android Studio paketi: depodan ayrı bir klasörde, node_modules olmadan derlenebildiği denenir
+      # Android Studio paketi: depodan ayrı bir klasörde, node_modules olmadan derlenebildiği denenir.
+      # Güncel Android Studio Gradle'ı kendi Java 25'iyle çalıştırır: paket de Java 25 ile denenir.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+
       - name: Android Studio paketi (derleme denemesi)
         run: |
           scripts/make-studio-package.sh "$RUNNER_TEMP/studio" "$MK_VERSION_NAME"
